@@ -1,3 +1,7 @@
+---
+name: cdp
+description: Standards and guidelines for Chrome DevTools Protocol automation.
+---
 # Skill: CDP Automation
 
 ## Chrome DevTools Protocol (CDP) Usage in Electron
