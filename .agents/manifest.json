@@ -1,0 +1,40 @@
+{
+  "agents": [
+    {
+      "id": "orchestrator",
+      "name": "Orchestrator",
+      "description": "Project Manager and Planner. Coordinates between other agents and ensures project goals are met.",
+      "instructions": "agents/orchestrator.md"
+    },
+    {
+      "id": "ba",
+      "name": "BA",
+      "description": "Business Analyst. Clarifies user requirements and manages process documentation.",
+      "instructions": "agents/ba.md"
+    },
+    {
+      "id": "developer",
+      "name": "Developer",
+      "description": "Implementation Specialist. Responsible for writing and maintaining Node.js and injection payload code.",
+      "instructions": "agents/developer.md"
+    },
+    {
+      "id": "tech-leader",
+      "name": "Tech Leader",
+      "description": "Architect and Code Reviewer. Ensures safety, performance, and adherence to technical standards.",
+      "instructions": "agents/tech-leader.md"
+    },
+    {
+      "id": "tester",
+      "name": "Tester",
+      "description": "Quality Assurance. Validates implementations and handles edge case testing.",
+      "instructions": "agents/tester.md"
+    },
+    {
+      "id": "docs-agent",
+      "name": "Docs Agent",
+      "description": "Documentation Specialist. Maintains README.md, tutorial.md, and other project docs.",
+      "instructions": "agents/docs-agent.md"
+    }
+  ]
+}
