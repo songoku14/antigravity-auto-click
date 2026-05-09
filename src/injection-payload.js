@@ -7,7 +7,7 @@
  * IMPORTANT: Only targets dialog/notification containers, NOT editor content.
  */
 
-const INJECTION_VERSION = 6;
+const INJECTION_VERSION = 7;
 
 /**
  * Trả về string JavaScript sẽ được inject vào DOM qua CDP Runtime.evaluate

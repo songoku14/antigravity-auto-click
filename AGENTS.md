@@ -1,18 +1,18 @@
-# Antigravity Agent Configuration
+# Cấu hình Antigravity Agents
 
-This file defines the AI agents for the Antigravity Auto-Click project. These agents collaborate to maintain and improve the automation system.
+Danh sách các AI Agent cộng tác trong dự án.
 
 ## 🤖 Agents
-- **@Orchestrator**: [.agents/agents/orchestrator.md] - Project manager and planner.
-- **@BA**: [.agents/agents/ba.md] - Business Analyst for clarifying requirements.
-- **@Developer**: [.agents/agents/developer.md] - Implementation and code maintenance.
-- **@Tech-Leader**: [.agents/agents/tech-leader.md] - Architecture review and code safety.
-- **@Tester**: [.agents/agents/tester.md] - Quality assurance and validation.
-- **@Docs-Agent**: [.agents/agents/docs-agent.md] - Documentation maintenance.
+- **@Orchestrator**: [.agents/agents/orchestrator.md] - Quản lý dự án và lập kế hoạch.
+- **@BA**: [.agents/agents/ba.md] - Phân tích yêu cầu nghiệp vụ.
+- **@Developer**: [.agents/agents/developer.md] - Triển khai và bảo trì mã nguồn.
+- **@Tech-Leader**: [.agents/agents/tech-leader.md] - Duyệt kiến trúc và an toàn mã nguồn.
+- **@Tester**: [.agents/agents/tester.md] - Kiểm thử và xác nhận chất lượng.
+- **@Docs-Agent**: [.agents/agents/docs-agent.md] - Duy trì tài liệu.
 
-## 📜 Standard Rules
-- [General Principles & Code Standards](.agents/rules/RULES.md)
-- [Project Context & Architecture](.agents/context/project-context.md)
+## 📜 Quy tắc Chuẩn
+- [Nguyên tắc Chung & Tiêu chuẩn Code](.agents/rules/RULES.md)
+- [Ngữ cảnh Dự án & Kiến trúc](.agents/context/project-context.md)
 
 ---
-*Note: Type @ followed by the agent name in the chat to mention them.*
+*Ghi chú: Gõ @ kèm tên agent để triệu hồi.*

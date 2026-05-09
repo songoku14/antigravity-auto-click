@@ -36,6 +36,7 @@ show_menu() {
     echo "  5) 📊 Xem chi tiết trạng thái hệ thống"
     echo "  6) 📄 Xem log hoạt động theo thời gian thực"
     echo "  7) 🧪 Kiểm tra hoạt động (Test Script)"
+    echo "  8) 🔄 Khởi động lại Antigravity (Chế độ Debug)"
     echo "  0) 🚪 Thoát Menu"
     echo ""
 }
@@ -80,6 +81,17 @@ while true; do
         7)
             echo "Đang gửi lệnh test đến Antigravity..."
             node "$SCRIPT_DIR/trigger-test.js"
+            read -p "Nhấn Enter để tiếp tục..."
+            ;;
+        8)
+            echo "Đang đóng Antigravity..."
+            pkill -f "Antigravity.app/Contents/MacOS/Electron" || pkill -f "Antigravity" || true
+            sleep 1
+            echo 'open -a Antigravity --args --remote-debugging-port=9222' | pbcopy
+            echo -e "\033[32m✅ Lệnh khởi động đã được copy vào Clipboard!\033[0m"
+            echo "Đang mở Terminal..."
+            open -a Terminal
+            echo "👉 Vui lòng nhấn Cmd+V (Paste) và Enter trong Terminal để mở lại Antigravity."
             read -p "Nhấn Enter để tiếp tục..."
             ;;
         0)

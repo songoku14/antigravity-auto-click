@@ -14,7 +14,7 @@ function activate(context) {
 
     outputChannel = vscode.window.createOutputChannel('Antigravity Auto-Retry');
     
-    // Create status bar item
+    // Create a single status bar item for a seamless look
     statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
     statusBarItem.command = 'antigravity-auto-retry.showMenu';
     context.subscriptions.push(statusBarItem);
@@ -27,21 +27,21 @@ function activate(context) {
     context.subscriptions.push(vscode.commands.registerCommand('antigravity-auto-retry.start', startDaemon));
     context.subscriptions.push(vscode.commands.registerCommand('antigravity-auto-retry.stop', stopDaemon));
     context.subscriptions.push(vscode.commands.registerCommand('antigravity-auto-retry.test', runTest));
+    context.subscriptions.push(vscode.commands.registerCommand('antigravity-auto-retry.restartIDE', restartIDE));
 
     // Auto-start (Optional: could be a setting)
     startDaemon();
 }
 
 function updateStatusBar(running) {
-    if (running) {
-        statusBarItem.text = `$(sync~spin) Auto-Retry: ON`;
-        statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.prominentBackground');
-        statusBarItem.tooltip = 'Antigravity Auto-Retry is RUNNING. Click to manage.';
-    } else {
-        statusBarItem.text = `$(circle-slash) Auto-Retry: OFF`;
-        statusBarItem.backgroundColor = undefined;
-        statusBarItem.tooltip = 'Antigravity Auto-Retry is STOPPED. Click to start.';
-    }
+    const icon = running ? '$(check)' : '$(circle-slash)';
+    const statusText = running ? 'RUNNING' : 'STOPPED';
+    
+    statusBarItem.text = `${icon} Auto-Retry`;
+    statusBarItem.tooltip = `Antigravity Auto-Retry: ${statusText}`;
+    
+    // Remove custom coloring to keep it seamless with the IDE theme
+    statusBarItem.color = undefined; 
 }
 
 async function showMenu() {
@@ -61,15 +61,21 @@ async function showMenu() {
     }
 
     items.push({
-        label: '$(terminal) View Logs',
-        description: 'Show output channel',
-        action: () => outputChannel.show()
-    });
-
-    items.push({
         label: '$(beaker) Run Connection Test',
         description: 'Simulate high traffic dialog',
         command: 'antigravity-auto-retry.test'
+    });
+
+    items.push({
+        label: '$(extensions) Reload Extension (Apply Updates)',
+        description: 'Tải lại giao diện để cập nhật code Extension',
+        action: () => vscode.commands.executeCommand('workbench.action.reloadWindow')
+    });
+
+    items.push({
+        label: '$(sync) Restart Antigravity (Debug Mode)',
+        description: 'Kill IDE, copy command & open Terminal',
+        command: 'antigravity-auto-retry.restartIDE'
     });
 
     const selected = await vscode.window.showQuickPick(items, {
@@ -128,18 +134,47 @@ function stopDaemon() {
     vscode.window.showInformationMessage('Antigravity Auto-Retry stopped.');
 }
 
+
 function runTest() {
     const testScript = path.join(__dirname, '..', 'scripts', 'trigger-test.js');
     outputChannel.appendLine(`[Extension] Running test: node ${testScript}`);
     
-    cp.exec(`node ${testScript}`, (err, stdout, stderr) => {
-        if (err) {
-            vscode.window.showErrorMessage(`Test failed: ${err.message}`);
-            return;
-        }
-        outputChannel.append(stdout);
-        if (stderr) outputChannel.append(`[STDERR] ${stderr}`);
-        vscode.window.showInformationMessage('Test trigger sent to Antigravity.');
+    vscode.window.withProgress({
+        location: vscode.ProgressLocation.Notification,
+        title: "Antigravity Auto-Retry: Kiểm tra kết nối...",
+        cancellable: false
+    }, (progress) => {
+        return new Promise((resolve) => {
+            cp.exec(`node ${testScript}`, (err, stdout, stderr) => {
+                outputChannel.append(stdout);
+                if (stderr) outputChannel.append(`[STDERR] ${stderr}`);
+
+                if (err) {
+                    vscode.window.showErrorMessage(`❌ Test thất bại: ${err.message}`);
+                } else if (stdout.includes('SUCCESS:')) {
+                    vscode.window.showInformationMessage('✅ Auto-Retry Test Thành công: Đã phát hiện và click dialog!');
+                } else if (stdout.includes('TIMEOUT:')) {
+                    vscode.window.showWarningMessage('⚠️ Test Timeout: Không phát hiện thao tác click trong 10s.');
+                } else if (stdout.includes('Failed: Script not yet injected')) {
+                    vscode.window.showWarningMessage('⚠️ Test thất bại: Script chưa được inject vào trang.');
+                } else {
+                    vscode.window.showInformationMessage('✨ Đã gửi lệnh test đến Antigravity.');
+                }
+                resolve();
+            });
+        });
+    });
+}
+
+function restartIDE() {
+    const cmd = 'open -a Antigravity --args --remote-debugging-port=9222';
+    vscode.env.clipboard.writeText(cmd).then(() => {
+        vscode.window.showInformationMessage('Đã copy lệnh vào Clipboard. Đang đóng IDE...');
+        cp.exec('open -a Terminal', () => {
+            setTimeout(() => {
+                cp.exec('pkill -f "Antigravity.app" || pkill -f "Antigravity"');
+            }, 1500);
+        });
     });
 }
 
