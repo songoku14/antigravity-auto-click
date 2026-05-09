@@ -22,10 +22,17 @@
   3. Orchestrator -> Developer (Implementation).
   4. Developer -> Tech Leader (Code Review).
   5. Tech Leader -> Tester (Validation).
-  6. Tester -> Orchestrator (Final Report).
+  6. Tester -> Document Agent (Update Docs).
+  7. Document Agent -> Orchestrator (Final Report).
 - **Mandatory Review**: Mọi thay đổi logic tại `src/injection-payload.js` hoặc cấu hình CDP bắt buộc phải được Tech Leader review trước khi chuyển sang Tester.
-- **Task Tracking**: Luôn sử dụng `task.md` để theo dõi tiến độ và trạng thái của từng bước trong chain.
-- **Communication Standard**: Mỗi phản hồi hoặc hành động phải được bắt đầu bằng nhãn Agent tương ứng trong dấu ngoặc vuông. Ví dụ: `[Orchestrator]`, `[Developer]`, `[Tech Leader]`. Sử dụng plain text, không dùng emoji để tiết kiệm token.
+- **Orchestrator Entry Point**: Mọi phản hồi từ AI phải bắt đầu bằng nhãn `[Orchestrator]`. Orchestrator có nhiệm vụ tóm tắt yêu cầu và ngay lập tức gọi @BA để rà soát nghiệp vụ, không được nhảy trực tiếp vào code.
+- **Minimalist Style (Mandatory)**: Tuyệt đối tối giản. 
+  - Không câu nệ, không xã giao.
+  - Bắt buộc dùng gạch đầu dòng (Bullet points).
+  - Không dùng câu phức, bám sát Keyword.
+  - Tối ưu cho việc đọc lướt (Scan-ability).
+  - Mật độ thông tin cao, ít từ thừa nhất có thể.
+- **Mandatory Agent Labeling**: MỌI phản hồi (Response) bắt buộc phải có tên Agent tương ứng ở phía trước (ví dụ: `[Orchestrator]`, `[BA]`, `[Developer]`).
 
 ## 5. Documentation Standards
 - **README Maintenance**: Cần cập nhật `README.md` ngay lập tức trong các trường hợp sau:

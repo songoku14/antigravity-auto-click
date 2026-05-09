@@ -1,12 +1,15 @@
 ---
 name: test
-description: Trigger a dummy "High Traffic" dialog in Antigravity to verify the auto-retry script.
+description: Trigger a dummy "High Traffic" dialog in Antigravity to verify the auto-retry script. Reporting only.
 ---
 # Skill: Auto-Retry Test (/test)
 
 ## Agent Roles
-- **Tester**: Executes the test trigger script.
-- **Developer**: Ensures the injection payload is up to date.
+- **Tester**: Executes the test trigger script and reports findings.
+
+## Constraints
+- **READ-ONLY**: This skill is strictly for status verification and reporting.
+- **NO CODE MODIFICATIONS**: Do not modify source code, scripts, or configurations during this task.
 
 ## Execution Steps
 1. **Prerequisite**: Ensure Antigravity is running and the auto-retry daemon is active.

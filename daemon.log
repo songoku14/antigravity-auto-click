@@ -1,0 +1,120 @@
+[AutoRetry] [10:04:55] 🚀 Starting Antigravity Auto-Retry Daemon...
+[AutoRetry] [10:04:55] Debug mode: ON
+[AutoRetry] [10:04:55] [DEBUG] CDP port: 31905
+[AutoRetry] [10:04:55] [DEBUG] Found 2 page targets
+[AutoRetry] [10:04:55] [DEBUG] Connecting to antigravity-auto-click — Extension: Antigravity Auto Retry/Sync at ws://localhost:31905/devtools/page/FD794504546CBA3C315EE65C516EC4BE
+[AutoRetry] [10:04:55] Connected to: antigravity-auto-click — Extension: Antigravity Auto Retry/Sync (FD794504546CBA3C315EE65C516EC4BE)
+[AutoRetry] [10:04:55] [antigravity-auto-click — Extension: Antigravity Auto Retry/Sync] [AutoRetry] Cleanup: old scripts neutralized.
+[AutoRetry] [10:04:55] [antigravity-auto-click — Extension: Antigravity Auto Retry/Sync] [AutoRetry] v3 injected. Watching dialogs only (no editor scanning).
+[AutoRetry] [10:04:55] [antigravity-auto-click — Extension: Antigravity Auto Retry/Sync] [AutoRetry] Dialog selectors: 11
+[AutoRetry] [10:04:55] [antigravity-auto-click — Extension: Antigravity Auto Retry/Sync] [AutoRetry] Error patterns: 11
+[AutoRetry] [10:04:55] [antigravity-auto-click — Extension: Antigravity Auto Retry/Sync] [AutoRetry] Old version cleaned up.
+[AutoRetry] [10:04:55] [antigravity-auto-click — Extension: Antigravity Auto Retry/Sync] [AutoRetry] v3 already running, skipping.
+[AutoRetry] [10:04:55] [antigravity-auto-click — Extension: Antigravity Auto Retry/Sync] [AutoRetry] 🧪 Manually triggering test dialog...
+[AutoRetry] [10:04:55] [DEBUG] Console enabled for antigravity-auto-click — Extension: Antigravity Auto Retry/Sync
+[AutoRetry] [10:04:55] [antigravity-auto-click — Extension: Antigravity Auto Retry/Sync] [AutoRetry] Old version cleaned up.
+[AutoRetry] [10:04:55] [DEBUG] Cleanup done for antigravity-auto-click — Extension: Antigravity Auto Retry/Sync
+[AutoRetry] [10:04:58] [antigravity-auto-click — Extension: Antigravity Auto Retry/Sync] [AutoRetry] Old version cleaned up.
+[AutoRetry] [10:04:58] [antigravity-auto-click — Extension: Antigravity Auto Retry/Sync] [AutoRetry] Upgrading from v3 to v4
+[AutoRetry] [10:04:58] [antigravity-auto-click — Extension: Antigravity Auto Retry/Sync] [AutoRetry] v4 injected. Watching dialogs only (no editor scanning).
+[AutoRetry] [10:04:58] [antigravity-auto-click — Extension: Antigravity Auto Retry/Sync] [AutoRetry] Dialog selectors: 11
+[AutoRetry] [10:04:58] [antigravity-auto-click — Extension: Antigravity Auto Retry/Sync] [AutoRetry] Error patterns: 11
+[AutoRetry] [10:04:58] ✅ Injected into: antigravity-auto-click — Extension: Antigravity Auto Retry/Sync
+[AutoRetry] [10:04:58] [DEBUG] Auto-reinject setup for antigravity-auto-click — Extension: Antigravity Auto Retry/Sync
+[AutoRetry] [10:04:58] [DEBUG] Connecting to Launchpad at ws://localhost:31905/devtools/page/A4AB172283F88A4699551D645203425C
+[AutoRetry] [10:04:58] Connected to: Launchpad (A4AB172283F88A4699551D645203425C)
+[AutoRetry] [10:04:58] [Launchpad] [AutoRetry] Injection complete. Watching for error dialogs...
+[AutoRetry] [10:04:58] [Launchpad] [AutoRetry] Error patterns: 11
+[AutoRetry] [10:04:58] [Launchpad] [AutoRetry] Retry button patterns: 5
+[AutoRetry] [10:04:58] [Launchpad] [AutoRetry] Backup poll interval: 2000ms
+[AutoRetry] [10:04:58] [Launchpad] [AutoRetry] Already injected, skipping.
+[AutoRetry] [10:04:58] [Launchpad] [AutoRetry] v3 injected. Watching dialogs only (no editor scanning).
+[AutoRetry] [10:04:58] [Launchpad] [AutoRetry] Dialog selectors: 11
+[AutoRetry] [10:04:58] [Launchpad] [AutoRetry] Error patterns: 11
+[AutoRetry] [10:04:58] [Launchpad] [AutoRetry] Old version cleaned up.
+[AutoRetry] [10:04:58] [Launchpad] [AutoRetry] Cleanup: old scripts neutralized.
+[AutoRetry] [10:04:58] [Launchpad] [AutoRetry] v3 injected. Watching dialogs only (no editor scanning).
+[AutoRetry] [10:04:58] [Launchpad] [AutoRetry] Dialog selectors: 11
+[AutoRetry] [10:04:58] [Launchpad] [AutoRetry] Error patterns: 11
+[AutoRetry] [10:04:58] [Launchpad] [AutoRetry] Old version cleaned up.
+[AutoRetry] [10:04:58] [Launchpad] [AutoRetry] v3 already running, skipping.
+[AutoRetry] [10:04:58] [Launchpad] [AutoRetry] Old version cleaned up.
+[AutoRetry] [10:04:58] [Launchpad] [AutoRetry] v3 already running, skipping.
+[AutoRetry] [10:04:58] [Launchpad] [AutoRetry] 🧪 Manually triggering test dialog...
+[AutoRetry] [10:04:58] [DEBUG] Console enabled for Launchpad
+[AutoRetry] [10:04:58] [Launchpad] [AutoRetry] Old version cleaned up.
+[AutoRetry] [10:04:58] [DEBUG] Cleanup done for Launchpad
+[AutoRetry] [10:05:01] [Launchpad] [AutoRetry] Old version cleaned up.
+[AutoRetry] [10:05:01] [Launchpad] [AutoRetry] Upgrading from v3 to v4
+[AutoRetry] [10:05:01] [Launchpad] [AutoRetry] v4 injected. Watching dialogs only (no editor scanning).
+[AutoRetry] [10:05:01] [Launchpad] [AutoRetry] Dialog selectors: 11
+[AutoRetry] [10:05:01] [Launchpad] [AutoRetry] Error patterns: 11
+[AutoRetry] [10:05:01] ✅ Injected into: Launchpad
+[AutoRetry] [10:05:01] [DEBUG] Auto-reinject setup for Launchpad
+[AutoRetry] [10:05:06] [DEBUG] CDP port: 31905
+[AutoRetry] [10:05:06] [DEBUG] Found 2 page targets
+[AutoRetry] [10:05:11] [DEBUG] CDP port: 31905
+[AutoRetry] [10:05:11] [DEBUG] Found 2 page targets
+[AutoRetry] [10:05:16] [DEBUG] CDP port: 31905
+[AutoRetry] [10:05:16] [DEBUG] Found 2 page targets
+[AutoRetry] [10:05:22] [DEBUG] CDP port: 31905
+[AutoRetry] [10:05:22] [DEBUG] Found 2 page targets
+[AutoRetry] [10:05:26] [antigravity-auto-click — Extension: Antigravity Auto Retry/Sync] [AutoRetry] 🧪 Triggering test dialog...
+[AutoRetry] [10:05:26] [Launchpad] [AutoRetry] 🧪 Triggering test dialog...
+[AutoRetry] [10:05:27] [DEBUG] CDP port: 31905
+[AutoRetry] [10:05:27] [Launchpad] [AutoRetry] Error dialog detected! Clicking "Retry" (retry #1)
+[AutoRetry] [10:05:27] [DEBUG] Found 2 page targets
+[AutoRetry] [10:05:27] [antigravity-auto-click — Extension: Antigravity Auto Retry/Sync] [AutoRetry] 🧪 TEST dialog detected! Clicking "Retry" (retry #1)
+[AutoRetry] [10:05:27] [Launchpad] [AutoRetry] 🧪 TEST dialog detected! Clicking "Retry" (retry #1)
+[AutoRetry] [10:05:27] [Launchpad] [AutoRetry] Clicked "Retry" successfully.
+[AutoRetry] [10:05:28] [antigravity-auto-click — Extension: Antigravity Auto Retry/Sync] [AutoRetry] ✅ Clicked "Retry" successfully.
+[AutoRetry] [10:05:28] [Launchpad] [AutoRetry] ✅ Clicked "Retry" successfully.
+[AutoRetry] [10:05:28] [Launchpad] [AutoRetry] Error dialog detected! Clicking "Retry" (retry #2)
+[AutoRetry] [10:05:29] [Launchpad] [AutoRetry] Clicked "Retry" successfully.
+[AutoRetry] [10:05:30] [Launchpad] [AutoRetry] Error dialog detected! Clicking "Retry" (retry #3)
+[AutoRetry] [10:05:31] [Launchpad] [AutoRetry] Clicked "Retry" successfully.
+[AutoRetry] [10:05:31] [antigravity-auto-click — Extension: Antigravity Auto Retry/Sync] [AutoRetry] 🧪 TEST dialog detected! Clicking "Retry" (retry #2)
+[AutoRetry] [10:05:31] [Launchpad] [AutoRetry] 🧪 TEST dialog detected! Clicking "Retry" (retry #2)
+[AutoRetry] [10:05:32] [antigravity-auto-click — Extension: Antigravity Auto Retry/Sync] [AutoRetry] ✅ Clicked "Retry" successfully.
+[AutoRetry] [10:05:32] [DEBUG] CDP port: 31905
+[AutoRetry] [10:05:32] [Launchpad] [AutoRetry] ✅ Clicked "Retry" successfully.
+[AutoRetry] [10:05:32] [DEBUG] Found 2 page targets
+[AutoRetry] [10:05:32] [Launchpad] [AutoRetry] Error dialog detected! Clicking "Retry" (retry #4)
+[AutoRetry] [10:05:33] [Launchpad] [AutoRetry] Clicked "Retry" successfully.
+[AutoRetry] [10:05:34] [antigravity-auto-click — Extension: Antigravity Auto Retry/Sync] [AutoRetry] 🧪 TEST dialog detected! Clicking "Retry" (retry #3)
+[AutoRetry] [10:05:34] [Launchpad] [AutoRetry] Error dialog detected! Clicking "Retry" (retry #5)
+[AutoRetry] [10:05:35] [Launchpad] [AutoRetry] Clicked "Retry" successfully.
+[AutoRetry] [10:05:35] [antigravity-auto-click — Extension: Antigravity Auto Retry/Sync] [AutoRetry] ✅ Clicked "Retry" successfully.
+[AutoRetry] [10:05:36] [Launchpad] [AutoRetry] Error dialog detected! Clicking "Retry" (retry #6)
+[AutoRetry] [10:05:36] [antigravity-auto-click — Extension: Antigravity Auto Retry/Sync] [AutoRetry] Test dialog timed out and was removed.
+[AutoRetry] [10:05:36] [Launchpad] [AutoRetry] Test dialog timed out and was removed.
+[AutoRetry] [10:05:37] [Launchpad] [AutoRetry] Clicked "Retry" successfully.
+[AutoRetry] [10:05:37] [DEBUG] CDP port: 31905
+[AutoRetry] [10:05:37] [DEBUG] Found 2 page targets
+[AutoRetry] [10:05:42] [DEBUG] CDP port: 31905
+[AutoRetry] [10:05:42] [DEBUG] Found 2 page targets
+[AutoRetry] [10:05:47] [DEBUG] CDP port: 31905
+[AutoRetry] [10:05:47] [DEBUG] Found 2 page targets
+[AutoRetry] [10:05:52] 
+🛑 Stopping (SIGTERM)...
+ully.
+[AutoRetry] [10:05:32] [Launchpad] [AutoRetry] Error dialog detected! Clicking "Retry" (retry #4)
+[AutoRetry] [10:05:33] [DEBUG] CDP port: 31905
+[AutoRetry] [10:05:33] [DEBUG] Found 2 page targets
+[AutoRetry] [10:05:33] [Launchpad] [AutoRetry] Clicked "Retry" successfully.
+[AutoRetry] [10:05:34] [antigravity-auto-click — manifest.json] [AutoRetry] 🧪 TEST dialog detected! Clicking "Retry" (retry #3)
+[AutoRetry] [10:05:34] [Launchpad] [AutoRetry] Error dialog detected! Clicking "Retry" (retry #5)
+[AutoRetry] [10:05:35] [Launchpad] [AutoRetry] Clicked "Retry" successfully.
+[AutoRetry] [10:05:35] [antigravity-auto-click — manifest.json] [AutoRetry] ✅ Clicked "Retry" successfully.
+[AutoRetry] [10:05:36] [Launchpad] [AutoRetry] Error dialog detected! Clicking "Retry" (retry #6)
+[AutoRetry] [10:05:36] [antigravity-auto-click — manifest.json] [AutoRetry] Test dialog timed out and was removed.
+[AutoRetry] [10:05:36] [Launchpad] [AutoRetry] Test dialog timed out and was removed.
+[AutoRetry] [10:05:37] [Launchpad] [AutoRetry] Clicked "Retry" successfully.
+[AutoRetry] [10:05:38] [DEBUG] CDP port: 31905
+[AutoRetry] [10:05:38] [DEBUG] Found 2 page targets
+[AutoRetry] [10:05:43] [DEBUG] CDP port: 31905
+[AutoRetry] [10:05:43] [DEBUG] Found 2 page targets
+[AutoRetry] [10:05:48] [DEBUG] CDP port: 31905
+[AutoRetry] [10:05:48] [DEBUG] Found 2 page targets
+[AutoRetry] [10:05:52] 
+🛑 Stopping (SIGTERM)...

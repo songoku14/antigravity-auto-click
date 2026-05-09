@@ -82,9 +82,9 @@ graph TD
 
 ## 5. Slash Commands (Skills)
 Trong quá trình chat với AI, bạn có thể sử dụng các lệnh `/` để kích hoạt nhanh quy trình:
-- **/status**: [Tester] Kiểm tra trạng thái hệ thống và log. Hỗ trợ chạy lệnh test nếu cần.
-- **/test**: [Tester] Giả lập hộp thoại "High Traffic" để xác nhận script đang hoạt động.
-- **/deploy**: [Developer] Tự động cài đặt và khởi chạy hệ thống lần đầu.
+- **/status**: [Tester] Kiểm tra trạng thái hệ thống và log. Chỉ xem và báo cáo, không sửa code.
+- **/test**: [Tester] Giả lập hộp thoại "High Traffic" để xác nhận script đang hoạt động. Chỉ xem và báo cáo, không sửa code.
+- **/deploy**: [Developer] Thực thi cài đặt và khởi chạy hệ thống. Chỉ thực thi script cài đặt, không sửa code.
 - **/review**: [Tech Leader] Review toàn bộ mã nguồn và kiến trúc của các thay đổi hiện tại.
 
 ---

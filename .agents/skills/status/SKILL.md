@@ -1,12 +1,16 @@
 ---
 name: status
-description: Check the status of the auto-retry daemon, LaunchAgent, and view logs.
+description: Check the status of the auto-retry daemon, LaunchAgent, and view logs. Reporting only.
 ---
 # Skill: System Status (/status)
 
 ## Agent Roles
 - **Tester**: Executes system verification commands.
 - **Orchestrator**: Summarizes findings.
+
+## Constraints
+- **READ-ONLY**: This skill is strictly for status verification and reporting.
+- **NO CODE MODIFICATIONS**: Do not modify source code, scripts, or configurations during this task.
 
 ## Execution Steps
 1. **Check Process**: Run `ps aux | grep auto-retry | grep -v grep`.

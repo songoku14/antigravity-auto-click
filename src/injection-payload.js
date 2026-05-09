@@ -7,7 +7,7 @@
  * IMPORTANT: Only targets dialog/notification containers, NOT editor content.
  */
 
-const INJECTION_VERSION = 3;
+const INJECTION_VERSION = 6;
 
 /**
  * Trả về string JavaScript sẽ được inject vào DOM qua CDP Runtime.evaluate
@@ -67,7 +67,9 @@ function getInjectionScript() {
       /request\\s*failed/i,
       /something\\s*went\\s*wrong/i,
       /an?\\s*error\\s*occur/i,
-      /please\\s*try\\s*again\\s*later/i
+      /please\\s*try\\s*again\\s*later/i,
+      /agent\\s*terminated/i,
+      /try\\s*again/i
     ],
 
     // Button text patterns - STRICT match on trimmed text only
@@ -202,7 +204,7 @@ function getInjectionScript() {
       const { el: btn, text: btnText } = retryButtons[0];
 
       const isTest = !!container.__isTestDialog;
-      log(`${isTest ? '🧪' : '🔄'} ${isTest ? 'TEST' : 'Error'} dialog detected! Clicking "${btnText}" (retry #${retryCount})`);
+      log((isTest ? '🧪' : '🔄') + ' ' + (isTest ? 'TEST' : 'Error') + ' dialog detected! Clicking "' + btnText + '" (retry #' + retryCount + ')');
 
       setTimeout(() => {
         try {
@@ -244,16 +246,47 @@ function getInjectionScript() {
 
   // === Test Mode Helper ===
   window.__triggerAutoRetryTest = function() {
-    log('🧪 Triggering test dialog...');
+    log('🧪 Triggering REALISTIC test dialog...');
     const testDiv = document.createElement('div');
     testDiv.className = 'monaco-dialog-box test-auto-retry-dialog';
-    testDiv.style.cssText = 'position:fixed;top:20%;left:50%;transform:translateX(-50%);background:#252526;color:#ccc;padding:20px;border:1px solid #444;z-index:99999;box-shadow:0 5px 15px rgba(0,0,0,0.5);border-radius:5px;text-align:center;min-width:300px;';
+    testDiv.style.cssText = 'position:fixed;top:20%;left:50%;transform:translateX(-50%);background:#252526;color:#ccc;padding:25px;border:1px solid #444;z-index:99999;box-shadow:0 5px 25px rgba(0,0,0,0.6);border-radius:6px;text-align:left;min-width:400px;max-width:500px;font-family:sans-serif;';
     
-    testDiv.innerHTML = `
-      <div style="margin-bottom:15px;font-weight:bold;color:#ff4444;">[TEST] High Traffic Simulation</div>
-      <div style="margin-bottom:20px;">This is a test dialog to verify the Auto-Retry script.</div>
-      <button class="monaco-button" style="background:#0e639c;color:white;border:none;padding:6px 20px;cursor:pointer;border-radius:2px;">Retry</button>
-    `;
+    const title = document.createElement('div');
+    title.style.cssText = 'margin-bottom:15px;font-weight:bold;color:#f14c4c;font-size:16px;';
+    title.textContent = 'Agent terminated due to error';
+    
+    const body = document.createElement('div');
+    body.style.cssText = 'margin-bottom:20px;line-height:1.5;font-size:13px;';
+    body.textContent = 'You can prompt the model to try again or start a new conversation if the error persists. See our documentation for more help.';
+    
+    const btnContainer = document.createElement('div');
+    btnContainer.style.cssText = 'display:flex;justify-content:flex-end;gap:10px;';
+    
+    const createBtn = (text, isPrimary) => {
+      const b = document.createElement('button');
+      b.className = 'monaco-button';
+      b.textContent = text;
+      b.style.cssText = isPrimary 
+        ? 'background:#0e639c;color:white;border:none;padding:6px 14px;cursor:pointer;border-radius:2px;font-size:12px;'
+        : 'background:#3a3d41;color:white;border:none;padding:6px 14px;cursor:pointer;border-radius:2px;font-size:12px;';
+      b.onclick = () => {
+        log('🖱️ User/Script clicked: "' + text + '"');
+        testDiv.remove();
+      };
+      return b;
+    };
+    
+    const btn1 = createBtn('New Conversation', false);
+    const btn2 = createBtn('Try Again', true);
+    const btn3 = createBtn('Dismiss', false);
+    
+    btnContainer.appendChild(btn1);
+    btnContainer.appendChild(btn2);
+    btnContainer.appendChild(btn3);
+    
+    testDiv.appendChild(title);
+    testDiv.appendChild(body);
+    testDiv.appendChild(btnContainer);
     
     document.body.appendChild(testDiv);
     
@@ -266,7 +299,7 @@ function getInjectionScript() {
         log('Test dialog timed out and was removed.');
         testDiv.remove();
       }
-    }, 10000);
+    }, 15000);
     
     return 'test_dialog_triggered';
   };
