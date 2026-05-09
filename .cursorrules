@@ -1,0 +1,14 @@
+# Cursor Rules
+
+# General
+- Check `.agents/rules/RULES.md` for standard project constraints.
+- This project automates the Antigravity editor via Chrome DevTools Protocol.
+
+# Context
+- Entry point: `src/auto-retry.js`
+- Payload: `src/injection-payload.js` (runs in browser context)
+- Always increment `INJECTION_VERSION` in `injection-payload.js` if you modify its logic.
+
+# Commands
+- Test daemon: `npm run start:debug`
+- Setup LaunchAgent: `npm run install-agent`

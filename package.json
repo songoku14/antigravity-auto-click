@@ -1,0 +1,19 @@
+{
+  "name": "antigravity-auto-retry",
+  "version": "1.0.0",
+  "description": "Auto-click Retry button when High Traffic error appears in Antigravity",
+  "main": "src/auto-retry.js",
+  "scripts": {
+    "start": "node src/auto-retry.js",
+    "start:debug": "DEBUG=1 node src/auto-retry.js",
+    "stop": "bash scripts/stop.sh",
+    "install-agent": "bash scripts/install.sh",
+    "uninstall-agent": "bash scripts/uninstall.sh"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
