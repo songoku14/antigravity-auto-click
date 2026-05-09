@@ -201,7 +201,8 @@ function getInjectionScript() {
       lastClickTime = Date.now();
       const { el: btn, text: btnText } = retryButtons[0];
 
-      log('🔄 Error dialog detected! Clicking "' + btnText + '" (retry #' + retryCount + ')');
+      const isTest = !!container.__isTestDialog;
+      log(`${isTest ? '🧪' : '🔄'} ${isTest ? 'TEST' : 'Error'} dialog detected! Clicking "${btnText}" (retry #${retryCount})`);
 
       setTimeout(() => {
         try {
@@ -240,6 +241,35 @@ function getInjectionScript() {
 
   // === Backup polling ===
   pollIntervalRef = setInterval(scanAndRetry, CONFIG.pollInterval);
+
+  // === Test Mode Helper ===
+  window.__triggerAutoRetryTest = function() {
+    log('🧪 Triggering test dialog...');
+    const testDiv = document.createElement('div');
+    testDiv.className = 'monaco-dialog-box test-auto-retry-dialog';
+    testDiv.style.cssText = 'position:fixed;top:20%;left:50%;transform:translateX(-50%);background:#252526;color:#ccc;padding:20px;border:1px solid #444;z-index:99999;box-shadow:0 5px 15px rgba(0,0,0,0.5);border-radius:5px;text-align:center;min-width:300px;';
+    
+    testDiv.innerHTML = `
+      <div style="margin-bottom:15px;font-weight:bold;color:#ff4444;">[TEST] High Traffic Simulation</div>
+      <div style="margin-bottom:20px;">This is a test dialog to verify the Auto-Retry script.</div>
+      <button class="monaco-button" style="background:#0e639c;color:white;border:none;padding:6px 20px;cursor:pointer;border-radius:2px;">Retry</button>
+    `;
+    
+    document.body.appendChild(testDiv);
+    
+    // Add internal flag for the script to recognize this as a test
+    testDiv.__isTestDialog = true;
+    
+    // Cleanup if not clicked (safety)
+    setTimeout(() => {
+      if (testDiv.parentElement) {
+        log('Test dialog timed out and was removed.');
+        testDiv.remove();
+      }
+    }, 10000);
+    
+    return 'test_dialog_triggered';
+  };
 
   // === Cleanup function for version upgrades ===
   window.__autoRetryCleanup = function() {

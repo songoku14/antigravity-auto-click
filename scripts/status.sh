@@ -44,5 +44,6 @@ fi
 echo "------------------------------------------------"
 echo "💡 Các lệnh hữu ích:"
 echo "   - Xem log liên tục:  tail -f $LOG_DIR/stdout.log"
+echo "   - Chạy kiểm tra:     node ./scripts/trigger-test.js"
 echo "   - Cài lại/Bật lại:   ./scripts/install.sh"
 echo "   - Gỡ/Dừng hẳn:       ./scripts/uninstall.sh"

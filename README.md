@@ -24,9 +24,11 @@ antigravity-auto-click/
 │   ├── rules/               # Luật code bắt buộc
 │   └── skills/              # Kỹ năng cho Agent
 ├── scripts/                 # Script quản lý daemon trên macOS
+│   ├── menu.sh              # Giao diện menu tương tác (Khuyên dùng)
 │   ├── install.sh           # Đăng ký chạy nền
 │   ├── start.sh             # Kích hoạt thủ công
 │   ├── stop.sh              # Dừng daemon
+│   ├── trigger-test.js      # Công cụ giả lập lỗi để kiểm tra (Test)
 │   └── uninstall.sh         # Gỡ cài đặt
 ├── src/                     # Mã nguồn chính
 │   ├── auto-retry.js        # Node.js Daemon chạy ngầm
@@ -65,7 +67,8 @@ graph TD
     TL_REV -->|Duyệt Code| QA[Tester / QA]
     TL_REV -.->|Cần sửa lại| DEV
     QA -.->|Phát hiện lỗi| DEV
-    QA -->|Xác nhận chất lượng| ORCH
+    QA -->|Xác nhận chất lượng| DOCS[Document Agent]
+    DOCS -->|Cập nhật tài liệu| ORCH
     ORCH -->|Báo cáo hoàn thành| User
 ```
 
@@ -75,10 +78,12 @@ graph TD
 - **Tech Leader:** Thiết kế kiến trúc kỹ thuật tổng thể, quyết định các công nghệ/giải pháp áp dụng. **Bắt buộc review code** sau khi phát triển để đảm bảo tính an toàn (CDP), hiệu suất và hỗ trợ Developer các vấn đề phức tạp.
 - **Developer:** Trực tiếp viết mã nguồn (Node.js daemon, injection payload), sửa lỗi, tối ưu hoá hiệu suất, và đảm bảo tuân thủ nghiêm ngặt các quy định về an toàn mã nguồn.
 - **Tester (QA):** Kiểm định chất lượng phần mềm, lên kịch bản kiểm thử các trường hợp khắc nghiệt (mất mạng, thay đổi DOM liên tục). Đảm bảo tính năng retry chỉ hoạt động khi chính xác có lỗi, loại bỏ hoàn toàn việc click nhầm.
+- **Document Agent:** Chịu trách nhiệm bảo trì và cập nhật các tài liệu hướng dẫn (`README.md`, `tutorial.md`). Đảm bảo mọi thay đổi kỹ thuật đều được phản ánh chính xác cho người dùng cuối.
 
 ## 5. Slash Commands (Skills)
 Trong quá trình chat với AI, bạn có thể sử dụng các lệnh `/` để kích hoạt nhanh quy trình:
-- **/status**: [Tester] Kiểm tra trạng thái daemon, LaunchAgent và xem log mới nhất.
+- **/status**: [Tester] Kiểm tra trạng thái hệ thống và log. Hỗ trợ chạy lệnh test nếu cần.
+- **/test**: [Tester] Giả lập hộp thoại "High Traffic" để xác nhận script đang hoạt động.
 - **/deploy**: [Developer] Tự động cài đặt và khởi chạy hệ thống lần đầu.
 - **/review**: [Tech Leader] Review toàn bộ mã nguồn và kiến trúc của các thay đổi hiện tại.
 

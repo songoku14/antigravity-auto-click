@@ -35,6 +35,7 @@ show_menu() {
     echo "  4) 🛑 Dừng mọi tiến trình đang chạy"
     echo "  5) 📊 Xem chi tiết trạng thái hệ thống"
     echo "  6) 📄 Xem log hoạt động theo thời gian thực"
+    echo "  7) 🧪 Kiểm tra hoạt động (Test Script)"
     echo "  0) 🚪 Thoát Menu"
     echo ""
 }
@@ -74,6 +75,11 @@ while true; do
             else
                 echo "Chưa có file log nào được tạo ra."
             fi
+            read -p "Nhấn Enter để tiếp tục..."
+            ;;
+        7)
+            echo "Đang gửi lệnh test đến Antigravity..."
+            node "$SCRIPT_DIR/trigger-test.js"
             read -p "Nhấn Enter để tiếp tục..."
             ;;
         0)
