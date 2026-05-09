@@ -2,7 +2,35 @@
   "name": "antigravity-auto-retry",
   "version": "1.0.0",
   "description": "Auto-click Retry button when High Traffic error appears in Antigravity",
-  "main": "src/auto-retry.js",
+  "main": "src/extension.js",
+  "publisher": "antigravity",
+  "displayName": "Antigravity Auto-Retry",
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "antigravity-auto-retry.showMenu",
+        "title": "Antigravity: Show Auto-Retry Menu"
+      },
+      {
+        "command": "antigravity-auto-retry.start",
+        "title": "Antigravity: Start Auto-Retry"
+      },
+      {
+        "command": "antigravity-auto-retry.stop",
+        "title": "Antigravity: Stop Auto-Retry"
+      },
+      {
+        "command": "antigravity-auto-retry.test",
+        "title": "Antigravity: Run Auto-Retry Test"
+      }
+    ]
+  },
   "scripts": {
     "start": "node src/auto-retry.js",
     "start:debug": "DEBUG=1 node src/auto-retry.js",
@@ -13,7 +41,12 @@
   "dependencies": {
     "ws": "^8.18.0"
   },
+  "devDependencies": {
+    "@types/vscode": "^1.80.0",
+    "@types/node": "^18.0.0"
+  },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=18.0.0",
+    "vscode": "^1.80.0"
   }
 }

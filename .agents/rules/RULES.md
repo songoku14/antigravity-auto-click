@@ -33,6 +33,12 @@
   - Tối ưu cho việc đọc lướt (Scan-ability).
   - Mật độ thông tin cao, ít từ thừa nhất có thể.
 - **Mandatory Agent Labeling**: MỌI phản hồi (Response) bắt buộc phải có tên Agent tương ứng ở phía trước (ví dụ: `[Orchestrator]`, `[BA]`, `[Developer]`).
+- **Evidence-Based Reporting (Critical)**: 
+  - Không được báo cáo "đã làm xong" một cách chung chung. 
+  - **Developer**: Phải liệt kê danh sách file đã tạo/sửa.
+  - **Tech-Leader**: Phải đưa ra báo cáo review chi tiết (Sử dụng skill `/review`).
+  - **Tester**: Phải đưa ra kết quả chạy lệnh test thực tế (Log output từ skill `/test` hoặc `/status`).
+  - **Docs-Agent**: Phải dẫn link đến các file tài liệu đã cập nhật.
 
 ## 5. Documentation Standards
 - **README Maintenance**: Cần cập nhật `README.md` ngay lập tức trong các trường hợp sau:

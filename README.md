@@ -33,15 +33,21 @@ antigravity-auto-click/
 ├── src/                     # Mã nguồn chính
 │   ├── auto-retry.js        # Node.js Daemon chạy ngầm
 │   ├── discovery.js         # Logic tìm cổng WebSocket
-│   └── injection-payload.js # Script tiêm vào Antigravity
+│   ├── injection-payload.js # Script tiêm vào Antigravity
+│   └── extension.js         # VS Code Extension entry point [NEW]
 ├── IMPLEMENTATION_PLAN.md   # Thiết kế hệ thống
 ├── README.md                # Tài liệu dự án (File này)
 └── tutorial.md              # Hướng dẫn sử dụng cho end-user
 ```
 
-> **Lưu ý:** Xem hướng dẫn cài đặt và sử dụng dành cho End-User tại file [tutorial.md](./tutorial.md).
+## 3. Cách sử dụng Extension (Dành cho Antigravity IDE)
+Nếu bạn đang sử dụng Antigravity IDE, bạn có thể tích hợp extension này để quản lý trực tiếp:
+1. Mở Antigravity IDE.
+2. Cài đặt extension từ thư mục này (hoặc copy vào thư mục `.antigravity/extensions`).
+3. Nhìn xuống góc dưới cùng bên phải (Status Bar), bạn sẽ thấy biểu tượng `Auto-Retry`.
+4. Click vào đó để Start/Stop hoặc xem Log.
 
-## 3. Hướng Dẫn Phát Triển (Dành Cho Developer / Người Chạy Dự Án)
+## 4. Hướng Dẫn Phát Triển (Dành Cho Developer / Người Chạy Dự Án)
 **Yêu cầu môi trường:** macOS và cài đặt sẵn Node.js.
 1. Cài đặt các thư viện phụ thuộc (nếu có): `npm install`
 2. **Khởi chạy thủ công lúc dev:** 
