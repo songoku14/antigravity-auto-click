@@ -14,12 +14,12 @@ function activate(context) {
     console.log('Antigravity Auto-Click extension is now active');
 
     outputChannel = vscode.window.createOutputChannel('Antigravity Auto-Click');
-    
+
     // Create a single status bar item for a seamless look
     statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
     statusBarItem.command = 'antigravity-auto-retry.showMenu';
     context.subscriptions.push(statusBarItem);
-    
+
     updateStatusBar(false);
     statusBarItem.show();
 
@@ -39,18 +39,18 @@ function activate(context) {
 function updateStatusBar(running) {
     const icon = running ? '$(check)' : '$(circle-slash)';
     const statusText = running ? 'RUNNING' : 'STOPPED';
-    
+
     let activeFeatures = [];
     try {
         const config = readConfig();
         if (config.autoRetry !== false) activeFeatures.push('R');
         if (config.autoAccept !== false) activeFeatures.push('A');
-    } catch(e) {}
+    } catch (e) { }
 
     const featuresText = activeFeatures.length > 0 ? ` (${activeFeatures.join('/')})` : ' (OFF)';
     statusBarItem.text = `${icon} Auto-Click${running ? featuresText : ''}`;
     statusBarItem.tooltip = `Antigravity Auto-Click: ${statusText}${running ? featuresText : ''}`;
-    statusBarItem.color = undefined; 
+    statusBarItem.color = undefined;
 }
 
 function readConfig() {
@@ -77,11 +77,7 @@ async function showMenu() {
         description: config.autoRetry !== false ? 'Currently Enabled' : 'Currently Disabled',
         action: () => toggleFeature('autoRetry')
     });
-    items.push({
-        label: '$(beaker) Test Auto-Retry',
-        description: 'Simulate High Traffic dialog',
-        command: 'antigravity-auto-retry.testRetry'
-    });
+
 
     // --- Auto-Accept ---
     items.push({ label: '--- Auto-Accept ---', kind: vscode.QuickPickItemKind.Separator });
@@ -90,11 +86,7 @@ async function showMenu() {
         description: config.autoAccept !== false ? 'Currently Enabled' : 'Currently Disabled',
         action: () => toggleFeature('autoAccept')
     });
-    items.push({
-        label: '$(beaker) Test Auto-Accept',
-        description: 'Simulate Agent Prompt',
-        command: 'antigravity-auto-retry.testAccept'
-    });
+
 
     // --- System ---
     items.push({ label: '--- System ---', kind: vscode.QuickPickItemKind.Separator });

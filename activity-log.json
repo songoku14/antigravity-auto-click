@@ -1,11 +1,11 @@
 {
   "retry": {
-    "detected": 10,
-    "clicked": 10
+    "detected": 20,
+    "clicked": 20
   },
   "accept": {
-    "detected": 2,
-    "clicked": 2,
+    "detected": 9,
+    "clicked": 9,
     "blocked": 0
   }
 }
