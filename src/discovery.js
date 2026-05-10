@@ -40,7 +40,7 @@ function findAntigravityPID() {
       { encoding: 'utf-8', timeout: 5000 }
     ).trim();
     if (output) return parseInt(output, 10);
-  } catch (e) {}
+  } catch (e) { }
   return null;
 }
 
@@ -97,8 +97,8 @@ function getTargets(port) {
  * @returns {Array} Filtered targets (chỉ pages)
  */
 function filterPageTargets(targets) {
-  return targets.filter(t => 
-    t.type === 'page' && 
+  return targets.filter(t =>
+    t.type === 'page' &&
     t.webSocketDebuggerUrl &&
     // Chỉ lấy workbench pages, bỏ qua webview iframes
     (t.url?.includes('workbench') || t.title === 'Launchpad' || t.title === 'Antigravity')

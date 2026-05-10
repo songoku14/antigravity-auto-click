@@ -58,6 +58,8 @@ show_menu() {
     echo " 7) 🗑️ Tắt Khởi động cùng máy tính"
     echo " 8) 🔄 Khởi động lại Antigravity (Chế độ Debug)"
     echo " 9) 🔍 Phân tích Dialog hiện tại"
+    echo " 10) 🎭 Giả lập Dialog từ Sample"
+    echo " 11) 📦 Chụp toàn bộ IDE (Dump DOM)"
     echo " 0) 🚪 Thoát"
     echo "======================================================"
     echo ""
@@ -150,6 +152,16 @@ while true; do
         9)
             echo "🔍 Đang khởi chạy công cụ phân tích..."
             node "$SCRIPT_DIR/analyze-dialog.js"
+            read -p "Nhấn Enter để quay lại menu..."
+            ;;
+        10)
+            echo "🎭 Đang khởi chạy công cụ giả lập..."
+            node "$SCRIPT_DIR/mock-dialog.js"
+            read -p "Nhấn Enter để quay lại menu..."
+            ;;
+        11)
+            echo "📦 Đang thực hiện dump toàn bộ DOM..."
+            node "$SCRIPT_DIR/dump-dom.js"
             read -p "Nhấn Enter để quay lại menu..."
             ;;
         0)

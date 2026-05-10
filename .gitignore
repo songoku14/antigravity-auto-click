@@ -1,0 +1,6 @@
+node_modules/
+logs/
+scratch/
+.DS_Store
+*.log
+activity-log.json

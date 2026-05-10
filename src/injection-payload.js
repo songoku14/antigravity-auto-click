@@ -5,7 +5,7 @@
  * It uses MutationObserver to watch for error dialogs and auto-click Retry/Accept.
  */
 
-const INJECTION_VERSION = 23;
+const INJECTION_VERSION = 26;
 
 /**
  * Trả về string JavaScript sẽ được inject vào DOM qua CDP Runtime.evaluate
@@ -15,7 +15,7 @@ function getInjectionScript(userConfig = {}) {
 
   return `
 (function() {
-  const SCRIPT_VERSION = 23;
+  const SCRIPT_VERSION = 26;
   const USER_CONFIG = ${configJson};
   
   // Kill old versions
@@ -47,6 +47,7 @@ function getInjectionScript(userConfig = {}) {
       '.error-overlay',
       '.test-dialog',
       '.test-accept-dialog',
+      '.bg-agent-convo-background',
       '[role="dialog"]',
       '[role="alertdialog"]'
     ],
@@ -81,7 +82,8 @@ function getInjectionScript(userConfig = {}) {
       /\\byes\\b/i,
       /\\bapprove\\b/i,
       /\\bcontinue\\b/i,
-      /\\balways\\s*allow\\b/i
+      /\\balways\\s*allow\\b/i,
+      /\\baccept\\s*all\\b/i
     ],
 
     blacklist: USER_CONFIG.blacklist || [
@@ -210,9 +212,9 @@ function getInjectionScript(userConfig = {}) {
     return CONFIG.blacklist.some(pattern => lowerCmd.includes(pattern.toLowerCase()));
   }
 
-  function findButtonsIn(container, patterns, typeLabel) {
-    const buttons = [];
-    const walker = document.createTreeWalker(container, NodeFilter.SHOW_ELEMENT);
+  function findButtonsIn(root, patterns, typeLabel) {
+    let buttons = [];
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
     let el;
     while (el = walker.nextNode()) {
       const tag = el.tagName.toLowerCase();
@@ -221,19 +223,39 @@ function getInjectionScript(userConfig = {}) {
                           el.classList.contains('monaco-button') || 
                           el.classList.contains('action-label') ||
                           el.classList.contains('button') ||
-                          el.classList.contains('btn');
+                          el.classList.contains('btn') ||
+                          el.classList.contains('bg-ide-button-background') ||
+                          el.classList.contains('cursor-pointer') ||
+                          (el.style && el.style.cursor === 'pointer') ||
+                          (window.getComputedStyle(el).cursor === 'pointer');
       
       if (isClickable) {
         const text = (el.textContent || '').trim();
-        if (text.length > 50) continue;
-        
-        for (const pattern of patterns) {
-          if (pattern.test(text)) {
-            log('Found matching ' + typeLabel + ' button: "' + text + '"');
-            buttons.push({ el, text });
-            break;
+        if (text.length > 0 && text.length <= 50) {
+          if (patterns) {
+            for (const pattern of patterns) {
+              if (pattern.test(text)) {
+                if (typeLabel) log('Found matching ' + typeLabel + ' button: "' + text + '"');
+                buttons.push({ el, text });
+                break;
+              }
+            }
+          } else {
+            // No patterns provided, just collecting all buttons (for analysis)
+            buttons.push({
+              el,
+              text,
+              tagName: tag,
+              className: el.className,
+              id: el.id
+            });
           }
         }
+      }
+      
+      if (el.shadowRoot) {
+        const shadowButtons = findButtonsIn(el.shadowRoot, patterns, typeLabel);
+        buttons = buttons.concat(shadowButtons);
       }
     }
     return buttons;
@@ -246,7 +268,7 @@ function getInjectionScript(userConfig = {}) {
     if (containers.length > 0) {
       // log('Found ' + containers.length + ' potential containers');
     }
-    const useFallback = containers.length === 0 && USER_CONFIG.autoAccept !== false;
+    const useFallback = containers.length === 0 && (USER_CONFIG.autoAccept !== false || USER_CONFIG.autoRetry !== false);
     
     if (useFallback) {
       containers = [document.body];
@@ -394,37 +416,23 @@ function getInjectionScript(userConfig = {}) {
     log('Analyzing current DOM for dialogs...');
     const containers = findValidContainers();
     const results = [];
+    const targets = new Set(containers);
+    targets.add(document.body);
+    const finalTargets = Array.from(targets);
     
-    const targets = containers.length > 0 ? containers : [document.body];
-    
-    for (const container of targets) {
-      const buttons = [];
-      const walker = document.createTreeWalker(container, NodeFilter.SHOW_ELEMENT);
-      let el;
-      while (el = walker.nextNode()) {
-        const tag = el.tagName.toLowerCase();
-        const isButton = tag === 'button' || 
-                         el.getAttribute('role') === 'button' || 
-                         el.classList.contains('monaco-button') || 
-                         el.classList.contains('action-label') ||
-                         el.classList.contains('button') ||
-                         el.classList.contains('btn');
-        
-        if (isButton) {
-          buttons.push({
-            text: (el.textContent || '').trim(),
-            tagName: tag,
-            className: el.className,
-            id: el.id
-          });
-        }
-      }
+    for (const container of finalTargets) {
+      const buttons = findButtonsIn(container, null, null);
       
       results.push({
         isBody: container === document.body,
         text: (container.textContent || '').substring(0, 1000).trim(),
         html: container.outerHTML.substring(0, 5000),
-        buttons: buttons
+        buttons: buttons.map(b => ({
+          text: b.text,
+          tagName: b.tagName,
+          className: b.className,
+          id: b.id
+        }))
       });
     }
     

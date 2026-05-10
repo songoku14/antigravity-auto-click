@@ -39,11 +39,12 @@
     "uninstall-agent": "bash scripts/uninstall.sh"
   },
   "dependencies": {
+    "jsdom": "^29.1.1",
     "ws": "^8.18.0"
   },
   "devDependencies": {
-    "@types/vscode": "^1.80.0",
-    "@types/node": "^18.0.0"
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.80.0"
   },
   "engines": {
     "node": ">=18.0.0",
