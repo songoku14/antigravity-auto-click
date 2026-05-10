@@ -369,8 +369,11 @@ class AutoRetryDaemon {
     debug(`Found ${pageTargets.length} page targets`);
 
     // Step 5: Connect & inject into new targets
-    for (const target of pageTargets) {
+    debug(`Processing ${pageTargets.length} page targets: ${pageTargets.map(t => t.title).join(', ')}`);
+    
+    await Promise.all(pageTargets.map(async (target) => {
       if (!this.connections.has(target.id)) {
+        log(`New target detected: ${target.title} (${target.id})`);
         const conn = new CDPConnection(target);
         try {
           await conn.connect();
@@ -391,7 +394,7 @@ class AutoRetryDaemon {
           await conn.inject(this.config);
         }
       }
-    }
+    }));
 
     // Step 6: Clean up stale connections
     const activeIds = new Set(pageTargets.map(t => t.id));

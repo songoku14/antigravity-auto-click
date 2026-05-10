@@ -11,7 +11,7 @@ pkill -f "node.*src/auto-retry.js" 2>/dev/null
 echo "🚀 Đang khởi chạy Auto-Click..."
 
 cd "$PROJECT_ROOT"
-nohup node src/auto-retry.js > "$LOG_DIR/stdout.log" 2> "$LOG_DIR/stderr.log" &
+nohup env DEBUG=1 node src/auto-retry.js > "$LOG_DIR/stdout.log" 2> "$LOG_DIR/stderr.log" &
 
 echo "✅ Đã bắt đầu chạy ngầm."
 echo "📊 Bạn có thể kiểm tra trạng thái ở mục số 1."

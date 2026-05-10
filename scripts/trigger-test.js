@@ -28,26 +28,23 @@ async function triggerTest() {
       process.exit(1);
     }
     
-    console.log(`🚀 Triggering test dialog in ${pageTargets.length} page(s)...`);
-    
+    let overallSuccess = false;
     for (const target of pageTargets) {
-      await sendTestCommand(target);
+      const success = await sendTestCommand(target);
+      if (success) overallSuccess = true;
     }
     
-    console.log('\n✨ Test command sent! Check your Antigravity window.');
-    console.log('If the script is running, you should see a dialog appear and disappear quickly.');
-    
+    return overallSuccess;
   } catch (e) {
     console.error(`❌ Error: ${e.message}`);
-    process.exit(1);
+    return false;
   }
 }
 
 function sendTestCommand(target) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const ws = new WebSocket(target.webSocketDebuggerUrl);
-    let triggerSent = false;
-    let testSuccess = false;
+    let finished = false;
     
     // ANSI colors
     const green = '\x1b[32m';
@@ -56,75 +53,69 @@ function sendTestCommand(target) {
     const cyan = '\x1b[36m';
     const reset = '\x1b[0m';
 
+    const finish = (success, message) => {
+      if (finished) return;
+      finished = true;
+      if (message) console.log(`   ${success ? green : red}${message}${reset}`);
+      ws.terminate();
+      resolve(success);
+    };
+
     ws.on('open', () => {
-      // Enable Console domain to listen for logs
       ws.send(JSON.stringify({ id: 2, method: 'Runtime.enable' }));
-      
-      const msg = JSON.stringify({
+      ws.send(JSON.stringify({
         id: 1,
         method: 'Runtime.evaluate',
         params: {
           expression: 'window.__triggerAutoRetryTest ? window.__triggerAutoRetryTest() : "not_injected"',
           returnByValue: true
         }
-      });
-      ws.send(msg);
+      }));
     });
     
     ws.on('message', (data) => {
       const msg = JSON.parse(data.toString());
       
-      // Handle trigger result
       if (msg.id === 1) {
         const result = msg.result?.result?.value;
         if (result === 'test_dialog_triggered') {
-          console.log(`   ${cyan}🚀 [${target.title}] Trigger sent successfully.${reset}`);
-          triggerSent = true;
+          // console.log(`   ${cyan}🚀 [${target.title}] Trigger sent.${reset}`);
         } else if (result === 'not_injected') {
-          console.log(`   ${yellow}⚠️  [${target.title}] Failed: Script not yet injected in this page.${reset}`);
-          ws.close();
-          resolve();
+          finish(false, `⚠️  [${target.title}] Failed: Script not injected.`);
         } else {
-          console.log(`   ${red}❌ [${target.title}] Unexpected result: ${JSON.stringify(msg)}${reset}`);
-          ws.close();
-          resolve();
+          finish(false, `❌ [${target.title}] Unexpected result.`);
         }
       }
 
-      // Listen for console logs
       if (msg.method === 'Runtime.consoleAPICalled') {
-        const args = msg.params.args || [];
-        const text = args.map(a => a.value || a.description || '').join(' ');
-        
+        const text = (msg.params.args || []).map(a => a.value || '').join(' ');
         if (text.includes('✅ Clicked') && text.includes('successfully')) {
-          console.log(`   ${green}✨ [${target.title}] SUCCESS: Dialog detected and clicked!${reset}`);
-          testSuccess = true;
-          ws.close();
-          resolve();
+          finish(true, `✨ [${target.title}] SUCCESS: Dialog handled!`);
         } else if (text.includes('Test dialog timed out')) {
-          console.log(`   ${red}❌ [${target.title}] FAILURE: Test dialog timed out without being clicked.${reset}`);
-          ws.close();
-          resolve();
+          // Ignore timeout messages if they keep coming, wait for the actual 10s timeout here
+          // Unless we want to fail immediately on first timeout message
+          // finish(false, `❌ [${target.title}] FAILURE: Dialog timed out.`);
         }
       }
     });
     
-    ws.on('error', (err) => {
-      console.log(`   ${red}❌ [${target.title}] Connection error: ${err.message}${reset}`);
-      reject(err);
-    });
+    ws.on('error', () => finish(false, `❌ [${target.title}] Connection error.`));
     
-    // 10 second timeout for the whole test
-    setTimeout(() => {
-      if (ws.readyState !== WebSocket.CLOSED) {
-        if (triggerSent && !testSuccess) {
-          console.log(`   ${red}❌ [${target.title}] TIMEOUT: No click detected after 10s.${reset}`);
-        }
-        ws.terminate();
-        resolve();
-      }
-    }, 10000);
+    setTimeout(() => finish(false, `❌ [${target.title}] TIMEOUT: No action detected.`), 10000);
   });
 }
 
-triggerTest();
+async function run() {
+  const success = await triggerTest();
+  console.log('\n======================================================');
+  if (success) {
+    console.log('\033[32m✅ TÓM TẮT KẾT QUẢ: ĐÃ TEST THÀNH CÔNG\033[0m');
+    console.log('Hệ thống đã phát hiện và xử lý Dialog giả lập.');
+  } else {
+    console.log('\033[31m❌ TÓM TẮT KẾT QUẢ: TEST THẤT BẠI\033[0m');
+    console.log('Vui lòng kiểm tra lại trạng thái hệ thống.');
+  }
+  console.log('======================================================\n');
+}
+
+run();
