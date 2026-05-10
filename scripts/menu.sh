@@ -47,22 +47,135 @@ show_menu() {
     echo -e "   Auto Retry: $RETRY_STATUS ($RETRY_COUNT)    |    Auto Accept: $ACCEPT_STATUS ($ACCEPT_COUNT)"
     echo "======================================================"
     echo " 1) 📊 Xem Trạng thái & Logs chi tiết"
-    echo "------------------------------------------------------"
-    echo " 2) 🔄 Test Auto-Retry (Giả lập High Traffic)"
-    echo " 3) ✅ Test Auto-Accept (Giả lập Agent Prompt)"
+    echo " 2) 🧪 Testing Lab (Live & Regression)"
+    echo " 3) 🛠️ Developer Tools (Debug & Analysis)"
     echo "------------------------------------------------------"
     echo " 4) 🚀 Start All Features (Bắt đầu chạy)"
     echo " 5) 🛑 Stop All Features  (Dừng hoàn toàn)"
     echo "------------------------------------------------------"
     echo " 6) 📥 Bật Khởi động cùng máy tính"
     echo " 7) 🗑️ Tắt Khởi động cùng máy tính"
-    echo " 8) 🔄 Khởi động lại Antigravity (Chế độ Debug)"
-    echo " 9) 🔍 Phân tích Dialog hiện tại"
-    echo " 10) 🎭 Giả lập Dialog từ Sample"
-    echo " 11) 📦 Chụp toàn bộ IDE (Dump DOM)"
     echo " 0) 🚪 Thoát"
     echo "======================================================"
     echo ""
+}
+
+show_test_menu() {
+    while true; do
+        clear
+        echo "======================================================"
+        echo "           🧪 ANTIGRAVITY TESTING LAB               "
+        echo "======================================================"
+        echo " 1) 🔄 Test Auto-Retry (Giả lập High Traffic - LIVE)"
+        echo " 2) ✅ Test Auto-Accept (Giả lập Agent Prompt - LIVE)"
+        echo " 3) 🧪 Chạy Regression Test (Mẫu Offline - SAMPLES)"
+        echo " 0) 🔙 Quay lại Menu chính"
+        echo "======================================================"
+        echo ""
+        read -p "Lựa chọn của bạn: " test_choice
+        echo ""
+        
+        case $test_choice in
+            1)
+                echo "🧪 Đang kiểm tra Auto-Retry (LIVE)..."
+                node "$SCRIPT_DIR/trigger-test.js"
+                read -p "Nhấn Enter để tiếp tục..."
+                ;;
+            2)
+                echo "🧪 Đang kiểm tra Auto-Accept (LIVE)..."
+                node "$SCRIPT_DIR/trigger-accept-test.js"
+                read -p "Nhấn Enter để tiếp tục..."
+                ;;
+            3)
+                echo "🧪 Đang chạy bộ kiểm tra hồi quy (SAMPLES)..."
+                node "$SCRIPT_DIR/verify-dialog-detection-regression.js"
+                read -p "Nhấn Enter để tiếp tục..."
+                ;;
+            0)
+                return
+                ;;
+            *)
+                echo "❌ Lựa chọn không hợp lệ."
+                sleep 1
+                ;;
+        esac
+    done
+}
+
+show_dev_menu() {
+    while true; do
+        clear
+        echo "======================================================"
+        echo "           🛠️ ANTIGRAVITY DEVELOPER TOOLS            "
+        echo "======================================================"
+        echo " 1) 🔄 Khởi động lại Antigravity (Chế độ Debug)"
+        echo " 2) 🔍 Phân tích Dialog hiện tại"
+        echo " 3) 🎭 Giả lập Dialog từ Sample"
+        echo " 4) 📦 Chụp toàn bộ IDE (Dump DOM)"
+        echo " 0) 🔙 Quay lại Menu chính"
+        echo "======================================================"
+        echo ""
+        read -p "Lựa chọn của bạn: " dev_choice
+        echo ""
+        
+        case $dev_choice in
+            1)
+                # 1. Prepare and copy launch command FIRST
+                LAUNCH_CMD='open -a "/Applications/Antigravity.app" --args --remote-debugging-port=31905'
+                printf "%s" "$LAUNCH_CMD" | pbcopy
+                
+                echo -e "\033[32m✅ Đã copy lệnh khởi động vào Clipboard.\033[0m"
+                echo -e "Nội dung kiểm tra (pbpaste): \033[36m$(pbpaste)\033[0m"
+                echo ""
+
+                # 2. Now close Antigravity
+                echo "🔄 Đang yêu cầu Antigravity đóng nhẹ nhàng..."
+                osascript -e 'quit app "Antigravity"' 2>/dev/null || true
+                
+                echo "⏳ Đợi ứng dụng phản hồi (3s)..."
+                sleep 3
+                
+                # Check if still running
+                if ps aux | grep -i "/Applications/Antigravity.app/Contents/MacOS/Electron" | grep -v grep > /dev/null; then
+                    echo "⚠️ Antigravity vẫn đang chạy, đang thực hiện đóng cưỡng bức..."
+                    pkill -9 -f "Antigravity" 2>/dev/null || true
+                    sleep 1
+                fi
+
+                echo -e "\033[32m✅ Antigravity đã được đóng hoàn toàn.\033[0m"
+                
+                echo "======================================================"
+                echo -e "\033[32m🚀 HỆ THỐNG ĐÃ SẴN SÀNG!\033[0m"
+                echo "------------------------------------------------------"
+                echo "👉 Lệnh đã có trong Clipboard. Vui lòng dán (Cmd+V)"
+                echo "   vào Terminal để mở lại Antigravity."
+                echo "======================================================"
+                read -p "Nhấn Enter để quay lại menu..."
+                ;;
+            2)
+                echo "🔍 Đang khởi chạy công cụ phân tích..."
+                node "$SCRIPT_DIR/analyze-dialog.js"
+                read -p "Nhấn Enter để tiếp tục..."
+                ;;
+            3)
+                echo "🎭 Đang khởi chạy công cụ giả lập..."
+                node "$SCRIPT_DIR/mock-dialog.js"
+                read -p "Nhấn Enter để tiếp tục..."
+                ;;
+            4)
+                echo "📦 Đang thực hiện dump toàn bộ DOM..."
+                node "$SCRIPT_DIR/dump-dom.js"
+                read -p "Nhấn Enter để tiếp tục..."
+                ;;
+            0)
+                return
+                ;;
+            *)
+                echo "❌ Lựa chọn không hợp lệ."
+                sleep 1
+                ;;
+        esac
+    done
 }
 
 while true; do
@@ -88,14 +201,10 @@ while true; do
             read -p "Nhấn Enter để quay lại menu..."
             ;;
         2)
-            echo "🧪 Đang kiểm tra Auto-Retry..."
-            node "$SCRIPT_DIR/trigger-test.js"
-            read -p "Nhấn Enter để quay lại menu..."
+            show_test_menu
             ;;
         3)
-            echo "🧪 Đang kiểm tra Auto-Accept..."
-            node "$SCRIPT_DIR/trigger-accept-test.js"
-            read -p "Nhấn Enter để quay lại menu..."
+            show_dev_menu
             ;;
         4)
             bash "$SCRIPT_DIR/start.sh"
@@ -113,55 +222,6 @@ while true; do
             ;;
         7)
             bash "$SCRIPT_DIR/uninstall.sh"
-            read -p "Nhấn Enter để quay lại menu..."
-            ;;
-        8)
-            # 1. Prepare and copy launch command FIRST
-            # Using 'open -a' to launch detached from terminal (more portable)
-            LAUNCH_CMD='open -a "/Applications/Antigravity.app" --args --remote-debugging-port=31905'
-            printf "%s" "$LAUNCH_CMD" | pbcopy
-            
-            echo -e "\033[32m✅ Đã copy lệnh khởi động vào Clipboard.\033[0m"
-            echo -e "Nội dung kiểm tra (pbpaste): \033[36m$(pbpaste)\033[0m"
-            echo ""
-
-            # 2. Now close Antigravity
-            echo "🔄 Đang yêu cầu Antigravity đóng nhẹ nhàng..."
-            osascript -e 'quit app "Antigravity"' 2>/dev/null || true
-            
-            echo "⏳ Đợi ứng dụng phản hồi (3s)..."
-            sleep 3
-            
-            # Check if still running
-            if ps aux | grep -i "/Applications/Antigravity.app/Contents/MacOS/Electron" | grep -v grep > /dev/null; then
-                echo "⚠️ Antigravity vẫn đang chạy, đang thực hiện đóng cưỡng bức..."
-                pkill -9 -f "Antigravity" 2>/dev/null || true
-                sleep 1
-            fi
-
-            echo -e "\033[32m✅ Antigravity đã được đóng hoàn toàn.\033[0m"
-            
-            echo "======================================================"
-            echo -e "\033[32m🚀 HỆ THỐNG ĐÃ SẴN SÀNG!\033[0m"
-            echo "------------------------------------------------------"
-            echo "👉 Lệnh đã có trong Clipboard. Vui lòng dán (Cmd+V)"
-            echo "   vào Terminal để mở lại Antigravity."
-            echo "======================================================"
-            read -p "Nhấn Enter để quay lại menu..."
-            ;;
-        9)
-            echo "🔍 Đang khởi chạy công cụ phân tích..."
-            node "$SCRIPT_DIR/analyze-dialog.js"
-            read -p "Nhấn Enter để quay lại menu..."
-            ;;
-        10)
-            echo "🎭 Đang khởi chạy công cụ giả lập..."
-            node "$SCRIPT_DIR/mock-dialog.js"
-            read -p "Nhấn Enter để quay lại menu..."
-            ;;
-        11)
-            echo "📦 Đang thực hiện dump toàn bộ DOM..."
-            node "$SCRIPT_DIR/dump-dom.js"
             read -p "Nhấn Enter để quay lại menu..."
             ;;
         0)

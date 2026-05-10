@@ -38,13 +38,14 @@ Giao diện Menu sẽ trông như thế này:
    Trạng thái: [✅ HỆ THỐNG ĐANG HOẠT ĐỘNG]
 ======================================================
  1) 📊 Xem Trạng thái & Logs chi tiết
- 2) 🔄 Test Auto-Retry (Giả lập High Traffic)
- 3) ✅ Test Auto-Accept (Giả lập Agent Prompt)
+ 2) 🧪 Testing Lab (Live & Regression)
+ 3) 🛠️ Developer Tools (Debug & Analysis)
+------------------------------------------------------
  4) 🚀 Start All Features (Bắt đầu chạy)
  5) 🛑 Stop All Features  (Dừng hoàn toàn)
- 6) 📥 Cài đặt chạy tự động khi khởi động PC
- 7) 🗑️ Gỡ bỏ cài đặt chạy tự động
- 8) 🔄 Bật CDP (Antigravity sẽ tự tắt để bạn mở lại)
+------------------------------------------------------
+ 6) 📥 Bật Khởi động cùng máy tính
+ 7) 🗑️ Tắt Khởi động cùng máy tính
  0) 🚪 Thoát
 ======================================================
 ```
@@ -52,13 +53,12 @@ Giao diện Menu sẽ trông như thế này:
 | Mục | Chức năng | Chi tiết |
 |:---:|:---|:---|
 | **1** | **Status & Logs** | Kiểm tra daemon có đang chạy không, kết nối CDP có ổn định không và xem log thời gian thực. |
-| **2** | **Test Retry** | Hiện một hộp thoại "High Traffic" giả để xem công cụ có tự click "Retry" không. |
-| **3** | **Test Accept** | Hiện một yêu cầu "Run Command" giả để xem công cụ có tự click "Accept/Execute" không. |
-| **4** | **Start All** | Kích hoạt cả Auto-Retry và Auto-Accept ngay lập tức (chế độ thủ công). |
-| **5** | **Stop All** | Dừng toàn bộ tiến trình chạy ngầm, giải phóng tài nguyên. |
-| **6** | **Auto-Start** | Cài đặt để công cụ tự động chạy mỗi khi bạn mở máy tính. |
-| **7** | **Uninstall** | Gỡ bỏ tính năng tự động chạy cùng máy tính. |
-| **8** | **Bật CDP** | Auto-Click yêu cầu phải bật chế độ CDP (Chromium Debugging Protocol) trong Antigravity IDE. Antigravity sẽ tự đóng. Sau đó bạn chỉ cần mở Terminal, **Paste (Dán) và Enter** |
+| **2** | **Testing Lab** | Menu phụ cho phép chạy Test Live (Retry/Accept) hoặc Regression Test (Offline). |
+| **3** | **Dev Tools** | Menu phụ cho các công cụ Debug: Khởi động lại (CDP), Phân tích Dialog, Giả lập, Dump DOM. |
+| **4** | **Start All** | Kích hoạt cả Auto-Retry và Auto-Accept ngay lập tức. |
+| **5** | **Stop All** | Dừng toàn bộ tiến trình chạy ngầm. |
+| **6** | **Auto-Start** | Cài đặt tự động chạy cùng máy tính. |
+| **7** | **Uninstall** | Gỡ bỏ tính năng tự chạy cùng máy tính. |
 
 ---
 
@@ -111,7 +111,7 @@ Bạn có thể tùy chỉnh hành vi của công cụ trong file `config.json` 
 
 | Vấn đề | Nguyên nhân | Cách xử lý |
 |:---|:---|:---|
-| **Status báo "Lỗi/Chưa sẵn sàng"** | IDE chưa bật chế độ hỗ trợ (CDP). | Dùng Option 8 trong Menu hoặc Extension, sau đó Paste -> Enter vào Terminal. |
+| **Status báo "Lỗi/Chưa sẵn sàng"** | IDE chưa bật chế độ hỗ trợ (CDP). | Dùng chức năng trong **Developer Tools** (Menu CLI) hoặc Extension. |
 | **Không tự click "Accept"** | Lệnh nằm trong Blacklist. | Kiểm tra mục `blacklist` trong `config.json`. |
 | **Extension không hiện** | Link extension bị sai. | Chạy lại lệnh `ln -s` với đường dẫn tuyệt đối. |
 | **Công cụ không tự chạy** | Chưa cài đặt tự động. | Sử dụng Option 6 trong Menu CLI. |

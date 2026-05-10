@@ -100,7 +100,7 @@ function getInjectionScript(userConfig = {}) {
   // Merge custom patterns from USER_CONFIG
   const toRegex = (p) => {
     try {
-      const match = p.match(/^\/(.*)\/(.*)$/);
+      const match = p.match(/^\\/(.*)\\/(.*)$/);
       if (match) return new RegExp(match[1], match[2]);
       return new RegExp(p, 'i');
     } catch(e) { return null; }
