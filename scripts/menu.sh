@@ -185,20 +185,39 @@ while true; do
     
     case $choice in
         1)
-            # Xem Status và sau đó hỏi có muốn xem log không
             bash "$SCRIPT_DIR/status.sh"
             echo ""
-            read -p "Bạn có muốn xem log thời gian thực không? (y/n): " view_logs
-            if [[ "$view_logs" == "y" || "$view_logs" == "Y" ]]; then
-                LOG_FILE="$HOME/Library/Logs/AntigravityAutoRetry/stdout.log"
-                if [ -f "$LOG_FILE" ]; then
-                    echo "Đang theo dõi log (Nhấn Ctrl+C để thoát)..."
-                    tail -f "$LOG_FILE"
-                else
-                    echo "Chưa có file log nào."
-                fi
-            fi
-            read -p "Nhấn Enter để quay lại menu..."
+            echo "------------------------------------------------------"
+            echo " TÙY CHỌN:"
+            echo " 1) 📋 Xem log thời gian thực (tail -f)"
+            echo " 2) 🔄 Reset bộ đếm thống kê"
+            echo " 0) 🔙 Quay lại Menu chính"
+            echo "------------------------------------------------------"
+            read -p "Lựa chọn của bạn: " sub_choice
+            
+            case $sub_choice in
+                1)
+                    LOG_FILE="$HOME/Library/Logs/AntigravityAutoRetry/stdout.log"
+                    if [ -f "$LOG_FILE" ]; then
+                        echo "Đang theo dõi log (Nhấn Ctrl+C để thoát)..."
+                        tail -f "$LOG_FILE"
+                    else
+                        echo "Chưa có file log nào."
+                        sleep 1
+                    fi
+                    ;;
+                2)
+                    bash "$SCRIPT_DIR/status.sh" --reset
+                    sleep 1
+                    ;;
+                0)
+                    # Quay lại menu chính
+                    ;;
+                *)
+                    echo "❌ Lựa chọn không hợp lệ."
+                    sleep 1
+                    ;;
+            esac
             ;;
         2)
             show_test_menu

@@ -6,6 +6,23 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 CONFIG_FILE="$PROJECT_ROOT/config.json"
 ACTIVITY_FILE="$PROJECT_ROOT/activity-log.json"
 
+# Check if reset is requested
+if [ "$1" == "--reset" ]; then
+    echo '{
+  "retry": {
+    "detected": 0,
+    "clicked": 0
+  },
+  "accept": {
+    "detected": 0,
+    "clicked": 0,
+    "blocked": 0
+  }
+}' > "$ACTIVITY_FILE"
+    echo "✅ Đã reset bộ đếm thống kê thành công!"
+    exit 0
+fi
+
 # Check if jq is installed
 if ! command -v jq &> /dev/null; then
     echo "❌ Lỗi: 'jq' chưa được cài đặt. Vui lòng cài đặt 'jq' để sử dụng chức năng này."
