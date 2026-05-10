@@ -1,49 +1,69 @@
 #!/bin/bash
-# status.sh - Check status of Antigravity Auto-Retry daemon
+# status.sh - Simplified status view for Antigravity Auto-Click
 
-PLIST_NAME="com.antigravity.autoretry"
-LOG_DIR="$HOME/Library/Logs/AntigravityAutoRetry"
-PLIST_DST="$HOME/Library/LaunchAgents/$PLIST_NAME.plist"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+CONFIG_FILE="$PROJECT_ROOT/config.json"
 
-echo "🔍 Kiểm tra trạng thái Antigravity Auto-Retry..."
-echo "------------------------------------------------"
+# Check if jq is installed
+if ! command -v jq &> /dev/null; then
+    echo "❌ Lỗi: 'jq' chưa được cài đặt. Vui lòng cài đặt 'jq' để sử dụng chức năng này."
+    exit 1
+fi
 
-# 1. Kiểm tra LaunchAgent của macOS
-if launchctl list | grep -q "$PLIST_NAME"; then
-    PID=$(launchctl list | grep "$PLIST_NAME" | awk '{print $1}')
-    if [ "$PID" != "-" ] && [ -n "$PID" ]; then
-        echo "✅ LaunchAgent (Service ngầm): ĐANG CHẠY (PID: $PID)"
+# Check config
+AUTO_RETRY=$(jq -r '.autoRetry' "$CONFIG_FILE" 2>/dev/null || echo "true")
+AUTO_ACCEPT=$(jq -r '.autoAccept' "$CONFIG_FILE" 2>/dev/null || echo "true")
+
+# Check Node process
+NODE_RUNNING=$(pgrep -f "node.*src/auto-retry.js" > /dev/null && echo "yes" || echo "no")
+
+# Check Antigravity App
+APP_RUNNING=$(ps aux | grep "Antigravity.app/Contents/MacOS/Electron" | grep -v grep > /dev/null && echo "yes" || echo "no")
+
+# Check CDP Port (remote debugging)
+CDP_ENABLED=$(ps aux | grep -i "Antigravity.app/Contents/MacOS/Electron" | grep -v grep | grep -q "\\-\\-remote-debugging-port=" && echo "yes" || echo "no")
+
+# Function to format status
+get_status() {
+    local enabled=$1
+    if [ "$enabled" != "true" ]; then
+        echo -e "\033[0;37mDisabled\033[0m" # Gray
+    elif [ "$NODE_RUNNING" = "no" ] || [ "$APP_RUNNING" = "no" ] || [ "$CDP_ENABLED" = "no" ]; then
+        echo -e "\033[0;31mError\033[0m" # Red
     else
-        echo "⚠️ LaunchAgent: Đã load nhưng chưa cấp PID (có thể đang khởi động lại hoặc lỗi)"
+        echo -e "\033[0;32mEnabled\033[0m" # Green
     fi
-else
-    echo "❌ LaunchAgent: KHÔNG CHẠY (Chưa được cài đặt hoặc đã bị dừng)"
-fi
+}
 
+echo "🔍 Antigravity Auto-Click Status:"
+echo "------------------------------------------------"
+echo -e "Auto Retry:  $(get_status "$AUTO_RETRY")"
+echo -e "Auto Accept: $(get_status "$AUTO_ACCEPT")"
 echo "------------------------------------------------"
 
-# 2. Kiểm tra tiến trình Node.js thực tế
-NODE_PIDS=$(pgrep -f "node.*src/auto-retry.js" || true)
-if [ -n "$NODE_PIDS" ]; then
-    PIDS_FORMATTED=$(echo $NODE_PIDS | tr '\n' ' ')
-    echo "✅ Tiến trình Node.js: ĐANG HOẠT ĐỘNG (PID: $PIDS_FORMATTED)"
-else
-    echo "❌ Tiến trình Node.js: KHÔNG TÌM THẤY (Chưa chạy)"
+# Error details
+ERRORS=""
+if [ "$AUTO_RETRY" = "true" ] || [ "$AUTO_ACCEPT" = "true" ]; then
+    if [ "$NODE_RUNNING" = "no" ]; then
+        ERRORS="${ERRORS}❌ node chưa chạy -> Cần restart lại Extension chẳng hạn\n"
+    fi
+    
+    if [ "$APP_RUNNING" = "no" ]; then
+        ERRORS="${ERRORS}❌ Antigravity chưa mở -> Vui lòng mở Antigravity\n"
+    elif [ "$CDP_ENABLED" = "no" ]; then
+        ERRORS="${ERRORS}❌ Antigravity chưa bật CDP -> Cần chạy lại Antigravity (Debug Mode)\n"
+    fi
 fi
 
-echo "------------------------------------------------"
-
-# 3. Xem nhanh 5 dòng log cuối cùng để biết đang làm gì
-echo "📄 Log hoạt động mới nhất (stdout):"
-if [ -f "$LOG_DIR/stdout.log" ]; then
-    tail -n 5 "$LOG_DIR/stdout.log" | sed 's/^/   /'
-else
-    echo "   [Chưa có file log hoạt động nào được sinh ra]"
+if [ -n "$ERRORS" ]; then
+    echo -e "$ERRORS"
+    echo "------------------------------------------------"
 fi
 
-echo "------------------------------------------------"
-echo "💡 Các lệnh hữu ích:"
-echo "   - Xem log liên tục:  tail -f $LOG_DIR/stdout.log"
-echo "   - Chạy kiểm tra:     node ./scripts/trigger-test.js"
-echo "   - Cài lại/Bật lại:   ./scripts/install.sh"
-echo "   - Gỡ/Dừng hẳn:       ./scripts/uninstall.sh"
+# Show 3 latest logs for context (optional, but keep it brief)
+if [ -f "$HOME/Library/Logs/AntigravityAutoRetry/stdout.log" ]; then
+    echo "Dòng log cuối:"
+    tail -n 3 "$HOME/Library/Logs/AntigravityAutoRetry/stdout.log" | sed 's/^/  /'
+    echo "------------------------------------------------"
+fi

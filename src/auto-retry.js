@@ -7,6 +7,8 @@
  */
 
 const WebSocket = require('ws');
+const fs = require('fs');
+const path = require('path');
 const { findCDPPort, isAntigravityRunning, getTargets, filterPageTargets } = require('./discovery');
 const { getInjectionScript } = require('./injection-payload');
 
@@ -43,6 +45,7 @@ class CDPConnection {
     this.pendingCallbacks = new Map();
     this.isConnected = false;
     this.injected = false;
+    this.config = null;
   }
 
   /**
@@ -189,9 +192,9 @@ class CDPConnection {
   /**
    * Inject auto-retry script vào page
    */
-  async inject() {
-    if (this.injected) {
-      debug(`Already injected into ${this.target.title}`);
+  async inject(config = {}) {
+    if (this.injected && JSON.stringify(this.config) === JSON.stringify(config)) {
+      debug(`Already injected into ${this.target.title} with current config`);
       return;
     }
 
@@ -201,7 +204,8 @@ class CDPConnection {
       // Step 1: Clean up old versions first
       await this.injectCleanup();
 
-      const script = getInjectionScript();
+      this.config = config;
+      const script = getInjectionScript(config);
       const result = await this.send('Runtime.evaluate', {
         expression: script,
         returnByValue: true,
@@ -269,7 +273,42 @@ class AutoRetryDaemon {
   constructor() {
     this.connections = new Map(); // targetId -> CDPConnection
     this.running = false;
-    this.checkInterval = null;
+    this.config = this.loadConfig();
+    this.setupConfigWatcher();
+  }
+
+  loadConfig() {
+    const configPath = path.join(__dirname, '..', 'config.json');
+    try {
+      if (fs.existsSync(configPath)) {
+        const data = fs.readFileSync(configPath, 'utf8');
+        const config = JSON.parse(data);
+        log('Loaded config from config.json');
+        return config;
+      }
+    } catch (e) {
+      error(`Failed to load config: ${e.message}`);
+    }
+    return { blacklist: [], autoAccept: true, autoRetry: true };
+  }
+
+  setupConfigWatcher() {
+    const configPath = path.join(__dirname, '..', 'config.json');
+    if (!fs.existsSync(configPath)) return;
+
+    fs.watch(configPath, (event) => {
+      if (event === 'change') {
+        debug('Config file changed, reloading...');
+        // Small delay to ensure file is written
+        setTimeout(() => {
+          this.config = this.loadConfig();
+          // Force re-injection on next cycle
+          for (const conn of this.connections.values()) {
+            conn.injected = false; 
+          }
+        }, 500);
+      }
+    });
   }
 
   async start() {
@@ -335,7 +374,7 @@ class AutoRetryDaemon {
         const conn = new CDPConnection(target);
         try {
           await conn.connect();
-          await conn.inject();
+          await conn.inject(this.config);
           await conn.setupAutoReinject();
           this.connections.set(target.id, conn);
         } catch (e) {
@@ -343,13 +382,13 @@ class AutoRetryDaemon {
           conn.disconnect();
         }
       } else {
-        // Re-inject if disconnected
+        // Re-inject if disconnected or config changed
         const conn = this.connections.get(target.id);
         if (!conn.isConnected) {
           this.connections.delete(target.id);
           debug(`Removed stale connection: ${target.title}`);
         } else if (!conn.injected) {
-          await conn.inject();
+          await conn.inject(this.config);
         }
       }
     }

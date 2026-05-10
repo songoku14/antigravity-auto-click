@@ -1,6 +1,7 @@
 const vscode = require('vscode');
 const cp = require('child_process');
 const path = require('path');
+const fs = require('fs');
 
 let daemonProcess = null;
 let statusBarItem = null;
@@ -10,9 +11,9 @@ let outputChannel = null;
  * @param {vscode.ExtensionContext} context
  */
 function activate(context) {
-    console.log('Antigravity Auto-Retry extension is now active');
+    console.log('Antigravity Auto-Click extension is now active');
 
-    outputChannel = vscode.window.createOutputChannel('Antigravity Auto-Retry');
+    outputChannel = vscode.window.createOutputChannel('Antigravity Auto-Click');
     
     // Create a single status bar item for a seamless look
     statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
@@ -26,8 +27,10 @@ function activate(context) {
     context.subscriptions.push(vscode.commands.registerCommand('antigravity-auto-retry.showMenu', showMenu));
     context.subscriptions.push(vscode.commands.registerCommand('antigravity-auto-retry.start', startDaemon));
     context.subscriptions.push(vscode.commands.registerCommand('antigravity-auto-retry.stop', stopDaemon));
-    context.subscriptions.push(vscode.commands.registerCommand('antigravity-auto-retry.test', runTest));
     context.subscriptions.push(vscode.commands.registerCommand('antigravity-auto-retry.restartIDE', restartIDE));
+    context.subscriptions.push(vscode.commands.registerCommand('antigravity-auto-retry.editConfig', editConfig));
+    context.subscriptions.push(vscode.commands.registerCommand('antigravity-auto-retry.testRetry', testRetry));
+    context.subscriptions.push(vscode.commands.registerCommand('antigravity-auto-retry.testAccept', testAccept));
 
     // Auto-start (Optional: could be a setting)
     startDaemon();
@@ -37,39 +40,82 @@ function updateStatusBar(running) {
     const icon = running ? '$(check)' : '$(circle-slash)';
     const statusText = running ? 'RUNNING' : 'STOPPED';
     
-    statusBarItem.text = `${icon} Auto-Retry`;
-    statusBarItem.tooltip = `Antigravity Auto-Retry: ${statusText}`;
-    
-    // Remove custom coloring to keep it seamless with the IDE theme
+    let activeFeatures = [];
+    try {
+        const config = readConfig();
+        if (config.autoRetry !== false) activeFeatures.push('R');
+        if (config.autoAccept !== false) activeFeatures.push('A');
+    } catch(e) {}
+
+    const featuresText = activeFeatures.length > 0 ? ` (${activeFeatures.join('/')})` : ' (OFF)';
+    statusBarItem.text = `${icon} Auto-Click${running ? featuresText : ''}`;
+    statusBarItem.tooltip = `Antigravity Auto-Click: ${statusText}${running ? featuresText : ''}`;
     statusBarItem.color = undefined; 
 }
 
+function readConfig() {
+    const configPath = path.join(__dirname, '..', 'config.json');
+    if (fs.existsSync(configPath)) {
+        return JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    }
+    return { autoRetry: true, autoAccept: true };
+}
+
+function writeConfig(config) {
+    const configPath = path.join(__dirname, '..', 'config.json');
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+}
+
 async function showMenu() {
+    const config = readConfig();
     const items = [];
+
+    // --- Auto-Retry ---
+    items.push({ label: '--- Auto-Retry ---', kind: vscode.QuickPickItemKind.Separator });
+    items.push({
+        label: `${config.autoRetry !== false ? '$(check)' : '$(circle-slash)'} Enable Auto-Retry`,
+        description: config.autoRetry !== false ? 'Currently Enabled' : 'Currently Disabled',
+        action: () => toggleFeature('autoRetry')
+    });
+    items.push({
+        label: '$(beaker) Test Auto-Retry',
+        description: 'Simulate High Traffic dialog',
+        command: 'antigravity-auto-retry.testRetry'
+    });
+
+    // --- Auto-Accept ---
+    items.push({ label: '--- Auto-Accept ---', kind: vscode.QuickPickItemKind.Separator });
+    items.push({
+        label: `${config.autoAccept !== false ? '$(check)' : '$(circle-slash)'} Enable Auto-Accept`,
+        description: config.autoAccept !== false ? 'Currently Enabled' : 'Currently Disabled',
+        action: () => toggleFeature('autoAccept')
+    });
+    items.push({
+        label: '$(beaker) Test Auto-Accept',
+        description: 'Simulate Agent Prompt',
+        command: 'antigravity-auto-retry.testAccept'
+    });
+
+    // --- System ---
+    items.push({ label: '--- System ---', kind: vscode.QuickPickItemKind.Separator });
     if (!daemonProcess) {
         items.push({
-            label: '$(play) Start Auto-Retry',
-            description: 'Start the background daemon',
+            label: '$(play) Start All Features',
+            description: 'Start background automation process',
             command: 'antigravity-auto-retry.start'
         });
     } else {
         items.push({
-            label: '$(stop) Stop Auto-Retry',
-            description: 'Stop the background daemon',
+            label: '$(stop) Stop All Features',
+            description: 'Stop background automation process',
             command: 'antigravity-auto-retry.stop'
         });
     }
 
     items.push({
-        label: '$(beaker) Run Connection Test',
-        description: 'Simulate high traffic dialog',
-        command: 'antigravity-auto-retry.test'
-    });
-
-    items.push({
-        label: '$(extensions) Reload Extension (Apply Updates)',
-        description: 'Tải lại giao diện để cập nhật code Extension',
-        action: () => vscode.commands.executeCommand('workbench.action.reloadWindow')
+        label: '$(settings-gear) Edit Blacklist / Settings',
+        description: 'Cấu hình các lệnh terminal bị chặn',
+        command: 'antigravity-auto-retry.editConfig'
     });
 
     items.push({
@@ -78,8 +124,15 @@ async function showMenu() {
         command: 'antigravity-auto-retry.restartIDE'
     });
 
+    items.push({ label: '', kind: vscode.QuickPickItemKind.Separator });
+
+    items.push({
+        label: '$(extensions) Reload Extension',
+        action: () => vscode.commands.executeCommand('workbench.action.reloadWindow')
+    });
+
     const selected = await vscode.window.showQuickPick(items, {
-        placeHolder: 'Antigravity Auto-Retry Management'
+        placeHolder: 'Antigravity Auto-Click Management'
     });
 
     if (selected) {
@@ -91,14 +144,22 @@ async function showMenu() {
     }
 }
 
+function toggleFeature(feature) {
+    const config = readConfig();
+    config[feature] = config[feature] === false ? true : false;
+    writeConfig(config);
+    vscode.window.showInformationMessage(`${feature === 'autoRetry' ? 'Auto-Retry' : 'Auto-Accept'} is now ${config[feature] ? 'ENABLED' : 'DISABLED'}`);
+    updateStatusBar(!!daemonProcess);
+}
+
 function startDaemon() {
     if (daemonProcess) {
-        vscode.window.showInformationMessage('Auto-Retry is already running.');
+        vscode.window.showInformationMessage('Antigravity Auto-Click is already running.');
         return;
     }
 
     const scriptPath = path.join(__dirname, 'auto-retry.js');
-    outputChannel.appendLine(`[Extension] Starting daemon: node ${scriptPath}`);
+    outputChannel.appendLine(`[Extension] Starting: node ${scriptPath}`);
 
     daemonProcess = cp.spawn('node', [scriptPath], {
         env: { ...process.env, DEBUG: '1' }
@@ -113,56 +174,46 @@ function startDaemon() {
     });
 
     daemonProcess.on('close', (code) => {
-        outputChannel.appendLine(`[Extension] Daemon process exited with code ${code}`);
+        outputChannel.appendLine(`[Extension] Process exited with code ${code}`);
         daemonProcess = null;
         updateStatusBar(false);
     });
 
     updateStatusBar(true);
-    vscode.window.showInformationMessage('Antigravity Auto-Retry started.');
+    vscode.window.showInformationMessage('Antigravity Auto-Click started.');
 }
 
 function stopDaemon() {
     if (!daemonProcess) {
-        vscode.window.showInformationMessage('Auto-Retry is not running.');
+        vscode.window.showInformationMessage('Antigravity Auto-Click is not running.');
         return;
     }
 
     daemonProcess.kill();
     daemonProcess = null;
     updateStatusBar(false);
-    vscode.window.showInformationMessage('Antigravity Auto-Retry stopped.');
+    vscode.window.showInformationMessage('Antigravity Auto-Click stopped.');
 }
 
+function testRetry() {
+    const scriptPath = path.join(__dirname, '..', 'scripts', 'trigger-test.js');
+    cp.exec(`node "${scriptPath}"`, (error, stdout, stderr) => {
+        if (error) {
+            vscode.window.showErrorMessage(`Test Retry failed: ${error.message}`);
+            return;
+        }
+        vscode.window.showInformationMessage('Simulated High Traffic dialog triggered.');
+    });
+}
 
-function runTest() {
-    const testScript = path.join(__dirname, '..', 'scripts', 'trigger-test.js');
-    outputChannel.appendLine(`[Extension] Running test: node ${testScript}`);
-    
-    vscode.window.withProgress({
-        location: vscode.ProgressLocation.Notification,
-        title: "Antigravity Auto-Retry: Kiểm tra kết nối...",
-        cancellable: false
-    }, (progress) => {
-        return new Promise((resolve) => {
-            cp.exec(`node ${testScript}`, (err, stdout, stderr) => {
-                outputChannel.append(stdout);
-                if (stderr) outputChannel.append(`[STDERR] ${stderr}`);
-
-                if (err) {
-                    vscode.window.showErrorMessage(`❌ Test thất bại: ${err.message}`);
-                } else if (stdout.includes('SUCCESS:')) {
-                    vscode.window.showInformationMessage('✅ Auto-Retry Test Thành công: Đã phát hiện và click dialog!');
-                } else if (stdout.includes('TIMEOUT:')) {
-                    vscode.window.showWarningMessage('⚠️ Test Timeout: Không phát hiện thao tác click trong 10s.');
-                } else if (stdout.includes('Failed: Script not yet injected')) {
-                    vscode.window.showWarningMessage('⚠️ Test thất bại: Script chưa được inject vào trang.');
-                } else {
-                    vscode.window.showInformationMessage('✨ Đã gửi lệnh test đến Antigravity.');
-                }
-                resolve();
-            });
-        });
+function testAccept() {
+    const scriptPath = path.join(__dirname, '..', 'scripts', 'trigger-accept-test.js');
+    cp.exec(`node "${scriptPath}"`, (error, stdout, stderr) => {
+        if (error) {
+            vscode.window.showErrorMessage(`Test Accept failed: ${error.message}`);
+            return;
+        }
+        vscode.window.showInformationMessage('Simulated Agent Prompt triggered.');
     });
 }
 
@@ -176,6 +227,16 @@ function restartIDE() {
             }, 1500);
         });
     });
+}
+
+async function editConfig() {
+    const configPath = path.join(__dirname, '..', 'config.json');
+    const uri = vscode.Uri.file(configPath);
+    try {
+        await vscode.window.showTextDocument(uri);
+    } catch (e) {
+        vscode.window.showErrorMessage(`Không thể mở file cấu hình: ${e.message}`);
+    }
 }
 
 function deactivate() {

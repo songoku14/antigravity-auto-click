@@ -2,24 +2,24 @@
  * injection-payload.js - JavaScript code to inject into Antigravity's DOM
  * 
  * This script runs INSIDE the Electron renderer process.
- * It uses MutationObserver to watch for error dialogs and auto-click Retry.
- * 
- * IMPORTANT: Only targets dialog/notification containers, NOT editor content.
+ * It uses MutationObserver to watch for error dialogs and auto-click Retry/Accept.
  */
 
-const INJECTION_VERSION = 7;
+const INJECTION_VERSION = 8;
 
 /**
  * Trả về string JavaScript sẽ được inject vào DOM qua CDP Runtime.evaluate
  */
-function getInjectionScript() {
+function getInjectionScript(userConfig = {}) {
+  const configJson = JSON.stringify(userConfig);
+  
   return `
 (function() {
   const SCRIPT_VERSION = ${INJECTION_VERSION};
+  const USER_CONFIG = ${configJson};
   
   // Kill old versions
   if (window.__autoRetryVersion && window.__autoRetryVersion < SCRIPT_VERSION) {
-    // Stop old observer and intervals
     if (window.__autoRetryCleanup) {
       window.__autoRetryCleanup();
     }
@@ -27,9 +27,8 @@ function getInjectionScript() {
     window.__autoRetryInjected = false;
   }
   
-  // Prevent double injection of same version
   if (window.__autoRetryInjected && window.__autoRetryVersion === SCRIPT_VERSION) {
-    console.log('[AutoRetry] v' + SCRIPT_VERSION + ' already running, skipping.');
+    console.log('[AutoRetry] v' + SCRIPT_VERSION + ' already running.');
     return 'already_injected';
   }
   
@@ -37,8 +36,6 @@ function getInjectionScript() {
   window.__autoRetryVersion = SCRIPT_VERSION;
 
   const CONFIG = {
-    // === DIALOG/NOTIFICATION CONTAINER SELECTORS ===
-    // ONLY look inside these - never the editor content area
     dialogContainerSelectors: [
       '.monaco-dialog-box',
       '.dialog-shadow',
@@ -47,15 +44,13 @@ function getInjectionScript() {
       '.notification-list-item',
       '.notification-toast',
       '.notifications-center',
-      // Antigravity agent specific
       '.jetski-error',
       '.error-overlay',
-      // Generic modal overlays
+      '.monaco-workbench', // Broad scan for inline buttons
       '[role="dialog"]',
       '[role="alertdialog"]'
     ],
 
-    // Error text patterns - checked WITHIN dialog containers only
     errorPatterns: [
       /high\\s*traffic/i,
       /server\\s*(is\\s*)?busy/i,
@@ -66,13 +61,10 @@ function getInjectionScript() {
       /service\\s*unavailable/i,
       /request\\s*failed/i,
       /something\\s*went\\s*wrong/i,
-      /an?\\s*error\\s*occur/i,
-      /please\\s*try\\s*again\\s*later/i,
       /agent\\s*terminated/i,
       /try\\s*again/i
     ],
 
-    // Button text patterns - STRICT match on trimmed text only
     retryButtonPatterns: [
       /^retry$/i,
       /^try again$/i,
@@ -80,19 +72,36 @@ function getInjectionScript() {
       /^reconnect$/i
     ],
 
+    actionButtonPatterns: [
+      /^accept$/i,
+      /^run$/i,
+      /^execute$/i,
+      /^allow$/i,
+      /^join$/i,
+      /^yes$/i,
+      /^approve$/i,
+      /^continue$/i,
+      /^always allow$/i
+    ],
+
+    blacklist: USER_CONFIG.blacklist || [
+      "rm ", "sudo ", "force ", "push ", "delete ", "terminate ", "pkill ", "kill ", "mkfs"
+    ],
+
     pollInterval: 3000,
     clickDelay: 800,
-    maxRetriesPerMinute: 10,
-    cooldownMs: 120000,
-    minClickInterval: 3000
+    maxRetriesPerMinute: 15,
+    cooldownMs: 60000,
+    minClickInterval: 2000
   };
 
-  let retryCount = 0;
+  let actionCount = 0;
   let lastResetTime = Date.now();
   let lastClickTime = 0;
   let isInCooldown = false;
   let observerRef = null;
   let pollIntervalRef = null;
+  const clickCooldowns = new Map(); // Store individual button cooldowns
 
   function log(msg) {
     console.log('[AutoRetry] ' + msg);
@@ -101,40 +110,53 @@ function getInjectionScript() {
   function resetCounterIfNeeded() {
     const now = Date.now();
     if (now - lastResetTime > 60000) {
-      retryCount = 0;
+      actionCount = 0;
       lastResetTime = now;
       isInCooldown = false;
     }
   }
 
-  function canRetry() {
+  function canClick() {
     resetCounterIfNeeded();
     if (isInCooldown) return false;
     if (Date.now() - lastClickTime < CONFIG.minClickInterval) return false;
-    if (retryCount >= CONFIG.maxRetriesPerMinute) {
+    if (actionCount >= CONFIG.maxRetriesPerMinute) {
       isInCooldown = true;
-      log('Rate limit reached. Cooling down for ' + (CONFIG.cooldownMs/1000) + 's');
-      setTimeout(() => {
-        isInCooldown = false;
-        retryCount = 0;
-        lastResetTime = Date.now();
-        log('Cooldown ended.');
-      }, CONFIG.cooldownMs);
+      log('Rate limit reached. Cooling down.');
+      setTimeout(() => { isInCooldown = false; actionCount = 0; }, CONFIG.cooldownMs);
       return false;
     }
     return true;
   }
 
   /**
-   * Find visible dialog/notification containers.
-   * This is the KEY safety filter - never scans editor content.
+   * Shadow DOM aware element finder
    */
-  function findDialogContainers() {
+  function findInShadows(root, selector) {
+    let elements = Array.from(root.querySelectorAll(selector));
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+    let node;
+    while (node = walker.nextNode()) {
+      if (node.shadowRoot) {
+        elements = elements.concat(findInShadows(node.shadowRoot, selector));
+      }
+    }
+    return elements;
+  }
+
+  /**
+   * Find container having specific text patterns
+   */
+  function findValidContainers() {
     const containers = [];
     for (const selector of CONFIG.dialogContainerSelectors) {
       try {
-        document.querySelectorAll(selector).forEach(el => {
-          // Must be visible (has dimensions)
+        const found = findInShadows(document, selector);
+        if (found.length > 0) {
+          // debug log
+          // console.log('[AutoRetry] Found ' + found.length + ' elements for selector: ' + selector);
+        }
+        found.forEach(el => {
           const rect = el.getBoundingClientRect();
           if (rect.width > 0 && rect.height > 0) {
             containers.push(el);
@@ -146,178 +168,135 @@ function getInjectionScript() {
   }
 
   /**
-   * Check if a container has error-related text
+   * Extract command text from vicinity of button
    */
-  function containerHasError(container) {
-    const text = (container.textContent || '');
-    for (const pattern of CONFIG.errorPatterns) {
-      if (pattern.test(text)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  /**
-   * Find retry buttons WITHIN a specific container.
-   * Uses STRICT text matching to avoid false positives.
-   */
-  function findRetryButtonsIn(container) {
-    const buttons = [];
-    const clickableSelectors = 'button, [role="button"], .monaco-button, .action-label, .dialog-button';
-    
-    container.querySelectorAll(clickableSelectors).forEach(el => {
-      // Get the DIRECT text of this element, trimmed
-      const text = (el.textContent || '').trim();
-      
-      // Skip if text is too long (likely not a button label)
-      if (text.length > 30) return;
-      
-      for (const pattern of CONFIG.retryButtonPatterns) {
-        if (pattern.test(text)) {
-          buttons.push({ el, text });
-          break;
+  function extractCommandText(btn) {
+    try {
+      let el = btn;
+      // Search up to 10 parent levels for code/pre blocks
+      for (let i = 0; i < 10 && el && el !== document.body; i++) {
+        el = el.parentElement;
+        if (!el) break;
+        const codes = el.querySelectorAll('pre, code, .monaco-editor-background');
+        if (codes.length > 0) {
+          let allText = '';
+          codes.forEach(c => allText += ' ' + (c.textContent || '').trim());
+          return allText.trim();
         }
       }
-    });
+    } catch (e) {}
+    return null;
+  }
+
+  function isCommandBlocked(cmdText) {
+    if (!cmdText) return false;
+    const lowerCmd = cmdText.toLowerCase();
+    return CONFIG.blacklist.some(pattern => lowerCmd.includes(pattern.toLowerCase()));
+  }
+
+  function findButtonsIn(container, patterns) {
+    const buttons = [];
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_ELEMENT);
+    let el;
+    while (el = walker.nextNode()) {
+      const tag = el.tagName.toLowerCase();
+      const isClickable = tag === 'button' || el.getAttribute('role') === 'button' || 
+                          el.classList.contains('monaco-button') || el.classList.contains('action-label');
+      
+      if (isClickable) {
+        const text = (el.textContent || '').trim();
+        if (text.length > 40) continue;
+        
+        for (const pattern of patterns) {
+          if (pattern.test(text)) {
+            buttons.push({ el, text });
+            break;
+          }
+        }
+      }
+    }
     return buttons;
   }
 
-  /**
-   * Main scan: find error dialog containers, then find retry buttons inside them
-   */
-  function scanAndRetry() {
-    if (!canRetry()) return;
+  function scanAndAction() {
+    if (!canClick()) return;
 
-    const containers = findDialogContainers();
+    const containers = findValidContainers();
     if (containers.length === 0) return;
 
     for (const container of containers) {
-      if (!containerHasError(container)) continue;
+      const containerText = container.textContent || '';
       
-      const retryButtons = findRetryButtonsIn(container);
-      if (retryButtons.length === 0) continue;
-
-      // Found an error dialog with a retry button!
-      retryCount++;
-      lastClickTime = Date.now();
-      const { el: btn, text: btnText } = retryButtons[0];
-
-      const isTest = !!container.__isTestDialog;
-      log((isTest ? '🧪' : '🔄') + ' ' + (isTest ? 'TEST' : 'Error') + ' dialog detected! Clicking "' + btnText + '" (retry #' + retryCount + ')');
-
-      setTimeout(() => {
-        try {
-          btn.click();
-          log('✅ Clicked "' + btnText + '" successfully.');
-        } catch (e) {
-          try {
-            btn.dispatchEvent(new MouseEvent('click', {
-              bubbles: true, cancelable: true, view: window
-            }));
-            log('✅ Clicked via dispatchEvent.');
-          } catch (e2) {
-            log('❌ Click failed: ' + e2.message);
-          }
+      // Case 1: Error/Retry (Only if autoRetry is enabled)
+      if (USER_CONFIG.autoRetry !== false && CONFIG.errorPatterns.some(p => p.test(containerText))) {
+        const btns = findButtonsIn(container, CONFIG.retryButtonPatterns);
+        if (btns.length > 0) {
+          performClick(btns[0].el, btns[0].text, '🔄 RETRY');
+          return;
         }
-      }, CONFIG.clickDelay);
+      }
 
-      return; // One click per scan cycle
+      // Case 2: Action/Accept (Only if autoAccept is enabled)
+      if (USER_CONFIG.autoAccept !== false) {
+        const btns = findButtonsIn(container, CONFIG.actionButtonPatterns);
+        if (btns.length > 0) {
+          const btn = btns[0].el;
+          const btnText = btns[0].text;
+
+          // Safety check for Terminal commands
+          const cmdText = extractCommandText(btn);
+          if (isCommandBlocked(cmdText)) {
+            if (!btn.__blockedByFilter) {
+              btn.__blockedByFilter = true;
+              log('🚫 Blocked dangerous command: ' + cmdText.substring(0, 50) + '...');
+              btn.style.cssText += ';border: 2px solid red !important; opacity: 0.7;';
+              const oldText = btn.textContent;
+              btn.textContent = '🚫 Blocked';
+              setTimeout(() => { btn.textContent = oldText; btn.__blockedByFilter = false; }, 5000);
+            }
+            continue;
+          }
+
+          performClick(btn, btnText, '⚡ ACTION');
+          return;
+        }
+      }
     }
   }
 
-  // === MutationObserver ===
+  function performClick(btn, btnText, typeLabel) {
+    actionCount++;
+    lastClickTime = Date.now();
+    log(typeLabel + ' dialog detected! Clicking "' + btnText + '"');
+
+    setTimeout(() => {
+      try {
+        btn.click();
+        log('✅ Clicked successfully.');
+      } catch (e) {
+        btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+      }
+    }, CONFIG.clickDelay);
+  }
+
+  // === Initialization ===
   observerRef = new MutationObserver((mutations) => {
-    const hasNewNodes = mutations.some(m => m.addedNodes.length > 0);
-    if (hasNewNodes) {
-      setTimeout(scanAndRetry, 500);
+    if (mutations.some(m => m.addedNodes.length > 0)) {
+      setTimeout(scanAndAction, 300);
     }
   });
 
-  observerRef.observe(document.body || document.documentElement, {
-    childList: true,
-    subtree: true,
-    attributes: false,
-    characterData: false
-  });
+  observerRef.observe(document.documentElement, { childList: true, subtree: true });
+  pollIntervalRef = setInterval(scanAndAction, CONFIG.pollInterval);
 
-  // === Backup polling ===
-  pollIntervalRef = setInterval(scanAndRetry, CONFIG.pollInterval);
-
-  // === Test Mode Helper ===
-  window.__triggerAutoRetryTest = function() {
-    log('🧪 Triggering REALISTIC test dialog...');
-    const testDiv = document.createElement('div');
-    testDiv.className = 'monaco-dialog-box test-auto-retry-dialog';
-    testDiv.style.cssText = 'position:fixed;top:20%;left:50%;transform:translateX(-50%);background:#252526;color:#ccc;padding:25px;border:1px solid #444;z-index:99999;box-shadow:0 5px 25px rgba(0,0,0,0.6);border-radius:6px;text-align:left;min-width:400px;max-width:500px;font-family:sans-serif;';
-    
-    const title = document.createElement('div');
-    title.style.cssText = 'margin-bottom:15px;font-weight:bold;color:#f14c4c;font-size:16px;';
-    title.textContent = 'Agent terminated due to error';
-    
-    const body = document.createElement('div');
-    body.style.cssText = 'margin-bottom:20px;line-height:1.5;font-size:13px;';
-    body.textContent = 'You can prompt the model to try again or start a new conversation if the error persists. See our documentation for more help.';
-    
-    const btnContainer = document.createElement('div');
-    btnContainer.style.cssText = 'display:flex;justify-content:flex-end;gap:10px;';
-    
-    const createBtn = (text, isPrimary) => {
-      const b = document.createElement('button');
-      b.className = 'monaco-button';
-      b.textContent = text;
-      b.style.cssText = isPrimary 
-        ? 'background:#0e639c;color:white;border:none;padding:6px 14px;cursor:pointer;border-radius:2px;font-size:12px;'
-        : 'background:#3a3d41;color:white;border:none;padding:6px 14px;cursor:pointer;border-radius:2px;font-size:12px;';
-      b.onclick = () => {
-        log('🖱️ User/Script clicked: "' + text + '"');
-        testDiv.remove();
-      };
-      return b;
-    };
-    
-    const btn1 = createBtn('New Conversation', false);
-    const btn2 = createBtn('Try Again', true);
-    const btn3 = createBtn('Dismiss', false);
-    
-    btnContainer.appendChild(btn1);
-    btnContainer.appendChild(btn2);
-    btnContainer.appendChild(btn3);
-    
-    testDiv.appendChild(title);
-    testDiv.appendChild(body);
-    testDiv.appendChild(btnContainer);
-    
-    document.body.appendChild(testDiv);
-    
-    // Add internal flag for the script to recognize this as a test
-    testDiv.__isTestDialog = true;
-    
-    // Cleanup if not clicked (safety)
-    setTimeout(() => {
-      if (testDiv.parentElement) {
-        log('Test dialog timed out and was removed.');
-        testDiv.remove();
-      }
-    }, 15000);
-    
-    return 'test_dialog_triggered';
-  };
-
-  // === Cleanup function for version upgrades ===
   window.__autoRetryCleanup = function() {
-    if (observerRef) { observerRef.disconnect(); observerRef = null; }
-    if (pollIntervalRef) { clearInterval(pollIntervalRef); pollIntervalRef = null; }
-    log('Old version cleaned up.');
+    if (observerRef) observerRef.disconnect();
+    if (pollIntervalRef) clearInterval(pollIntervalRef);
+    log('Cleaned up.');
   };
 
-  // === Initial scan after delay ===
-  setTimeout(scanAndRetry, 2000);
-
-  log('v' + SCRIPT_VERSION + ' injected. Watching dialogs only (no editor scanning).');
-  log('Dialog selectors: ' + CONFIG.dialogContainerSelectors.length);
-  log('Error patterns: ' + CONFIG.errorPatterns.length);
-  
+  setTimeout(scanAndAction, 1000);
+  log('v' + SCRIPT_VERSION + ' injected. AutoRetry: ON, AutoAccept: ' + (USER_CONFIG.autoAccept !== false ? 'ON' : 'OFF'));
   return 'injection_success';
 })();
 `;

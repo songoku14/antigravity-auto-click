@@ -1,0 +1,16 @@
+{
+  "blacklist": [
+    "rm ",
+    "sudo ",
+    "force ",
+    "push ",
+    "delete ",
+    "terminate ",
+    "pkill ",
+    "kill ",
+    "mkfs",
+    "format "
+  ],
+  "autoAccept": true,
+  "autoRetry": true
+}

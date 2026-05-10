@@ -39,6 +39,7 @@
   - **Tech-Leader**: Báo cáo review chi tiết (Sử dụng skill `/review`).
   - **Tester**: Kết quả chạy lệnh test thực tế (Log output từ skill `/test` hoặc `/status`).
   - **Docs-Agent**: Dẫn link đến các file tài liệu đã cập nhật.
+- **Definition of Done (DOD)**: Trước khi bàn giao cho người dùng, Orchestrator BẮT BUỘC phải kiểm tra lại toàn bộ checklist tại [.agents/rules/DOD.md](.agents/rules/DOD.md) để đảm bảo không bỏ sót Test, Review hoặc Docs.
 
 ## 5. Tiêu chuẩn Tài liệu
 - **README Maintenance**: Cập nhật `README.md` ngay khi:
