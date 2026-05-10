@@ -78,12 +78,12 @@ while true; do
         2)
             echo "🧪 Đang kiểm tra Auto-Retry..."
             node "$SCRIPT_DIR/trigger-test.js"
-            read -p "Nhấn Enter để tiếp tục..."
+            read -p "Nhấn Enter để quay lại menu..."
             ;;
         3)
             echo "🧪 Đang kiểm tra Auto-Accept..."
             node "$SCRIPT_DIR/trigger-accept-test.js"
-            read -p "Nhấn Enter để tiếp tục..."
+            read -p "Nhấn Enter để quay lại menu..."
             ;;
         4)
             bash "$SCRIPT_DIR/start.sh"
@@ -93,15 +93,15 @@ while true; do
         5)
             echo "🛑 Đang dừng hệ thống..."
             bash "$SCRIPT_DIR/stop.sh"
-            read -p "Nhấn Enter để tiếp tục..."
+            read -p "Nhấn Enter để quay lại menu..."
             ;;
         6)
             bash "$SCRIPT_DIR/install.sh"
-            read -p "Nhấn Enter để tiếp tục..."
+            read -p "Nhấn Enter để quay lại menu..."
             ;;
         7)
             bash "$SCRIPT_DIR/uninstall.sh"
-            read -p "Nhấn Enter để tiếp tục..."
+            read -p "Nhấn Enter để quay lại menu..."
             ;;
         8)
             echo "Đang đóng Antigravity..."
@@ -110,7 +110,7 @@ while true; do
             echo 'open -a Antigravity --args --remote-debugging-port=9222' | pbcopy
             echo -e "\033[32m✅ Lệnh khởi động đã được copy vào Clipboard!\033[0m"
             echo "👉 Vui lòng dán lệnh vào Terminal để mở lại Antigravity ở chế độ Debug."
-            read -p "Nhấn Enter để tiếp tục..."
+            read -p "Nhấn Enter để quay lại menu..."
             ;;
         0)
             echo "👋 Tạm biệt!"

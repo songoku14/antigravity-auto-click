@@ -31,7 +31,10 @@ async function triggerTest() {
     let overallSuccess = false;
     for (const target of pageTargets) {
       const success = await sendTestCommand(target);
-      if (success) overallSuccess = true;
+      if (success) {
+        overallSuccess = true;
+        break; // If one succeeds, the test is successful
+      }
     }
     
     return overallSuccess;
@@ -79,7 +82,7 @@ function sendTestCommand(target) {
       if (msg.id === 1) {
         const result = msg.result?.result?.value;
         if (result === 'test_dialog_triggered') {
-          // console.log(`   ${cyan}🚀 [${target.title}] Trigger sent.${reset}`);
+          console.log(`✅ Test dialog injected into ${target.title}. Monitoring for Auto-Click...`);
         } else if (result === 'not_injected') {
           finish(false, `⚠️  [${target.title}] Failed: Script not injected.`);
         } else {
@@ -116,6 +119,7 @@ async function run() {
     console.log('Vui lòng kiểm tra lại trạng thái hệ thống.');
   }
   console.log('======================================================\n');
+  process.exit(success ? 0 : 1);
 }
 
 run();
