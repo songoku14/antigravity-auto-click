@@ -48,3 +48,9 @@
   - Thêm/sửa Skills (Slash Commands).
   - Thay đổi hướng dẫn cài đặt/debug.
 - **Ngôn ngữ**: Toàn bộ giao tiếp và tài liệu nội bộ ưu tiên tiếng Việt.
+## 6. Quy tắc Debug (Bắt buộc)
+- **Atomicity**: Chia nhỏ quá trình debug thành các bước nhỏ, dễ kiểm soát.
+- **Planning**: Luôn có `implementation_plan.md` cho các tác vụ sửa lỗi/debug.
+- **Approval**: DỪNG LẠI CHỜ người dùng xác nhận kế hoạch debug trước khi thực thi.
+- **Review**: Kế hoạch debug phải được Tech Leader duyệt.
+- **Verification**: Tester phải xác nhận kết quả sau khi debug thành công.

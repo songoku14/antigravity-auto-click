@@ -4,6 +4,7 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 PLIST_NAME="com.antigravity.autoretry"
+ACTIVITY_FILE="$PROJECT_ROOT/activity-log.json"
 
 show_menu() {
     clear
@@ -34,8 +35,16 @@ show_menu() {
         [ "$AUTO_ACCEPT" = "true" ] && ACCEPT_STATUS="\033[32mACTIVE\033[0m" || ACCEPT_STATUS="\033[31mOFF\033[0m"
     fi
 
+    # Activity Counts
+    RETRY_COUNT=0
+    ACCEPT_COUNT=0
+    if [ -f "$ACTIVITY_FILE" ]; then
+        RETRY_COUNT=$(jq -r '.retry.clicked' "$ACTIVITY_FILE" 2>/dev/null || echo "0")
+        ACCEPT_COUNT=$(jq -r '.accept.clicked' "$ACTIVITY_FILE" 2>/dev/null || echo "0")
+    fi
+
     echo -e "   Tổng quan:  $STATUS_HEADER"
-    echo -e "   Auto Retry: $RETRY_STATUS    |    Auto Accept: $ACCEPT_STATUS"
+    echo -e "   Auto Retry: $RETRY_STATUS ($RETRY_COUNT)    |    Auto Accept: $ACCEPT_STATUS ($ACCEPT_COUNT)"
     echo "======================================================"
     echo " 1) 📊 Xem Trạng thái & Logs chi tiết"
     echo "------------------------------------------------------"

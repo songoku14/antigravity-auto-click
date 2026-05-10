@@ -4,6 +4,7 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 CONFIG_FILE="$PROJECT_ROOT/config.json"
+ACTIVITY_FILE="$PROJECT_ROOT/activity-log.json"
 
 # Check if jq is installed
 if ! command -v jq &> /dev/null; then
@@ -48,6 +49,20 @@ echo "------------------------------------------------"
 echo -e "CDP (Remote Debug):  $(get_status "$CDP_ENABLED")"
 echo -e "Khởi động cùng máy:  $(get_status "$AUTO_START_ENABLED")"
 echo "------------------------------------------------"
+
+# Activity Stats
+if [ -f "$ACTIVITY_FILE" ]; then
+    RETRY_DET=$(jq -r '.retry.detected' "$ACTIVITY_FILE")
+    RETRY_CLK=$(jq -r '.retry.clicked' "$ACTIVITY_FILE")
+    ACCEPT_DET=$(jq -r '.accept.detected' "$ACTIVITY_FILE")
+    ACCEPT_CLK=$(jq -r '.accept.clicked' "$ACTIVITY_FILE")
+    ACCEPT_BLK=$(jq -r '.accept.blocked' "$ACTIVITY_FILE")
+
+    echo "📊 Thống kê hoạt động (Toàn thời gian):"
+    echo -e "   [Retry]  Phát hiện: \033[1m$RETRY_DET\033[0m | Click: \033[32m$RETRY_CLK\033[0m"
+    echo -e "   [Accept] Phát hiện: \033[1m$ACCEPT_DET\033[0m | Click: \033[32m$ACCEPT_CLK\033[0m | Chặn: \033[31m$ACCEPT_BLK\033[0m"
+    echo "------------------------------------------------"
+fi
 
 # Error details
 ERRORS=""

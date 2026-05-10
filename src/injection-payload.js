@@ -5,7 +5,7 @@
  * It uses MutationObserver to watch for error dialogs and auto-click Retry/Accept.
  */
 
-const INJECTION_VERSION = 17;
+const INJECTION_VERSION = 18;
 
 /**
  * Trả về string JavaScript sẽ được inject vào DOM qua CDP Runtime.evaluate
@@ -232,6 +232,7 @@ function getInjectionScript(userConfig = {}) {
       if (USER_CONFIG.autoRetry !== false && CONFIG.errorPatterns.some(p => p.test(containerText))) {
         const btns = findButtonsIn(container, CONFIG.retryButtonPatterns, 'RETRY');
         if (btns.length > 0) {
+          log('[STAT] RETRY_DETECTED');
           performClick(btns[0].el, btns[0].text, '🔄 RETRY');
           return;
         }
@@ -244,11 +245,14 @@ function getInjectionScript(userConfig = {}) {
           const btn = btns[0].el;
           const btnText = btns[0].text;
 
+          log('[STAT] ACCEPT_DETECTED');
+
           // Safety check for Terminal commands
           const cmdText = extractCommandText(btn);
           if (isCommandBlocked(cmdText)) {
             if (!btn.__blockedByFilter) {
               btn.__blockedByFilter = true;
+              log('[STAT] ACCEPT_BLOCKED');
               log('🚫 Blocked dangerous command: ' + (cmdText ? cmdText.substring(0, 50) : 'none') + '...');
               btn.style.cssText += ';border: 2px solid red !important; box-shadow: 0 0 10px red !important;';
               const oldText = btn.textContent;
@@ -281,6 +285,11 @@ function getInjectionScript(userConfig = {}) {
       try {
         btn.click();
         log('✅ Clicked successfully.');
+        if (typeLabel.includes('RETRY')) {
+          log('[STAT] RETRY_CLICKED');
+        } else {
+          log('[STAT] ACCEPT_CLICKED');
+        }
       } catch (e) {
         log('⚠️ Direct click failed, trying MouseEvent...');
         btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));

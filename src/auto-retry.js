@@ -38,8 +38,9 @@ function error(msg) {
 // ============================================================
 
 class CDPConnection {
-  constructor(target) {
+  constructor(target, daemon = null) {
     this.target = target;
+    this.daemon = daemon;
     this.ws = null;
     this.msgId = 1;
     this.pendingCallbacks = new Map();
@@ -94,6 +95,11 @@ class CDPConnection {
             const text = args.map(a => a.value || a.description || '').join(' ');
             if (text.includes('[AutoRetry]')) {
               log(`[${this.target.title}] ${text}`);
+              
+              // Handle Statistics
+              if (text.includes('[STAT]') && this.daemon) {
+                this.daemon.updateActivity(text);
+              }
             }
           }
         } catch (e) {
@@ -275,6 +281,7 @@ class AutoRetryDaemon {
     this.config = this.loadConfig();
     this.setupConfigWatcher();
     this.lastPID = null;
+    this.activityFile = path.join(__dirname, '..', 'activity-log.json');
   }
 
   loadConfig() {
@@ -309,6 +316,31 @@ class AutoRetryDaemon {
         }, 500);
       }
     });
+  }
+
+  updateActivity(text) {
+    try {
+      let activity = {
+        retry: { detected: 0, clicked: 0 },
+        accept: { detected: 0, clicked: 0, blocked: 0 }
+      };
+
+      if (fs.existsSync(this.activityFile)) {
+        activity = JSON.parse(fs.readFileSync(this.activityFile, 'utf8'));
+      }
+
+      if (text.includes('RETRY_DETECTED')) activity.retry.detected++;
+      else if (text.includes('RETRY_CLICKED')) activity.retry.clicked++;
+      else if (text.includes('ACCEPT_DETECTED')) activity.accept.detected++;
+      else if (text.includes('ACCEPT_CLICKED')) activity.accept.clicked++;
+      else if (text.includes('ACCEPT_BLOCKED')) activity.accept.blocked++;
+      else return; // No match
+
+      fs.writeFileSync(this.activityFile, JSON.stringify(activity, null, 2));
+      debug(`Updated activity: ${text.split('[STAT] ')[1]}`);
+    } catch (e) {
+      error(`Failed to update activity: ${e.message}`);
+    }
   }
 
   async start() {
@@ -384,7 +416,7 @@ class AutoRetryDaemon {
     await Promise.all(pageTargets.map(async (target) => {
       if (!this.connections.has(target.id)) {
         log(`New target detected: ${target.title} (${target.id})`);
-        const conn = new CDPConnection(target);
+        const conn = new CDPConnection(target, this);
         try {
           await conn.connect();
           await conn.inject(this.config);
