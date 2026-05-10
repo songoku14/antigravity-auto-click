@@ -1,7 +1,7 @@
 {
   "retry": {
-    "detected": 0,
-    "clicked": 0
+    "detected": 2,
+    "clicked": 2
   },
   "accept": {
     "detected": 84,

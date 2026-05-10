@@ -96,9 +96,9 @@ function sendTestCommand(target) {
       }
     });
     
-    ws.on('error', () => finish(false, `❌ [${target.title}] Connection error.`));
+    ws.on('error', (err) => finish(false, `❌ [${target.title}] Connection error: ${err.message}`));
     
-    setTimeout(() => finish(false, `❌ [${target.title}] TIMEOUT: No action detected.`), 10000);
+    setTimeout(() => finish(false, `❌ [${target.title}] TIMEOUT: No action detected within 15s.`), 15000);
   });
 }
 

@@ -5,7 +5,7 @@
  * It uses MutationObserver to watch for error dialogs and auto-click Retry/Accept.
  */
 
-const INJECTION_VERSION = 18;
+const INJECTION_VERSION = 19;
 
 /**
  * Trả về string JavaScript sẽ được inject vào DOM qua CDP Runtime.evaluate
@@ -15,7 +15,7 @@ function getInjectionScript(userConfig = {}) {
   
   return `
 (function() {
-  const SCRIPT_VERSION = ${INJECTION_VERSION};
+  const SCRIPT_VERSION = 20;
   const USER_CONFIG = ${configJson};
   
   // Kill old versions
@@ -45,10 +45,10 @@ function getInjectionScript(userConfig = {}) {
       '.notifications-center',
       '.jetski-error',
       '.error-overlay',
-      '.monaco-dialog-box',
+      '.test-dialog',
+      '.test-accept-dialog',
       '[role="dialog"]',
-      '[role="alertdialog"]',
-      '.test-accept-dialog'
+      '[role="alertdialog"]'
     ],
 
     errorPatterns: [
@@ -66,22 +66,22 @@ function getInjectionScript(userConfig = {}) {
     ],
 
     retryButtonPatterns: [
-      /^retry$/i,
-      /^try again$/i,
-      /^thử lại$/i,
-      /^reconnect$/i
+      /\\bretry\\b/i,
+      /\\btry\\s*again\\b/i,
+      /\\bthử\\s*lại\\b/i,
+      /\\breconnect\\b/i
     ],
 
     actionButtonPatterns: [
-      /^accept$/i,
-      /^run$/i,
-      /^execute$/i,
-      /^allow$/i,
-      /^join$/i,
-      /^yes$/i,
-      /^approve$/i,
-      /^continue$/i,
-      /^always allow$/i
+      /\\baccept\\b/i,
+      /\\brun\\b/i,
+      /\\bexecute\\b/i,
+      /\\ballow\\b/i,
+      /\\bjoin\\b/i,
+      /\\byes\\b/i,
+      /\\bapprove\\b/i,
+      /\\bcontinue\\b/i,
+      /\\balways\\s*allow\\b/i
     ],
 
     blacklist: USER_CONFIG.blacklist || [
@@ -130,17 +130,19 @@ function getInjectionScript(userConfig = {}) {
 
   function findInShadows(root, selector) {
     let elements = Array.from(root.querySelectorAll(selector));
-    if (elements.length > 0) {
-      if (selector.includes('test') || selector.includes('dialog')) {
-        log('Selector "' + selector + '" matched ' + elements.length + ' elements');
+    
+    // We only need to find elements with shadowRoot to recurse
+    // Using querySelectorAll('*') is expensive, but better than TreeWalker in some cases
+    // Actually, let's just stick to a faster walker or specific common roots
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT, {
+      acceptNode: function(node) {
+        return node.shadowRoot ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
       }
-    }
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+    });
+    
     let node;
     while (node = walker.nextNode()) {
-      if (node.shadowRoot) {
-        elements = elements.concat(findInShadows(node.shadowRoot, selector));
-      }
+      elements = elements.concat(findInShadows(node.shadowRoot, selector));
     }
     return elements;
   }
@@ -150,13 +152,14 @@ function getInjectionScript(userConfig = {}) {
     for (const selector of CONFIG.dialogContainerSelectors) {
       try {
         const found = findInShadows(document, selector);
-        found.forEach(el => {
-          const rect = el.getBoundingClientRect();
-          if (rect.width > 5 && rect.height > 5) {
-            log('Valid container found: ' + el.tagName + '.' + Array.from(el.classList).join('.'));
-            containers.add(el);
-          }
-        });
+        if (found.length > 0) {
+          found.forEach(el => {
+            const rect = el.getBoundingClientRect();
+            if (rect.width > 2 && rect.height > 2) {
+              containers.add(el);
+            }
+          });
+        }
       } catch(e) {}
     }
     return Array.from(containers);
@@ -200,12 +203,11 @@ function getInjectionScript(userConfig = {}) {
       
       if (isClickable) {
         const text = (el.textContent || '').trim();
-        // log('Checking button: "' + text + '" (' + tag + ')');
         if (text.length > 50) continue;
         
         for (const pattern of patterns) {
           if (pattern.test(text)) {
-            log('Found matching button: "' + text + '" with pattern ' + pattern);
+            log('Found matching ' + typeLabel + ' button: "' + text + '"');
             buttons.push({ el, text });
             break;
           }
@@ -219,6 +221,9 @@ function getInjectionScript(userConfig = {}) {
     if (!canClick()) return;
 
     let containers = findValidContainers();
+    if (containers.length > 0) {
+      // log('Found ' + containers.length + ' potential containers');
+    }
     const useFallback = containers.length === 0 && USER_CONFIG.autoAccept !== false;
     
     if (useFallback) {
@@ -226,15 +231,21 @@ function getInjectionScript(userConfig = {}) {
     }
 
     for (const container of containers) {
-      const containerText = (container.textContent || '').substring(0, 2000); // Limit scan for performance
+      const containerText = (container.textContent || '').substring(0, 2000);
       
       // Case 1: Error/Retry
-      if (USER_CONFIG.autoRetry !== false && CONFIG.errorPatterns.some(p => p.test(containerText))) {
-        const btns = findButtonsIn(container, CONFIG.retryButtonPatterns, 'RETRY');
-        if (btns.length > 0) {
-          log('[STAT] RETRY_DETECTED');
-          performClick(btns[0].el, btns[0].text, '🔄 RETRY');
-          return;
+      if (USER_CONFIG.autoRetry !== false) {
+        const errorMatched = CONFIG.errorPatterns.some(p => p.test(containerText));
+        if (errorMatched) {
+          log('Error pattern matched in container. Searching for retry buttons...');
+          const btns = findButtonsIn(container, CONFIG.retryButtonPatterns, 'RETRY');
+          if (btns.length > 0) {
+            log('[STAT] RETRY_DETECTED');
+            performClick(btns[0].el, btns[0].text, '🔄 RETRY');
+            return;
+          } else {
+            log('No retry buttons found in matching container.');
+          }
         }
       }
 
@@ -247,7 +258,6 @@ function getInjectionScript(userConfig = {}) {
 
           log('[STAT] ACCEPT_DETECTED');
 
-          // Safety check for Terminal commands
           const cmdText = extractCommandText(btn);
           if (isCommandBlocked(cmdText)) {
             if (!btn.__blockedByFilter) {
@@ -277,7 +287,6 @@ function getInjectionScript(userConfig = {}) {
     lastClickTime = Date.now();
     log(typeLabel + ' detected! Clicking "' + btnText + '"');
 
-    // Visual feedback
     const oldStyle = btn.style.cssText;
     btn.style.cssText += '; outline: 3px solid #3794ff !important; outline-offset: 2px !important;';
 
@@ -319,6 +328,7 @@ function getInjectionScript(userConfig = {}) {
     log('Simulating High Traffic dialog...');
     const container = document.createElement('div');
     container.className = 'monaco-dialog-box test-dialog';
+    container.setAttribute('role', 'alertdialog');
     container.style.cssText = 'position:fixed;top:40%;left:50%;transform:translateX(-50%);background:#252526;color:#ccc;padding:20px;border:1px solid #3794ff;z-index:99999;box-shadow:0 5px 25px rgba(0,0,0,0.8);border-radius:6px;width:400px;font-family:sans-serif;';
     
     const title = document.createElement('div');
