@@ -105,7 +105,8 @@ while true; do
             ;;
         8)
             # 1. Prepare and copy launch command FIRST
-            LAUNCH_CMD="/Applications/Antigravity.app/Contents/MacOS/Electron --remote-debugging-port=9222"
+            # Using 'open -a' to launch detached from terminal (more portable)
+            LAUNCH_CMD='open -a "/Applications/Antigravity.app" --args --remote-debugging-port=31905'
             printf "%s" "$LAUNCH_CMD" | pbcopy
             
             echo -e "\033[32m✅ Đã copy lệnh khởi động vào Clipboard.\033[0m"
