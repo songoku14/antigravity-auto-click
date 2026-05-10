@@ -5,17 +5,17 @@
  * It uses MutationObserver to watch for error dialogs and auto-click Retry/Accept.
  */
 
-const INJECTION_VERSION = 19;
+const INJECTION_VERSION = 23;
 
 /**
  * Trả về string JavaScript sẽ được inject vào DOM qua CDP Runtime.evaluate
  */
 function getInjectionScript(userConfig = {}) {
   const configJson = JSON.stringify(userConfig);
-  
+
   return `
 (function() {
-  const SCRIPT_VERSION = 20;
+  const SCRIPT_VERSION = 23;
   const USER_CONFIG = ${configJson};
   
   // Kill old versions
@@ -94,6 +94,28 @@ function getInjectionScript(userConfig = {}) {
     cooldownMs: 60000,
     minClickInterval: 2000
   };
+
+  // Merge custom patterns from USER_CONFIG
+  const toRegex = (p) => {
+    try {
+      const match = p.match(/^\/(.*)\/(.*)$/);
+      if (match) return new RegExp(match[1], match[2]);
+      return new RegExp(p, 'i');
+    } catch(e) { return null; }
+  };
+
+  if (Array.isArray(USER_CONFIG.customRetryPatterns)) {
+    USER_CONFIG.customRetryPatterns.forEach(p => {
+      const re = toRegex(p);
+      if (re) CONFIG.retryButtonPatterns.push(re);
+    });
+  }
+  if (Array.isArray(USER_CONFIG.customAcceptPatterns)) {
+    USER_CONFIG.customAcceptPatterns.forEach(p => {
+      const re = toRegex(p);
+      if (re) CONFIG.actionButtonPatterns.push(re);
+    });
+  }
 
   let actionCount = 0;
   let lastResetTime = Date.now();
@@ -366,6 +388,51 @@ function getInjectionScript(userConfig = {}) {
     }, 12000);
 
     return 'test_dialog_triggered';
+  };
+
+  window.__analyzeDialog = function() {
+    log('Analyzing current DOM for dialogs...');
+    const containers = findValidContainers();
+    const results = [];
+    
+    const targets = containers.length > 0 ? containers : [document.body];
+    
+    for (const container of targets) {
+      const buttons = [];
+      const walker = document.createTreeWalker(container, NodeFilter.SHOW_ELEMENT);
+      let el;
+      while (el = walker.nextNode()) {
+        const tag = el.tagName.toLowerCase();
+        const isButton = tag === 'button' || 
+                         el.getAttribute('role') === 'button' || 
+                         el.classList.contains('monaco-button') || 
+                         el.classList.contains('action-label') ||
+                         el.classList.contains('button') ||
+                         el.classList.contains('btn');
+        
+        if (isButton) {
+          buttons.push({
+            text: (el.textContent || '').trim(),
+            tagName: tag,
+            className: el.className,
+            id: el.id
+          });
+        }
+      }
+      
+      results.push({
+        isBody: container === document.body,
+        text: (container.textContent || '').substring(0, 1000).trim(),
+        html: container.outerHTML.substring(0, 5000),
+        buttons: buttons
+      });
+    }
+    
+    return {
+      timestamp: new Date().toISOString(),
+      found: containers.length > 0,
+      containers: results
+    };
   };
 
   pollIntervalRef = setInterval(scanAndAction, CONFIG.pollInterval);

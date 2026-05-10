@@ -57,6 +57,7 @@ show_menu() {
     echo " 6) 📥 Bật Khởi động cùng máy tính"
     echo " 7) 🗑️ Tắt Khởi động cùng máy tính"
     echo " 8) 🔄 Khởi động lại Antigravity (Chế độ Debug)"
+    echo " 9) 🔍 Phân tích Dialog hiện tại"
     echo " 0) 🚪 Thoát"
     echo "======================================================"
     echo ""
@@ -144,6 +145,11 @@ while true; do
             echo "👉 Lệnh đã có trong Clipboard. Vui lòng dán (Cmd+V)"
             echo "   vào Terminal để mở lại Antigravity."
             echo "======================================================"
+            read -p "Nhấn Enter để quay lại menu..."
+            ;;
+        9)
+            echo "🔍 Đang khởi chạy công cụ phân tích..."
+            node "$SCRIPT_DIR/analyze-dialog.js"
             read -p "Nhấn Enter để quay lại menu..."
             ;;
         0)
