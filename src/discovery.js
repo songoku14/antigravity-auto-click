@@ -15,7 +15,7 @@ const http = require('http');
 function findCDPPort() {
   try {
     const output = execSync(
-      `ps aux | grep -i "Antigravity.app/Contents/MacOS/Electron" | grep -v grep | grep -oE '\\-\\-remote-debugging-port=[0-9]+'`,
+      `ps aux | grep -i "/Applications/Antigravity.app/Contents/MacOS/Electron" | grep -v grep | grep -oE '\\-\\-remote-debugging-port=[0-9]+'`,
       { encoding: 'utf-8', timeout: 5000 }
     ).trim();
 
@@ -26,6 +26,21 @@ function findCDPPort() {
   } catch (e) {
     // Process not found or grep failed
   }
+  return null;
+}
+
+/**
+ * Tìm PID của Antigravity main process
+ * @returns {number|null}
+ */
+function findAntigravityPID() {
+  try {
+    const output = execSync(
+      `ps aux | grep "/Applications/Antigravity.app/Contents/MacOS/Electron" | grep -v grep | awk '{print $2}'`,
+      { encoding: 'utf-8', timeout: 5000 }
+    ).trim();
+    if (output) return parseInt(output, 10);
+  } catch (e) {}
   return null;
 }
 
@@ -92,6 +107,7 @@ function filterPageTargets(targets) {
 
 module.exports = {
   findCDPPort,
+  findAntigravityPID,
   isAntigravityRunning,
   getTargets,
   filterPageTargets

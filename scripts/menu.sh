@@ -104,12 +104,36 @@ while true; do
             read -p "Nhấn Enter để quay lại menu..."
             ;;
         8)
-            echo "Đang đóng Antigravity..."
-            pkill -f "Antigravity.app/Contents/MacOS/Electron" || pkill -f "Antigravity" || true
-            sleep 1
-            echo 'open -a Antigravity --args --remote-debugging-port=9222' | pbcopy
-            echo -e "\033[32m✅ Lệnh khởi động đã được copy vào Clipboard!\033[0m"
-            echo "👉 Vui lòng dán lệnh vào Terminal để mở lại Antigravity ở chế độ Debug."
+            # 1. Prepare and copy launch command FIRST
+            LAUNCH_CMD="/Applications/Antigravity.app/Contents/MacOS/Electron --remote-debugging-port=9222"
+            printf "%s" "$LAUNCH_CMD" | pbcopy
+            
+            echo -e "\033[32m✅ Đã copy lệnh khởi động vào Clipboard.\033[0m"
+            echo -e "Nội dung kiểm tra (pbpaste): \033[36m$(pbpaste)\033[0m"
+            echo ""
+
+            # 2. Now close Antigravity
+            echo "🔄 Đang yêu cầu Antigravity đóng nhẹ nhàng..."
+            osascript -e 'quit app "Antigravity"' 2>/dev/null || true
+            
+            echo "⏳ Đợi ứng dụng phản hồi (3s)..."
+            sleep 3
+            
+            # Check if still running
+            if ps aux | grep -i "/Applications/Antigravity.app/Contents/MacOS/Electron" | grep -v grep > /dev/null; then
+                echo "⚠️ Antigravity vẫn đang chạy, đang thực hiện đóng cưỡng bức..."
+                pkill -9 -f "Antigravity" 2>/dev/null || true
+                sleep 1
+            fi
+
+            echo -e "\033[32m✅ Antigravity đã được đóng hoàn toàn.\033[0m"
+            
+            echo "======================================================"
+            echo -e "\033[32m🚀 HỆ THỐNG ĐÃ SẴN SÀNG!\033[0m"
+            echo "------------------------------------------------------"
+            echo "👉 Lệnh đã có trong Clipboard. Vui lòng dán (Cmd+V)"
+            echo "   vào Terminal để mở lại Antigravity."
+            echo "======================================================"
             read -p "Nhấn Enter để quay lại menu..."
             ;;
         0)

@@ -28,14 +28,8 @@ async function triggerTest() {
       process.exit(1);
     }
     
-    let overallSuccess = false;
-    for (const target of pageTargets) {
-      const success = await sendTestCommand(target);
-      if (success) {
-        overallSuccess = true;
-        break; // If one succeeds, the test is successful
-      }
-    }
+    const results = await Promise.all(pageTargets.map(target => sendTestCommand(target)));
+    overallSuccess = results.some(success => success);
     
     return overallSuccess;
   } catch (e) {
@@ -82,7 +76,7 @@ function sendTestCommand(target) {
       if (msg.id === 1) {
         const result = msg.result?.result?.value;
         if (result === 'test_dialog_triggered') {
-          console.log(`✅ Test dialog injected into ${target.title}. Monitoring for Auto-Click...`);
+          console.log(`✅ [${target.title}] Test dialog injected. Monitoring for Auto-Click...`);
         } else if (result === 'not_injected') {
           finish(false, `⚠️  [${target.title}] Failed: Script not injected.`);
         } else {

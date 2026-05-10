@@ -9,7 +9,7 @@
 const WebSocket = require('ws');
 const fs = require('fs');
 const path = require('path');
-const { findCDPPort, isAntigravityRunning, getTargets, filterPageTargets } = require('./discovery');
+const { findCDPPort, findAntigravityPID, isAntigravityRunning, getTargets, filterPageTargets } = require('./discovery');
 const { getInjectionScript } = require('./injection-payload');
 
 const DEBUG = process.env.DEBUG === '1';
@@ -218,7 +218,7 @@ class CDPConnection {
         log(`✅ Injected into: ${this.target.title}`);
       } else if (value === 'already_injected') {
         this.injected = true;
-        debug(`Already injected into ${this.target.title}`);
+        log(`ℹ️ [${this.target.title}] Already has active script.`);
       } else {
         error(`Unexpected injection result for ${this.target.title}: ${JSON.stringify(result)}`);
       }
@@ -272,9 +272,9 @@ class CDPConnection {
 class AutoRetryDaemon {
   constructor() {
     this.connections = new Map(); // targetId -> CDPConnection
-    this.running = false;
     this.config = this.loadConfig();
     this.setupConfigWatcher();
+    this.lastPID = null;
   }
 
   loadConfig() {
@@ -338,14 +338,24 @@ class AutoRetryDaemon {
 
   async cycle() {
     // Step 1: Check if Antigravity is running
-    if (!isAntigravityRunning()) {
+    const currentPID = findAntigravityPID();
+    
+    if (!currentPID) {
       if (this.connections.size > 0) {
-        log('Antigravity stopped. Cleaning up connections...');
+        log('Antigravity stopped (PID not found). Cleaning up connections...');
         this.disconnectAll();
       }
+      this.lastPID = null;
       debug('Antigravity not running. Waiting...');
       return;
     }
+
+    // Detect restart via PID change
+    if (this.lastPID && this.lastPID !== currentPID) {
+      log(`🔄 Antigravity restart detected (PID changed: ${this.lastPID} -> ${currentPID}). Resetting connections...`);
+      this.disconnectAll();
+    }
+    this.lastPID = currentPID;
 
     // Step 2: Find CDP port
     const port = findCDPPort();

@@ -30,14 +30,8 @@ async function triggerAcceptTest() {
       process.exit(1);
     }
     
-    let overallSuccess = false;
-    for (const target of pageTargets) {
-      const success = await sendTestCommand(target);
-      if (success) {
-        overallSuccess = true;
-        break; // If one succeeds, the test is successful
-      }
-    }
+    const results = await Promise.all(pageTargets.map(target => sendTestCommand(target)));
+    overallSuccess = results.some(success => success);
     
     return overallSuccess;
   } catch (e) {
