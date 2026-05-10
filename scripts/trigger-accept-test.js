@@ -52,7 +52,7 @@ async function trigger() {
   window.__triggerAcceptTest = function(label) {
     const btnLabel = label || 'Run';
     const container = document.createElement('div');
-    container.className = 'monaco-dialog-box test-accept-dialog';
+    container.className = 'monaco-workbench monaco-dialog-box test-accept-dialog';
     container.style.cssText = 'position:fixed;top:30%;left:50%;transform:translateX(-50%);background:#252526;color:#ccc;padding:20px;border:1px solid #444;z-index:99999;box-shadow:0 5px 25px rgba(0,0,0,0.8);border-radius:6px;width:450px;font-family:sans-serif;';
     
     const title = document.createElement('div');

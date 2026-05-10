@@ -1,6 +1,6 @@
 ---
 name: test
-description: Trigger a dummy "High Traffic" dialog in Antigravity to verify the auto-retry script. Reporting only.
+description: Trigger dummy dialogs in Antigravity to verify Auto-Retry (High Traffic) and Auto-Accept (Agent Prompt) features. Reporting only.
 ---
 # Skill: Antigravity Test (/test)
 
@@ -12,22 +12,26 @@ description: Trigger a dummy "High Traffic" dialog in Antigravity to verify the 
 - **NO CODE MODIFICATIONS**: Do not modify source code, scripts, or configurations during this task.
 
 ## Usage
-Run the following commands from the project root:
+Choose the appropriate mode based on what you need to verify:
 
-### 1. Auto-Retry Test (High Traffic)
+### MODE 1: Auto-Retry (High Traffic)
+Verify that the system automatically clicks "Retry" when Antigravity is busy.
 ```bash
 node scripts/trigger-test.js
 ```
 - **Observe**: A dialog labeled "[TEST] High Traffic Simulation" appears and should be clicked automatically.
 
-### 2. Auto-Accept Test (Safe Command)
+### MODE 2: Auto-Accept (Agent Prompt)
+Verify that the system automatically clicks safe action buttons or blocks dangerous ones.
+
+**A. Positive Test (Safe Command)**
 ```bash
 node scripts/trigger-accept-test.js [Run|Execute|Accept]
 ```
 - **Example**: `node scripts/trigger-accept-test.js Execute`
 - **Observe**: A dialog with a "Run" (or "Execute") button appears and should be clicked automatically.
 
-### 3. Safety/Blacklist Test (Dangerous Command)
+**B. Negative Test (Dangerous Command)**
 ```bash
 node scripts/trigger-danger-test.js
 ```

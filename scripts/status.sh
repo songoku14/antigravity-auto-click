@@ -24,36 +24,48 @@ APP_RUNNING=$(ps aux | grep "Antigravity.app/Contents/MacOS/Electron" | grep -v 
 # Check CDP Port (remote debugging)
 CDP_ENABLED=$(ps aux | grep -i "Antigravity.app/Contents/MacOS/Electron" | grep -v grep | grep -q "\\-\\-remote-debugging-port=" && echo "yes" || echo "no")
 
+# Check Auto-Start (LaunchAgent)
+AUTO_START_ENABLED=$(launchctl list | grep "com.antigravity.autoretry" > /dev/null && echo "yes" || echo "no")
+PLIST_EXISTS=$([ -f "$HOME/Library/LaunchAgents/com.antigravity.autoretry.plist" ] && echo "yes" || echo "no")
+
 # Function to format status
 get_status() {
-    local enabled=$1
-    if [ "$enabled" != "true" ]; then
-        echo -e "\033[0;37mDisabled\033[0m" # Gray
-    elif [ "$NODE_RUNNING" = "no" ] || [ "$APP_RUNNING" = "no" ] || [ "$CDP_ENABLED" = "no" ]; then
-        echo -e "\033[0;31mError\033[0m" # Red
-    else
+    local val=$1
+    if [ "$val" = "yes" ]; then
         echo -e "\033[0;32mEnabled\033[0m" # Green
+    elif [ "$val" = "no" ]; then
+        echo -e "\033[0;37mDisabled\033[0m" # Gray
+    else
+        echo -e "\033[0;31mError\033[0m" # Red
     fi
 }
 
 echo "🔍 Antigravity Auto-Click Status:"
 echo "------------------------------------------------"
-echo -e "Auto Retry:  $(get_status "$AUTO_RETRY")"
-echo -e "Auto Accept: $(get_status "$AUTO_ACCEPT")"
+echo -e "Auto Retry:  $(get_status "$([ "$AUTO_RETRY" = "true" ] && [ "$NODE_RUNNING" = "yes" ] && echo "yes" || echo "no")")"
+echo -e "Auto Accept: $(get_status "$([ "$AUTO_ACCEPT" = "true" ] && [ "$NODE_RUNNING" = "yes" ] && echo "yes" || echo "no")")"
+echo "------------------------------------------------"
+echo -e "CDP (Remote Debug):  $(get_status "$CDP_ENABLED")"
+echo -e "Khởi động cùng máy:  $(get_status "$AUTO_START_ENABLED")"
 echo "------------------------------------------------"
 
 # Error details
 ERRORS=""
-if [ "$AUTO_RETRY" = "true" ] || [ "$AUTO_ACCEPT" = "true" ]; then
-    if [ "$NODE_RUNNING" = "no" ]; then
-        ERRORS="${ERRORS}❌ node chưa chạy -> Cần restart lại Extension chẳng hạn\n"
+if [ "$NODE_RUNNING" = "no" ]; then
+    # Only show hint if user hasn't explicitly disabled both (unlikely)
+    if [ "$AUTO_RETRY" = "true" ] || [ "$AUTO_ACCEPT" = "true" ]; then
+        ERRORS="${ERRORS}ℹ️ Hệ thống đang tắt. Hãy vào menu chọn số 4 để bật lên.\n"
     fi
-    
-    if [ "$APP_RUNNING" = "no" ]; then
-        ERRORS="${ERRORS}❌ Antigravity chưa mở -> Vui lòng mở Antigravity\n"
-    elif [ "$CDP_ENABLED" = "no" ]; then
-        ERRORS="${ERRORS}❌ Antigravity chưa bật CDP -> Cần chạy lại Antigravity (Debug Mode)\n"
-    fi
+fi
+
+if [ "$APP_RUNNING" = "no" ]; then
+    ERRORS="${ERRORS}❌ Antigravity chưa mở -> Vui lòng mở Antigravity\n"
+elif [ "$CDP_ENABLED" = "no" ]; then
+    ERRORS="${ERRORS}❌ Antigravity chưa bật CDP -> Cần chạy lại Antigravity (Debug Mode)\n"
+fi
+
+if [ "$PLIST_EXISTS" = "yes" ] && [ "$AUTO_START_ENABLED" = "no" ]; then
+    ERRORS="${ERRORS}⚠️ Tự động khởi động đã cài nhưng chưa được load.\n"
 fi
 
 if [ -n "$ERRORS" ]; then
@@ -61,9 +73,10 @@ if [ -n "$ERRORS" ]; then
     echo "------------------------------------------------"
 fi
 
-# Show 3 latest logs for context (optional, but keep it brief)
-if [ -f "$HOME/Library/Logs/AntigravityAutoRetry/stdout.log" ]; then
+# Show 3 latest logs for context
+LOG_FILE="$HOME/Library/Logs/AntigravityAutoRetry/stdout.log"
+if [ -f "$LOG_FILE" ]; then
     echo "Dòng log cuối:"
-    tail -n 3 "$HOME/Library/Logs/AntigravityAutoRetry/stdout.log" | sed 's/^/  /'
+    tail -n 3 "$LOG_FILE" | sed 's/^/  /'
     echo "------------------------------------------------"
 fi

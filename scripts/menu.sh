@@ -18,15 +18,24 @@ show_menu() {
     APP_RUNNING=$(ps aux | grep "Antigravity.app/Contents/MacOS/Electron" | grep -v grep > /dev/null && echo "yes" || echo "no")
     CDP_ENABLED=$(ps aux | grep -i "Antigravity.app/Contents/MacOS/Electron" | grep -v grep | grep -q "\\-\\-remote-debugging-port=" && echo "yes" || echo "no")
 
-    if [ "$NODE_RUNNING" = "yes" ] && [ "$APP_RUNNING" = "yes" ] && [ "$CDP_ENABLED" = "yes" ]; then
+    if [ "$NODE_RUNNING" = "no" ]; then
+        STATUS_HEADER="\033[37m[⚪ HỆ THỐNG ĐANG TẮT]\033[0m"
+    elif [ "$APP_RUNNING" = "yes" ] && [ "$CDP_ENABLED" = "yes" ]; then
         STATUS_HEADER="\033[32m[✅ HỆ THỐNG ĐANG HOẠT ĐỘNG]\033[0m"
-    elif [ "$NODE_RUNNING" = "no" ] && [ "$AUTO_RETRY" != "true" ] && [ "$AUTO_ACCEPT" != "true" ]; then
-        STATUS_HEADER="\033[37m[⚪ HỆ THỐNG ĐÃ DỪNG]\033[0m"
     else
         STATUS_HEADER="\033[31m[❌ HỆ THỐNG CÓ LỖI / CHƯA SẴN SÀNG]\033[0m"
     fi
 
-    echo -e "   Trạng thái: $STATUS_HEADER"
+    # Feature Status
+    RETRY_STATUS="---"
+    ACCEPT_STATUS="---"
+    if [ "$NODE_RUNNING" = "yes" ]; then
+        [ "$AUTO_RETRY" = "true" ] && RETRY_STATUS="\033[32mACTIVE\033[0m" || RETRY_STATUS="\033[31mOFF\033[0m"
+        [ "$AUTO_ACCEPT" = "true" ] && ACCEPT_STATUS="\033[32mACTIVE\033[0m" || ACCEPT_STATUS="\033[31mOFF\033[0m"
+    fi
+
+    echo -e "   Tổng quan:  $STATUS_HEADER"
+    echo -e "   Auto Retry: $RETRY_STATUS    |    Auto Accept: $ACCEPT_STATUS"
     echo "======================================================"
     echo " 1) 📊 Xem Trạng thái & Logs chi tiết"
     echo "------------------------------------------------------"
@@ -36,8 +45,8 @@ show_menu() {
     echo " 4) 🚀 Start All Features (Bắt đầu chạy)"
     echo " 5) 🛑 Stop All Features  (Dừng hoàn toàn)"
     echo "------------------------------------------------------"
-    echo " 6) 📥 Cài đặt hệ thống chạy ngầm (LaunchAgent)"
-    echo " 7) 🗑️ Gỡ cài đặt hoàn toàn (Gỡ bỏ LaunchAgent)"
+    echo " 6) 📥 Bật Khởi động cùng máy tính"
+    echo " 7) 🗑️ Tắt Khởi động cùng máy tính"
     echo " 8) 🔄 Khởi động lại Antigravity (Chế độ Debug)"
     echo " 0) 🚪 Thoát"
     echo "======================================================"
@@ -77,9 +86,9 @@ while true; do
             read -p "Nhấn Enter để tiếp tục..."
             ;;
         4)
-            echo "🚀 Đang khởi chạy hệ thống..."
             bash "$SCRIPT_DIR/start.sh"
-            read -p "Nhấn Enter để tiếp tục..."
+            sleep 1
+            read -p "Nhấn Enter để quay lại menu..."
             ;;
         5)
             echo "🛑 Đang dừng hệ thống..."

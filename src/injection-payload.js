@@ -5,7 +5,7 @@
  * It uses MutationObserver to watch for error dialogs and auto-click Retry/Accept.
  */
 
-const INJECTION_VERSION = 8;
+const INJECTION_VERSION = 12;
 
 /**
  * Trả về string JavaScript sẽ được inject vào DOM qua CDP Runtime.evaluate
@@ -28,7 +28,6 @@ function getInjectionScript(userConfig = {}) {
   }
   
   if (window.__autoRetryInjected && window.__autoRetryVersion === SCRIPT_VERSION) {
-    console.log('[AutoRetry] v' + SCRIPT_VERSION + ' already running.');
     return 'already_injected';
   }
   
@@ -46,7 +45,7 @@ function getInjectionScript(userConfig = {}) {
       '.notifications-center',
       '.jetski-error',
       '.error-overlay',
-      '.monaco-workbench', // Broad scan for inline buttons
+      '.monaco-workbench', 
       '[role="dialog"]',
       '[role="alertdialog"]'
     ],
@@ -101,7 +100,6 @@ function getInjectionScript(userConfig = {}) {
   let isInCooldown = false;
   let observerRef = null;
   let pollIntervalRef = null;
-  const clickCooldowns = new Map(); // Store individual button cooldowns
 
   function log(msg) {
     console.log('[AutoRetry] ' + msg);
@@ -129,9 +127,6 @@ function getInjectionScript(userConfig = {}) {
     return true;
   }
 
-  /**
-   * Shadow DOM aware element finder
-   */
   function findInShadows(root, selector) {
     let elements = Array.from(root.querySelectorAll(selector));
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
@@ -144,36 +139,25 @@ function getInjectionScript(userConfig = {}) {
     return elements;
   }
 
-  /**
-   * Find container having specific text patterns
-   */
   function findValidContainers() {
-    const containers = [];
+    const containers = new Set();
     for (const selector of CONFIG.dialogContainerSelectors) {
       try {
         const found = findInShadows(document, selector);
-        if (found.length > 0) {
-          // debug log
-          // console.log('[AutoRetry] Found ' + found.length + ' elements for selector: ' + selector);
-        }
         found.forEach(el => {
           const rect = el.getBoundingClientRect();
-          if (rect.width > 0 && rect.height > 0) {
-            containers.push(el);
+          if (rect.width > 10 && rect.height > 10) {
+            containers.add(el);
           }
         });
       } catch(e) {}
     }
-    return containers;
+    return Array.from(containers);
   }
 
-  /**
-   * Extract command text from vicinity of button
-   */
   function extractCommandText(btn) {
     try {
       let el = btn;
-      // Search up to 10 parent levels for code/pre blocks
       for (let i = 0; i < 10 && el && el !== document.body; i++) {
         el = el.parentElement;
         if (!el) break;
@@ -221,13 +205,17 @@ function getInjectionScript(userConfig = {}) {
   function scanAndAction() {
     if (!canClick()) return;
 
-    const containers = findValidContainers();
-    if (containers.length === 0) return;
+    let containers = findValidContainers();
+    
+    // Fallback: Nếu bật Auto-Accept nhưng không tìm thấy container chuẩn, quét thêm body
+    if (containers.length === 0 && USER_CONFIG.autoAccept !== false) {
+      containers = [document.body];
+    }
 
     for (const container of containers) {
       const containerText = container.textContent || '';
       
-      // Case 1: Error/Retry (Only if autoRetry is enabled)
+      // Case 1: Error/Retry
       if (USER_CONFIG.autoRetry !== false && CONFIG.errorPatterns.some(p => p.test(containerText))) {
         const btns = findButtonsIn(container, CONFIG.retryButtonPatterns);
         if (btns.length > 0) {
@@ -236,7 +224,7 @@ function getInjectionScript(userConfig = {}) {
         }
       }
 
-      // Case 2: Action/Accept (Only if autoAccept is enabled)
+      // Case 2: Action/Accept
       if (USER_CONFIG.autoAccept !== false) {
         const btns = findButtonsIn(container, CONFIG.actionButtonPatterns);
         if (btns.length > 0) {
@@ -248,7 +236,7 @@ function getInjectionScript(userConfig = {}) {
           if (isCommandBlocked(cmdText)) {
             if (!btn.__blockedByFilter) {
               btn.__blockedByFilter = true;
-              log('🚫 Blocked dangerous command: ' + cmdText.substring(0, 50) + '...');
+              log('🚫 Blocked dangerous command: ' + (cmdText ? cmdText.substring(0, 50) : 'none') + '...');
               btn.style.cssText += ';border: 2px solid red !important; opacity: 0.7;';
               const oldText = btn.textContent;
               btn.textContent = '🚫 Blocked';
@@ -287,6 +275,44 @@ function getInjectionScript(userConfig = {}) {
   });
 
   observerRef.observe(document.documentElement, { childList: true, subtree: true });
+
+  window.__triggerAutoRetryTest = function() {
+    const container = document.createElement('div');
+    container.className = 'monaco-dialog-box test-dialog';
+    container.style.cssText = 'position:fixed;top:40%;left:50%;transform:translateX(-50%);background:#252526;color:#ccc;padding:20px;border:1px solid #3794ff;z-index:99999;box-shadow:0 5px 25px rgba(0,0,0,0.8);border-radius:6px;width:400px;font-family:sans-serif;';
+    
+    const title = document.createElement('div');
+    title.style.cssText = 'margin-bottom:10px;font-weight:bold;color:#3794ff;';
+    title.textContent = '[TEST] High Traffic Simulation';
+    
+    const body = document.createElement('div');
+    body.style.cssText = 'margin-bottom:15px;font-size:13px;';
+    body.textContent = 'This is a simulated high traffic dialog to test the Auto-Retry feature.';
+    
+    const btnContainer = document.createElement('div');
+    btnContainer.style.cssText = 'display:flex;justify-content:flex-end;';
+    
+    const btn = document.createElement('button');
+    btn.className = 'monaco-button';
+    btn.textContent = 'Retry';
+    btn.style.cssText = 'background:#0e639c;color:white;border:none;padding:4px 12px;cursor:pointer;border-radius:2px;';
+    
+    btnContainer.appendChild(btn);
+    container.appendChild(title);
+    container.appendChild(body);
+    container.appendChild(btnContainer);
+    document.body.appendChild(container);
+    
+    const timeout = setTimeout(() => {
+      if (container.parentElement) {
+        container.remove();
+        console.log('[AutoRetry] Test dialog timed out and was removed.');
+      }
+    }, 10000);
+
+    return 'test_dialog_triggered';
+  };
+
   pollIntervalRef = setInterval(scanAndAction, CONFIG.pollInterval);
 
   window.__autoRetryCleanup = function() {
@@ -296,7 +322,7 @@ function getInjectionScript(userConfig = {}) {
   };
 
   setTimeout(scanAndAction, 1000);
-  log('v' + SCRIPT_VERSION + ' injected. AutoRetry: ON, AutoAccept: ' + (USER_CONFIG.autoAccept !== false ? 'ON' : 'OFF'));
+  log('v' + SCRIPT_VERSION + ' injected. AutoRetry: ' + (USER_CONFIG.autoRetry !== false ? 'ON' : 'OFF') + ', AutoAccept: ' + (USER_CONFIG.autoAccept !== false ? 'ON' : 'OFF'));
   return 'injection_success';
 })();
 `;
