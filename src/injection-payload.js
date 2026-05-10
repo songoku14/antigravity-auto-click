@@ -86,6 +86,34 @@ function getInjectionScript(userConfig = {}) {
       /\\baccept\\s*all\\b/i
     ],
 
+    // Context patterns to confirm a button is legitimate
+    retryContextPatterns: [
+      /high\\s*traffic/i,
+      /server\\s*(is\\s*)?busy/i,
+      /too\\s*many\\s*requests/i,
+      /rate\\s*limit(ed)?/i,
+      /overloaded/i,
+      /unavailable/i,
+      /request\\s*failed/i,
+      /something\\s*went\\s*wrong/i,
+      /agent\\s*terminated/i,
+      /try\\s*again/i,
+      /connection\\s*lost/i
+    ],
+
+    actionContextPatterns: [
+      /allow\\s*the\\s*following\\s*command/i,
+      /do\\s*you\\s*want\\s*to\\s*run/i,
+      /agent\\s*prompt/i,
+      /run\\s*this\\s*command/i,
+      /execute\\s*the\\s*following/i,
+      /allow\\s*this\\s*action/i,
+      /approve\\s*request/i,
+      /click\\s*run\\s*to\\s*continue/i,
+      /accept\\s*terms/i,
+      /security\\s*confirmation/i
+    ],
+
     blacklist: USER_CONFIG.blacklist || [
       "rm ", "sudo ", "force ", "push ", "delete ", "terminate ", "pkill ", "kill ", "mkfs"
     ],
@@ -261,14 +289,31 @@ function getInjectionScript(userConfig = {}) {
     return buttons;
   }
 
+  function getSurroundingText(el) {
+    try {
+      // Get text from parent or grandparent to get context
+      let contextEl = el.parentElement;
+      if (contextEl && contextEl.textContent.length < 50 && contextEl.parentElement) {
+        contextEl = contextEl.parentElement;
+      }
+      if (contextEl && contextEl.textContent.length < 50 && contextEl.parentElement) {
+        contextEl = contextEl.parentElement;
+      }
+      
+      const text = (contextEl ? contextEl.textContent : '').substring(0, 1000);
+      return text.trim();
+    } catch (e) {
+      return '';
+    }
+  }
+
   function scanAndAction() {
     if (!canClick()) return;
 
     let containers = findValidContainers();
-    if (containers.length > 0) {
-      // log('Found ' + containers.length + ' potential containers');
-    }
-    const useFallback = containers.length === 0 && (USER_CONFIG.autoAccept !== false || USER_CONFIG.autoRetry !== false);
+    const isStandardContainerFound = containers.length > 0;
+    
+    const useFallback = !isStandardContainerFound && (USER_CONFIG.autoAccept !== false || USER_CONFIG.autoRetry !== false);
     
     if (useFallback) {
       containers = [document.body];
@@ -281,14 +326,18 @@ function getInjectionScript(userConfig = {}) {
       if (USER_CONFIG.autoRetry !== false) {
         const errorMatched = CONFIG.errorPatterns.some(p => p.test(containerText));
         if (errorMatched) {
-          log('Error pattern matched in container. Searching for retry buttons...');
           const btns = findButtonsIn(container, CONFIG.retryButtonPatterns, 'RETRY');
-          if (btns.length > 0) {
+          for (const btnObj of btns) {
+            // If in fallback mode (body), we MUST verify context
+            if (useFallback) {
+              const contextText = getSurroundingText(btnObj.el);
+              const contextMatched = CONFIG.retryContextPatterns.some(p => p.test(contextText));
+              if (!contextMatched) continue;
+            }
+            
             log('[STAT] RETRY_DETECTED');
-            performClick(btns[0].el, btns[0].text, '🔄 RETRY');
+            performClick(btnObj.el, btnObj.text, '🔄 RETRY');
             return;
-          } else {
-            log('No retry buttons found in matching container.');
           }
         }
       }
@@ -296,9 +345,21 @@ function getInjectionScript(userConfig = {}) {
       // Case 2: Action/Accept
       if (USER_CONFIG.autoAccept !== false) {
         const btns = findButtonsIn(container, CONFIG.actionButtonPatterns, 'ACTION');
-        if (btns.length > 0) {
-          const btn = btns[0].el;
-          const btnText = btns[0].text;
+        for (const btnObj of btns) {
+          const btn = btnObj.el;
+          const btnText = btnObj.text;
+
+          // If in fallback mode (body), we MUST verify context
+          if (useFallback) {
+            const contextText = getSurroundingText(btn);
+            const contextMatched = CONFIG.actionContextPatterns.some(p => p.test(contextText));
+            if (!contextMatched) {
+              // Also check container text as a secondary context source
+              if (!CONFIG.actionContextPatterns.some(p => p.test(containerText))) {
+                continue;
+              }
+            }
+          }
 
           log('[STAT] ACCEPT_DETECTED');
 
