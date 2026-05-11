@@ -13,8 +13,8 @@ show_menu() {
     echo "======================================================"
     
     # Check current state for header
-    AUTO_RETRY=$(jq -r '.autoRetry // true' "$PROJECT_ROOT/config.json" 2>/dev/null || echo "true")
-    AUTO_ACCEPT_ENABLED=$(jq -r 'if .autoAccept | type == "boolean" then .autoAccept else .autoAccept.enabled // true end' "$PROJECT_ROOT/config.json" 2>/dev/null || echo "true")
+    AUTO_RETRY=$(jq -r 'if .autoRetry == null then true else .autoRetry end' "$PROJECT_ROOT/config.json" 2>/dev/null || echo "true")
+    AUTO_ACCEPT_ENABLED=$(jq -r 'if .autoAccept | type == "boolean" then .autoAccept else (if .autoAccept.enabled == null then true else .autoAccept.enabled end) end' "$PROJECT_ROOT/config.json" 2>/dev/null || echo "true")
     NODE_RUNNING=$(pgrep -f "node.*src/core/auto-retry.js" > /dev/null && echo "yes" || echo "no")
     APP_RUNNING=$(ps aux | grep "Antigravity.app/Contents/MacOS/Electron" | grep -v grep > /dev/null && echo "yes" || echo "no")
     CDP_ENABLED=$(ps aux | grep -i "Antigravity.app/Contents/MacOS/Electron" | grep -v grep | grep -q "\\-\\-remote-debugging-port=" && echo "yes" || echo "no")
@@ -236,11 +236,11 @@ while true; do
                 bash "$SCRIPT_DIR/core/status.sh"
                 
                 # Get current settings for display
-                CUR_RETRY=$(jq -r '.autoRetry // true' "$PROJECT_ROOT/config.json" 2>/dev/null || echo "true")
-                CUR_ACCEPT=$(jq -r 'if .autoAccept | type == "boolean" then .autoAccept else .autoAccept.enabled // true end' "$PROJECT_ROOT/config.json" 2>/dev/null || echo "true")
+                CUR_RETRY=$(jq -r 'if .autoRetry == null then true else .autoRetry end' "$PROJECT_ROOT/config.json" 2>/dev/null || echo "true")
+                CUR_ACCEPT=$(jq -r 'if .autoAccept | type == "boolean" then .autoAccept else (if .autoAccept.enabled == null then true else .autoAccept.enabled end) end' "$PROJECT_ROOT/config.json" 2>/dev/null || echo "true")
                 
-                [ "$CUR_RETRY" = "true" ] && RETRY_LBL="\033[32mON\033[0m" || RETRY_LBL="\033[31mOFF\033[0m"
-                [ "$CUR_ACCEPT" = "true" ] && ACCEPT_LBL="\033[32mON\033[0m" || ACCEPT_LBL="\033[31mOFF\033[0m"
+                [ "$CUR_RETRY" = "true" ] && RETRY_LBL="\033[32mACTIVE\033[0m" || RETRY_LBL="\033[31mOFF\033[0m"
+                [ "$CUR_ACCEPT" = "true" ] && ACCEPT_LBL="\033[32mACTIVE\033[0m" || ACCEPT_LBL="\033[31mOFF\033[0m"
 
                 echo ""
                 echo "------------------------------------------------------"

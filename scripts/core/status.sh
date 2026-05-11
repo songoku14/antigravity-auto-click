@@ -31,8 +31,8 @@ if ! command -v jq &> /dev/null; then
 fi
 
 # Check config
-AUTO_RETRY=$(jq -r '.autoRetry' "$CONFIG_FILE" 2>/dev/null || echo "true")
-AUTO_ACCEPT=$(jq -r '.autoAccept' "$CONFIG_FILE" 2>/dev/null || echo "true")
+AUTO_RETRY=$(jq -r 'if .autoRetry == null then true else .autoRetry end' "$CONFIG_FILE" 2>/dev/null || echo "true")
+AUTO_ACCEPT=$(jq -r 'if .autoAccept | type == "boolean" then .autoAccept else (if .autoAccept.enabled == null then true else .autoAccept.enabled end) end' "$CONFIG_FILE" 2>/dev/null || echo "true")
 
 # Check Node process
 NODE_RUNNING=$(pgrep -f "node.*src/core/auto-retry.js" > /dev/null && echo "yes" || echo "no")
@@ -51,11 +51,11 @@ PLIST_EXISTS=$([ -f "$HOME/Library/LaunchAgents/com.antigravity.autoretry.plist"
 get_status() {
     local val=$1
     if [ "$val" = "yes" ]; then
-        echo -e "\033[0;32mEnabled\033[0m" # Green
+        echo -e "\033[0;32mACTIVE\033[0m" # Green
     elif [ "$val" = "no" ]; then
-        echo -e "\033[0;37mDisabled\033[0m" # Gray
+        echo -e "\033[0;31mOFF\033[0m"    # Red
     else
-        echo -e "\033[0;31mError\033[0m" # Red
+        echo -e "\033[0;31mError\033[0m"  # Red
     fi
 }
 
