@@ -44,7 +44,23 @@ function updateStatusBar(running) {
     try {
         const config = readConfig();
         if (config.autoRetry !== false) activeFeatures.push('R');
-        if (config.autoAccept !== false) activeFeatures.push('A');
+        
+        const autoAccept = config.autoAccept;
+        if (autoAccept === true) {
+            activeFeatures.push('A');
+        } else if (autoAccept && autoAccept.enabled !== false) {
+            let activeCats = [];
+            const cats = autoAccept.categories || {};
+            if (cats.terminal && cats.terminal.enabled !== false) activeCats.push('t');
+            if (cats.review && cats.review.enabled !== false) activeCats.push('r');
+            if (cats.system && cats.system.enabled !== false) activeCats.push('s');
+            
+            if (activeCats.length > 0) {
+                activeFeatures.push(`A[${activeCats.join('')}]`);
+            } else {
+                activeFeatures.push('A');
+            }
+        }
     } catch (e) { }
 
     const featuresText = activeFeatures.length > 0 ? ` (${activeFeatures.join('/')})` : ' (OFF)';
@@ -81,11 +97,36 @@ async function showMenu() {
 
     // --- Auto-Accept ---
     items.push({ label: '--- Auto-Accept ---', kind: vscode.QuickPickItemKind.Separator });
+    
+    const isAutoAcceptEnabled = config.autoAccept === true || (config.autoAccept && config.autoAccept.enabled !== false);
+    
     items.push({
-        label: `${config.autoAccept !== false ? '$(check)' : '$(circle-slash)'} Enable Auto-Accept`,
-        description: config.autoAccept !== false ? 'Currently Enabled' : 'Currently Disabled',
+        label: `${isAutoAcceptEnabled ? '$(check)' : '$(circle-slash)'} Enable Auto-Accept (Master)`,
+        description: isAutoAcceptEnabled ? 'Currently Enabled' : 'Currently Disabled',
         action: () => toggleFeature('autoAccept')
     });
+
+    if (isAutoAcceptEnabled && typeof config.autoAccept === 'object') {
+        const cats = config.autoAccept.categories || {};
+        
+        items.push({
+            label: `   ${(cats.terminal && cats.terminal.enabled !== false) ? '$(check)' : '$(circle-slash)'} Terminal Commands`,
+            description: (cats.terminal && cats.terminal.enabled !== false) ? 'Auto-runs safe terminal commands' : 'Disabled',
+            action: () => toggleCategory('terminal')
+        });
+
+        items.push({
+            label: `   ${(cats.review && cats.review.enabled !== false) ? '$(check)' : '$(circle-slash)'} Review / Agent Prompts`,
+            description: (cats.review && cats.review.enabled !== false) ? 'Auto-accepts review requests' : 'Disabled',
+            action: () => toggleCategory('review')
+        });
+
+        items.push({
+            label: `   ${(cats.system && cats.system.enabled !== false) ? '$(check)' : '$(circle-slash)'} System / Security`,
+            description: (cats.system && cats.system.enabled !== false) ? 'Auto-accepts security dialogs' : 'Disabled',
+            action: () => toggleCategory('system')
+        });
+    }
 
 
     // --- System ---
@@ -138,9 +179,43 @@ async function showMenu() {
 
 function toggleFeature(feature) {
     const config = readConfig();
-    config[feature] = config[feature] === false ? true : false;
+    if (feature === 'autoAccept' && typeof config.autoAccept === 'object') {
+        config.autoAccept.enabled = config.autoAccept.enabled === false ? true : false;
+    } else {
+        config[feature] = config[feature] === false ? true : false;
+    }
     writeConfig(config);
-    vscode.window.showInformationMessage(`${feature === 'autoRetry' ? 'Auto-Retry' : 'Auto-Accept'} is now ${config[feature] ? 'ENABLED' : 'DISABLED'}`);
+    
+    let label = feature;
+    let isEnabled = false;
+    if (feature === 'autoAccept' && typeof config.autoAccept === 'object') {
+        label = 'Auto-Accept';
+        isEnabled = config.autoAccept.enabled;
+    } else {
+        label = feature === 'autoRetry' ? 'Auto-Retry' : 'Auto-Accept';
+        isEnabled = config[feature];
+    }
+
+    vscode.window.showInformationMessage(`${label} is now ${isEnabled ? 'ENABLED' : 'DISABLED'}`);
+    updateStatusBar(!!daemonProcess);
+}
+
+function toggleCategory(category) {
+    const config = readConfig();
+    if (!config.autoAccept || typeof config.autoAccept !== 'object') {
+        config.autoAccept = { enabled: true, categories: {} };
+    }
+    if (!config.autoAccept.categories) {
+        config.autoAccept.categories = {};
+    }
+    if (!config.autoAccept.categories[category]) {
+        config.autoAccept.categories[category] = { enabled: true, patterns: [] };
+    }
+    
+    config.autoAccept.categories[category].enabled = config.autoAccept.categories[category].enabled === false ? true : false;
+    writeConfig(config);
+    
+    vscode.window.showInformationMessage(`Auto-Accept [${category.toUpperCase()}] is now ${config.autoAccept.categories[category].enabled ? 'ENABLED' : 'DISABLED'}`);
     updateStatusBar(!!daemonProcess);
 }
 

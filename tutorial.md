@@ -76,8 +76,8 @@ Phù hợp cho việc bật/tắt nhanh các tính năng trong lúc đang code m
 ### 🛰️ Chỉ số tại Status Bar (Góc dưới phải)
 Bạn sẽ thấy biểu tượng ⚡ kèm theo các ký tự trạng thái:
 - `(R)` : **Auto-Retry** đang Bật.
-- `(A)` : **Auto-Accept** đang Bật.
-- `(R/A)` : Cả hai đều đang Bật.
+- `(A[trs])` : **Auto-Accept** đang Bật với các nhóm (t: terminal, r: review, s: system).
+- `(R/A[trs])` : Cả hai đều đang Bật.
 - `(OFF)` : Hệ thống đang tạm dừng.
 
 ### ⚡ Thao tác nhanh (Quick Actions)
@@ -96,9 +96,16 @@ Bạn có thể tùy chỉnh hành vi của công cụ trong file `config.json` 
 ```json
 {
   "autoRetry": true,
-  "autoAccept": true,
-  "blacklist": ["rm -rf", "sudo", "docker rm"],
-  "clickDelay": 500
+  "autoAccept": {
+    "enabled": true,
+    "categories": {
+      "terminal": { "enabled": true, "patterns": ["run\\s*this\\s*command"] },
+      "review": { "enabled": true, "patterns": ["agent\\s*prompt"] },
+      "system": { "enabled": true, "patterns": ["security\\s*confirmation"] }
+    }
+  },
+  "blacklist": ["rm ", "sudo ", "delete "],
+  "clickDelay": 800
 }
 ```
 

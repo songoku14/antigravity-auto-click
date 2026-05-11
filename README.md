@@ -15,7 +15,7 @@ Verify your setup via the **Testing Lab** (Option 2 in CLI menu):
 | **Vấn đề** | Lỗi "High Traffic" yêu cầu click thủ công hoặc các đề xuất Agent cần Accept liên tục. |
 | **Công nghệ** | Chrome DevTools Protocol (CDP) kết nối qua cổng debug `9222`. |
 | **Cơ chế** | Inject JavaScript (MutationObserver) để phát hiện và click nút. |
-| **Tính năng** | **Auto-Retry**: Click "Retry" khi gặp lỗi High Traffic.<br>**Auto-Accept**: Click "Accept", "Run", "Execute", v.v. |
+| **Tính năng** | **Auto-Retry**: Click "Retry" khi gặp lỗi High Traffic.<br>**Auto-Accept**: Tự động click "Run", "Accept", v.v. (Hỗ trợ phân loại: Terminal, Review, System). |
 | **Bảo vệ** | Có cơ chế **Blacklist** chặn tự động chạy các lệnh Terminal nguy hiểm. |
 | **Ưu điểm** | Chính xác 100%, linh hoạt (tắt/mở riêng biệt), an toàn tuyệt đối. |
 
@@ -38,7 +38,7 @@ Từ giờ, luôn mở IDE bằng cách gõ lệnh `antigravity` trong Terminal.
 **Bước 2: Sử dụng & Vận hành**
 - **Chi tiết tính năng:** Xem [tutorial.md](tutorial.md) để biết cách dùng qua CLI hoặc Extension.
 - **Auto-Retry**: Tự động click thử lại khi gặp lỗi "High Traffic".
-- **Auto-Accept**: Tự động chấp nhận các đề xuất an toàn từ Agent.
+- **Auto-Accept**: Tự động chấp nhận các đề xuất an toàn từ Agent. Hỗ trợ bật/tắt riêng biệt cho lệnh Terminal, Review code và Xác nhận hệ thống.
 
 **Dành cho Developer:**
 - Cài đặt: `npm install`

@@ -13,8 +13,8 @@ show_menu() {
     echo "======================================================"
     
     # Check current state for header
-    AUTO_RETRY=$(jq -r '.autoRetry' "$PROJECT_ROOT/config.json" 2>/dev/null || echo "true")
-    AUTO_ACCEPT=$(jq -r '.autoAccept' "$PROJECT_ROOT/config.json" 2>/dev/null || echo "true")
+    AUTO_RETRY=$(jq -r '.autoRetry // true' "$PROJECT_ROOT/config.json" 2>/dev/null || echo "true")
+    AUTO_ACCEPT_ENABLED=$(jq -r 'if .autoAccept | type == "boolean" then .autoAccept else .autoAccept.enabled // true end' "$PROJECT_ROOT/config.json" 2>/dev/null || echo "true")
     NODE_RUNNING=$(pgrep -f "node.*src/auto-retry.js" > /dev/null && echo "yes" || echo "no")
     APP_RUNNING=$(ps aux | grep "Antigravity.app/Contents/MacOS/Electron" | grep -v grep > /dev/null && echo "yes" || echo "no")
     CDP_ENABLED=$(ps aux | grep -i "Antigravity.app/Contents/MacOS/Electron" | grep -v grep | grep -q "\\-\\-remote-debugging-port=" && echo "yes" || echo "no")
@@ -32,7 +32,20 @@ show_menu() {
     ACCEPT_STATUS="---"
     if [ "$NODE_RUNNING" = "yes" ]; then
         [ "$AUTO_RETRY" = "true" ] && RETRY_STATUS="\033[32mACTIVE\033[0m" || RETRY_STATUS="\033[31mOFF\033[0m"
-        [ "$AUTO_ACCEPT" = "true" ] && ACCEPT_STATUS="\033[32mACTIVE\033[0m" || ACCEPT_STATUS="\033[31mOFF\033[0m"
+        
+        if [ "$AUTO_ACCEPT_ENABLED" = "true" ]; then
+            # Get active categories
+            CATS=$(jq -r 'if .autoAccept | type == "object" then 
+                [.autoAccept.categories | to_entries[] | select(.value.enabled != false) | .key | {terminal: "t", review: "r", system: "s"}[.]] | join("")
+                else "" end' "$PROJECT_ROOT/config.json" 2>/dev/null)
+            if [ -n "$CATS" ]; then
+                ACCEPT_STATUS="\033[32mACTIVE\033[0m [\033[36m$CATS\033[0m]"
+            else
+                ACCEPT_STATUS="\033[32mACTIVE\033[0m"
+            fi
+        else
+            ACCEPT_STATUS="\033[31mOFF\033[0m"
+        fi
     fi
 
     # Activity Counts
@@ -87,9 +100,72 @@ show_test_menu() {
                 read -p "Nhấn Enter để tiếp tục..."
                 ;;
             3)
-                echo "🧪 Đang chạy bộ kiểm tra hồi quy (SAMPLES)..."
-                node "$SCRIPT_DIR/verify-dialog-detection-regression.js"
-                read -p "Nhấn Enter để tiếp tục..."
+                echo "🧪 Đang chuẩn bị bộ kiểm tra hồi quy (SAMPLES)..."
+                SAMPLES_DIR="$PROJECT_ROOT/samples"
+                if [ ! -d "$SAMPLES_DIR" ]; then
+                    echo "❌ Thư mục samples/ không tồn tại."
+                    sleep 1
+                    continue
+                fi
+
+                read -p "🔍 Nhập từ khóa tìm kiếm (bỏ trống để xem tất cả): " search_term
+                
+                # Tìm kiếm file khớp từ khóa
+                FILES=()
+                while IFS= read -r -d $'\0' file; do
+                    FILES+=("$(basename "$file")")
+                done < <(find "$SAMPLES_DIR" -maxdepth 1 -iname "*${search_term}*.html" -print0 2>/dev/null)
+
+                # Fallback nếu không thấy mẫu nào
+                if [ ${#FILES[@]} -eq 0 ]; then
+                    echo "⚠️ Không tìm thấy mẫu khớp với: '$search_term'"
+                    echo "🔍 Tự động hiển thị 10 mẫu 'full_dom' mới nhất..."
+                    # Dùng while read để an toàn với dấu cách
+                    while IFS= read -r file; do
+                        [ -n "$file" ] && FILES+=("$(basename "$file")")
+                    done < <(ls -t "$SAMPLES_DIR"/*full_dom*.html 2>/dev/null | head -n 10)
+                fi
+
+                if [ ${#FILES[@]} -eq 0 ]; then
+                    echo "ℹ️ Không tìm thấy mẫu nào khả dụng trong thư mục samples/."
+                    read -p "Nhấn Enter để tiếp tục..."
+                    continue
+                fi
+
+                while true; do
+                    clear
+                    echo "======================================================"
+                    echo "         🧪 REGRESSION TEST - KẾT QUẢ TÌM KIẾM        "
+                    echo "======================================================"
+                    echo " Từ khóa: '$search_term' (Tìm thấy: ${#FILES[@]} mẫu)"
+                    echo "------------------------------------------------------"
+                    echo " a) 🏃 Chạy TẤT CẢ các mẫu trong danh sách này"
+                    echo " 0) 🔙 Quay lại Menu Test Lab"
+                    echo "------------------------------------------------------"
+                    for i in "${!FILES[@]}"; do
+                        echo " $((i+1))) ${FILES[$i]}"
+                    done
+                    echo "------------------------------------------------------"
+                    read -p "Lựa chọn của bạn: " sample_choice
+
+                    if [[ "$sample_choice" == "0" ]]; then
+                        break
+                    elif [[ "$sample_choice" == "a" ]]; then
+                        echo "🧪 Đang chạy Regression Test cho toàn bộ danh sách..."
+                        for f in "${FILES[@]}"; do
+                            node "$SCRIPT_DIR/verify-dialog-detection-regression.js" "$f"
+                        done
+                        read -p "Nhấn Enter để quay lại danh sách..."
+                    elif [[ "$sample_choice" =~ ^[0-9]+$ ]] && [ "$sample_choice" -gt 0 ] && [ "$sample_choice" -le ${#FILES[@]} ]; then
+                        SELECTED_FILE=${FILES[$((sample_choice-1))]}
+                        echo "🧪 Đang chạy Regression Test cho mẫu: $SELECTED_FILE"
+                        node "$SCRIPT_DIR/verify-dialog-detection-regression.js" "$SELECTED_FILE"
+                        read -p "Nhấn Enter để quay lại danh sách..."
+                    else
+                        echo "❌ Lựa chọn không hợp lệ."
+                        sleep 1
+                    fi
+                done
                 ;;
             0)
                 return

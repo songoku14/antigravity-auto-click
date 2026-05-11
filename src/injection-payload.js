@@ -5,7 +5,7 @@
  * It uses MutationObserver to watch for error dialogs and auto-click Retry/Accept.
  */
 
-const INJECTION_VERSION = 26;
+const INJECTION_VERSION = 28;
 
 /**
  * Trả về string JavaScript sẽ được inject vào DOM qua CDP Runtime.evaluate
@@ -15,7 +15,7 @@ function getInjectionScript(userConfig = {}) {
 
   return `
 (function() {
-  const SCRIPT_VERSION = 26;
+  const SCRIPT_VERSION = 28;
   const USER_CONFIG = ${configJson};
   
   // Kill old versions
@@ -114,6 +114,27 @@ function getInjectionScript(userConfig = {}) {
       /security\\s*confirmation/i
     ],
 
+    // Granular categories for Auto-Accept
+    actionCategories: {
+      terminal: [
+        /allow\\s*the\\s*following\\s*command/i,
+        /run\\s*this\\s*command/i,
+        /execute\\s*the\\s*following/i,
+        /do\\s*you\\s*want\\s*to\\s*run/i
+      ],
+      review: [
+        /review\\s*the\\s*changes/i,
+        /agent\\s*prompt/i,
+        /approve\\s*request/i,
+        /click\\s*run\\s*to\\s*continue/i
+      ],
+      system: [
+        /security\\s*confirmation/i,
+        /allow\\s*this\\s*action/i,
+        /accept\\s*terms/i
+      ]
+    },
+
     blacklist: USER_CONFIG.blacklist || [
       "rm ", "sudo ", "force ", "push ", "delete ", "terminate ", "pkill ", "kill ", "mkfs"
     ],
@@ -145,6 +166,15 @@ function getInjectionScript(userConfig = {}) {
       const re = toRegex(p);
       if (re) CONFIG.actionButtonPatterns.push(re);
     });
+  }
+
+  // Override categories patterns if provided in USER_CONFIG
+  if (USER_CONFIG.autoAccept && typeof USER_CONFIG.autoAccept === 'object' && USER_CONFIG.autoAccept.categories) {
+    for (const [cat, data] of Object.entries(USER_CONFIG.autoAccept.categories)) {
+      if (Array.isArray(data.patterns)) {
+        CONFIG.actionCategories[cat] = data.patterns.map(p => toRegex(p)).filter(Boolean);
+      }
+    }
   }
 
   let actionCount = 0;
@@ -342,43 +372,58 @@ function getInjectionScript(userConfig = {}) {
         }
       }
 
-      // Case 2: Action/Accept
-      if (USER_CONFIG.autoAccept !== false) {
-        const btns = findButtonsIn(container, CONFIG.actionButtonPatterns, 'ACTION');
-        for (const btnObj of btns) {
-          const btn = btnObj.el;
-          const btnText = btnObj.text;
+      // Case 2: Action/Accept (Granular)
+      const autoAcceptConfig = USER_CONFIG.autoAccept;
+      const isAutoAcceptEnabled = autoAcceptConfig === true || (autoAcceptConfig && autoAcceptConfig.enabled !== false);
+      
+      if (isAutoAcceptEnabled) {
+        // Iterate through categories
+        const categories = (autoAcceptConfig && typeof autoAcceptConfig === 'object' && autoAcceptConfig.categories) 
+                           ? autoAcceptConfig.categories 
+                           : { terminal: { enabled: true }, review: { enabled: true }, system: { enabled: true } };
 
-          // If in fallback mode (body), we MUST verify context
-          if (useFallback) {
-            const contextText = getSurroundingText(btn);
-            const contextMatched = CONFIG.actionContextPatterns.some(p => p.test(contextText));
-            if (!contextMatched) {
-              // Also check container text as a secondary context source
-              if (!CONFIG.actionContextPatterns.some(p => p.test(containerText))) {
-                continue;
+        for (const [catName, catConfig] of Object.entries(categories)) {
+          if (catConfig.enabled === false) continue;
+
+          const catPatterns = CONFIG.actionCategories[catName] || [];
+          
+          // Check if this category matches the container/context
+          let categoryMatched = catPatterns.some(p => p.test(containerText));
+          
+          // Find buttons in this container
+          const btns = findButtonsIn(container, CONFIG.actionButtonPatterns, 'ACTION (' + catName.toUpperCase() + ')');
+          
+          for (const btnObj of btns) {
+            const btn = btnObj.el;
+            const btnText = btnObj.text;
+
+            // Verify context for the specific category if not already matched by container
+            if (!categoryMatched) {
+              const contextText = getSurroundingText(btn);
+              categoryMatched = catPatterns.some(p => p.test(contextText));
+            }
+
+            if (!categoryMatched) continue;
+
+            log('[STAT] ACCEPT_DETECTED (' + catName + ')');
+
+            const cmdText = extractCommandText(btn);
+            if (isCommandBlocked(cmdText)) {
+              if (!btn.__blockedByFilter) {
+                btn.__blockedByFilter = true;
+                log('[STAT] ACCEPT_BLOCKED');
+                log('🚫 Blocked dangerous command: ' + (cmdText ? cmdText.substring(0, 50) : 'none') + '...');
+                btn.style.cssText += ';border: 2px solid red !important; box-shadow: 0 0 10px red !important;';
+                const oldText = btn.textContent;
+                btn.textContent = '🚫 Blocked';
+                setTimeout(() => { btn.textContent = oldText; btn.__blockedByFilter = false; }, 5000);
               }
+              continue;
             }
+
+            performClick(btn, btnText, '⚡ ACTION (' + catName.toUpperCase() + ')');
+            return; // Only one action per scan
           }
-
-          log('[STAT] ACCEPT_DETECTED');
-
-          const cmdText = extractCommandText(btn);
-          if (isCommandBlocked(cmdText)) {
-            if (!btn.__blockedByFilter) {
-              btn.__blockedByFilter = true;
-              log('[STAT] ACCEPT_BLOCKED');
-              log('🚫 Blocked dangerous command: ' + (cmdText ? cmdText.substring(0, 50) : 'none') + '...');
-              btn.style.cssText += ';border: 2px solid red !important; box-shadow: 0 0 10px red !important;';
-              const oldText = btn.textContent;
-              btn.textContent = '🚫 Blocked';
-              setTimeout(() => { btn.textContent = oldText; btn.__blockedByFilter = false; }, 5000);
-            }
-            continue;
-          }
-
-          performClick(btn, btnText, '⚡ ACTION');
-          return;
         }
       }
     }
