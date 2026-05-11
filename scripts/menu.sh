@@ -68,6 +68,7 @@ show_menu() {
     echo "------------------------------------------------------"
     echo " 6) 📥 Bật Khởi động cùng máy tính"
     echo " 7) 🗑️ Tắt Khởi động cùng máy tính"
+    echo " 8) 🐛 Bật CDP (Chrome DevTools Protocol)"
     echo " 0) 🚪 Thoát"
     echo "======================================================"
     echo ""
@@ -184,10 +185,9 @@ show_dev_menu() {
         echo "======================================================"
         echo "           🛠️ ANTIGRAVITY DEVELOPER TOOLS            "
         echo "======================================================"
-        echo " 1) 🔄 Khởi động lại Antigravity (Chế độ Debug)"
-        echo " 2) 🔍 Phân tích Dialog hiện tại"
-        echo " 3) 🎭 Giả lập Dialog từ Sample"
-        echo " 4) 📦 Chụp toàn bộ IDE (Dump DOM)"
+        echo " 1) 🔍 Phân tích Dialog hiện tại"
+        echo " 2) 🎭 Giả lập Dialog từ Sample"
+        echo " 3) 📦 Chụp toàn bộ IDE (Dump DOM)"
         echo " 0) 🔙 Quay lại Menu chính"
         echo "======================================================"
         echo ""
@@ -196,49 +196,16 @@ show_dev_menu() {
         
         case $dev_choice in
             1)
-                # 1. Prepare and copy launch command FIRST
-                LAUNCH_CMD='open -a "/Applications/Antigravity.app" --args --remote-debugging-port=31905'
-                printf "%s" "$LAUNCH_CMD" | pbcopy
-                
-                echo -e "\033[32m✅ Đã copy lệnh khởi động vào Clipboard.\033[0m"
-                echo -e "Nội dung kiểm tra (pbpaste): \033[36m$(pbpaste)\033[0m"
-                echo ""
-
-                # 2. Now close Antigravity
-                echo "🔄 Đang yêu cầu Antigravity đóng nhẹ nhàng..."
-                osascript -e 'quit app "Antigravity"' 2>/dev/null || true
-                
-                echo "⏳ Đợi ứng dụng phản hồi (3s)..."
-                sleep 3
-                
-                # Check if still running
-                if ps aux | grep -i "/Applications/Antigravity.app/Contents/MacOS/Electron" | grep -v grep > /dev/null; then
-                    echo "⚠️ Antigravity vẫn đang chạy, đang thực hiện đóng cưỡng bức..."
-                    pkill -9 -f "Antigravity" 2>/dev/null || true
-                    sleep 1
-                fi
-
-                echo -e "\033[32m✅ Antigravity đã được đóng hoàn toàn.\033[0m"
-                
-                echo "======================================================"
-                echo -e "\033[32m🚀 HỆ THỐNG ĐÃ SẴN SÀNG!\033[0m"
-                echo "------------------------------------------------------"
-                echo "👉 Lệnh đã có trong Clipboard. Vui lòng dán (Cmd+V)"
-                echo "   vào Terminal để mở lại Antigravity."
-                echo "======================================================"
-                read -p "Nhấn Enter để quay lại menu..."
-                ;;
-            2)
                 echo "🔍 Đang khởi chạy công cụ phân tích..."
                 node "$SCRIPT_DIR/analyze-dialog.js"
                 read -p "Nhấn Enter để tiếp tục..."
                 ;;
-            3)
+            2)
                 echo "🎭 Đang khởi chạy công cụ giả lập..."
                 node "$SCRIPT_DIR/mock-dialog.js"
                 read -p "Nhấn Enter để tiếp tục..."
                 ;;
-            4)
+            3)
                 echo "📦 Đang thực hiện dump toàn bộ DOM..."
                 node "$SCRIPT_DIR/dump-dom.js"
                 read -p "Nhấn Enter để tiếp tục..."
@@ -318,6 +285,45 @@ while true; do
         7)
             bash "$SCRIPT_DIR/uninstall.sh"
             read -p "Nhấn Enter để quay lại menu..."
+            ;;
+        8)
+            echo "======================================================"
+            echo -e "🐛 \033[33mBẬT CHẾ ĐỘ CDP (CHROME DEVTOOLS PROTOCOL)\033[0m"
+            echo "======================================================"
+            echo "Auto-Click cần Antigravity chạy với chế độ Debug để có"
+            echo "thể hoạt động thông qua CDP (Chrome DevTools Protocol)"
+            echo ""
+            echo " - Antigravity sẽ tự tắt."
+            echo " - Bạn hãy mở Terminal và Cmd+V, sau đó Enter để mở lại Antigravity."
+            echo "======================================================"
+            read -p "-> Ấn Enter để xác nhận " confirm
+            
+            # 1. Prepare and copy launch command
+            LAUNCH_CMD='open -a "/Applications/Antigravity.app" --args --remote-debugging-port=31905'
+            printf "%s" "$LAUNCH_CMD" | pbcopy
+            
+            echo ""
+            echo -e "\033[32m✅ Đã copy lệnh khởi động vào Clipboard.\033[0m"
+            echo ""
+            
+            # 2. Close Antigravity
+            echo "🔄 Đang yêu cầu Antigravity đóng..."
+            osascript -e 'quit app "Antigravity"' 2>/dev/null || true
+            
+            echo "⏳ Đợi ứng dụng phản hồi (3s)..."
+            sleep 3
+            
+            # Check if still running
+            if ps aux | grep -i "/Applications/Antigravity.app/Contents/MacOS/Electron" | grep -v grep > /dev/null; then
+                echo "⚠️ Antigravity vẫn chưa đóng, đang thực hiện đóng cưỡng bức..."
+                pkill -9 -f "Antigravity" 2>/dev/null || true
+                sleep 1
+            fi
+            
+            echo -e "\033[32m✅ Hệ thống đã sẵn sàng cho bước tiếp theo.\033[0m"
+            echo "👉 Vui lòng Cmd+V vào Terminal ngay bây giờ."
+            echo ""
+            read -p "Nhấn Enter để quay lại menu chính..."
             ;;
         0)
             echo "👋 Tạm biệt!"
