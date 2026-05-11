@@ -18,6 +18,14 @@ Verify your setup via the **Testing Lab** (Option 2 in CLI menu):
 | **Tính năng** | **Auto-Retry**: Click "Retry" khi gặp lỗi High Traffic.<br>**Auto-Accept**: Tự động click "Run", "Accept", v.v. (Hỗ trợ phân loại: Terminal, Review, System). |
 | **Bảo vệ** | Có cơ chế **Blacklist** chặn tự động chạy các lệnh Terminal nguy hiểm. |
 | **Ưu điểm** | Chính xác cao, linh hoạt (tắt/mở riêng biệt), an toàn với cơ chế blacklist & rate-limit. |
+| **Vị trí UI** | Ưu tiên khu vực bên phải (Agent Side Panel) và các nút nằm trong phần footer. |
+
+### 🛠️ Giải pháp Kỹ thuật
+
+- **Scoping (Phạm vi):** Thu hẹp phạm vi nhận diện tại các container Dialog đặc hiệu (Side Panel, Monaco Dialog).
+- **Phân cấp Nút:** Tự động ưu tiên các nút bấm nằm trong phần `footer` của container để đảm bảo tính chính xác.
+- **Phát hiện Biến động:** Kết hợp `MutationObserver` (phản ứng tức thì) và `Polling` (3s) để đảm bảo độ tin cậy.
+- **Nhận diện Thông minh:** Sử dụng Regex đa lớp để phân biệt giữa lỗi High Traffic và các yêu cầu thực thi của Agent.
 
 ## 2. Cấu Trúc Dự Án
 
