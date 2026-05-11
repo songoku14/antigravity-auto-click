@@ -12,21 +12,33 @@
     "format "
   ],
   "autoAccept": {
-    "enabled": true,
+    "enabled": false,
     "categories": {
-      "terminal": { 
-        "enabled": true, 
-        "patterns": ["allow\\s*the\\s*following\\s*command", "run\\s*this\\s*command", "execute\\s*the\\s*following"] 
+      "terminal": {
+        "enabled": true,
+        "patterns": [
+          "allow\\s*the\\s*following\\s*command",
+          "run\\s*this\\s*command",
+          "execute\\s*the\\s*following"
+        ]
       },
-      "review": { 
-        "enabled": true, 
-        "patterns": ["review\\s*the\\s*changes", "agent\\s*prompt", "approve\\s*request"] 
+      "review": {
+        "enabled": true,
+        "patterns": [
+          "review\\s*the\\s*changes",
+          "agent\\s*prompt",
+          "approve\\s*request"
+        ]
       },
-      "system": { 
-        "enabled": true, 
-        "patterns": ["security\\s*confirmation", "allow\\s*this\\s*action"] 
+      "system": {
+        "enabled": true,
+        "patterns": [
+          "security\\s*confirmation",
+          "allow\\s*this\\s*action"
+        ]
       }
     }
   },
-  "autoRetry": true
+  "autoRetry": true,
+  "debug": true
 }

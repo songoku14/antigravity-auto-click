@@ -5,7 +5,7 @@
  * It uses MutationObserver to watch for error dialogs and auto-click Retry/Accept.
  */
 
-const INJECTION_VERSION = 32;
+const INJECTION_VERSION = 33;
 
 /**
  * Trả về string JavaScript sẽ được inject vào DOM qua CDP Runtime.evaluate
@@ -177,6 +177,10 @@ function getInjectionScript(userConfig = {}) {
     console.log('[AutoRetry] ' + msg);
   }
 
+  function debug(msg) {
+    if (USER_CONFIG.debug) console.log('[AutoRetry] [DEBUG] ' + msg);
+  }
+
   // ============================================================
   // 4. Rate Limiting & Safety
   // ============================================================
@@ -310,10 +314,18 @@ function getInjectionScript(userConfig = {}) {
   function isVisibleAtPoint(el, rect) {
     const x = rect.left + rect.width / 2;
     const y = rect.top + rect.height / 2;
-    if (x < 0 || y < 0 || x > window.innerWidth || y > window.innerHeight) return false;
+    debug(\`[STEP 4] Checking visibility at (\${Math.round(x)}, \${Math.round(y)})\`);
+    
+    if (x < 0 || y < 0 || x > window.innerWidth || y > window.innerHeight) {
+      debug(\`[STEP 4.1] Point out of viewport bounds\`);
+      return false;
+    }
 
     let topEl = document.elementFromPoint(x, y);
-    if (!topEl) return false;
+    if (!topEl) {
+      debug(\`[STEP 4.2] No element found at point\`);
+      return false;
+    }
 
     while (topEl && topEl.shadowRoot) {
       const shadowTopEl = topEl.shadowRoot.elementFromPoint(x, y);
@@ -323,9 +335,13 @@ function getInjectionScript(userConfig = {}) {
     
     let curr = topEl;
     while (curr) {
-      if (curr === el) return true;
+      if (curr === el) {
+        debug(\`[STEP 4.3] Visibility confirmed: target button is on top\`);
+        return true;
+      }
       curr = curr.parentElement || (curr.getRootNode && curr.getRootNode().host);
     }
+    debug(\`[STEP 4.4] Visibility failed: another element is on top: <\${topEl.tagName.toLowerCase()}> (ID: \${topEl.id}, Class: \${topEl.className})\`);
     return false;
   }
 
@@ -355,13 +371,24 @@ function getInjectionScript(userConfig = {}) {
       
       // Case 1: Auto-Retry
       if (USER_CONFIG.autoRetry !== false && CONFIG.errorPatterns.some(p => p.test(containerText))) {
+        debug(\`[STEP 1] Found matching RETRY container: <\${container.tagName.toLowerCase()}> (ID: \${container.id})\`);
         const btns = findButtonsIn(container, CONFIG.retryButtonPatterns, 'RETRY');
         btns.sort((a, b) => (a.inFooter !== b.inFooter ? (b.inFooter ? 1 : -1) : b.rect.top - a.rect.top));
 
         for (const btnObj of btns) {
-          if (!isAgentWindow && (btnObj.rect.left < window.innerWidth / 2 || btnObj.rect.top < window.innerHeight / 2)) continue;
-          if (useFallback && !CONFIG.retryContextPatterns.some(p => p.test(getSurroundingText(btnObj.el)))) continue;
-          if (!isVisibleAtPoint(btnObj.el, btnObj.rect)) continue;
+          debug(\`[STEP 2] Found matching RETRY button: "\${btnObj.text}"\`);
+          const isRightSide = btnObj.rect.left > window.innerWidth * 0.4;
+          if (!isAgentWindow && !isRightSide) {
+            debug(\`[STEP 3] Skipping RETRY button: not on right side (\${Math.round(btnObj.rect.left)} < \${Math.round(window.innerWidth * 0.4)})\`);
+            continue;
+          }
+          if (useFallback && !CONFIG.retryContextPatterns.some(p => p.test(getSurroundingText(btnObj.el)))) {
+            debug(\`[STEP 3.1] Skipping RETRY button: context mismatch\`);
+            continue;
+          }
+          if (!isVisibleAtPoint(btnObj.el, btnObj.rect)) {
+            continue;
+          }
 
           log('[STAT] RETRY_DETECTED');
           performClick(btnObj.el, btnObj.text, '🔄 RETRY');
@@ -381,12 +408,20 @@ function getInjectionScript(userConfig = {}) {
           const catPatterns = CONFIG.actionCategories[catName] || [];
           if (!catPatterns.some(p => p.test(containerText)) && !catPatterns.some(p => p.test(getSurroundingText(container)))) continue;
 
+          debug(\`[STEP 1] Found matching ACCEPT container for category "\${catName}": <\${container.tagName.toLowerCase()}>\`);
           const btns = findButtonsIn(container, CONFIG.actionButtonPatterns, 'ACTION (' + catName.toUpperCase() + ')');
           btns.sort((a, b) => (a.inFooter !== b.inFooter ? (b.inFooter ? 1 : -1) : b.rect.top - a.rect.top));
 
           for (const btnObj of btns) {
-            if (!isAgentWindow && (btnObj.rect.left < window.innerWidth / 2 || btnObj.rect.top < window.innerHeight / 2)) continue;
-            if (!isVisibleAtPoint(btnObj.el, btnObj.rect)) continue;
+            debug(\`[STEP 2] Found matching ACCEPT button: "\${btnObj.text}"\`);
+            const isRightSide = btnObj.rect.left > window.innerWidth * 0.4;
+            if (!isAgentWindow && !isRightSide) {
+              debug(\`[STEP 3] Skipping ACCEPT button: not on right side (\${Math.round(btnObj.rect.left)} < \${Math.round(window.innerWidth * 0.4)})\`);
+              continue;
+            }
+            if (!isVisibleAtPoint(btnObj.el, btnObj.rect)) {
+              continue;
+            }
 
             log('[STAT] ACCEPT_DETECTED (' + catName + ')');
             const cmdText = extractCommandText(btnObj.el);
@@ -412,16 +447,19 @@ function getInjectionScript(userConfig = {}) {
     btn.__clicked = true;
     actionCount++;
     lastClickTime = Date.now();
-    log(typeLabel + '! Clicking "' + btnText + '"');
+    log(\`\${typeLabel}! [STEP 5] Clicking button "\${btnText}"\`);
 
     btn.style.outline = '3px solid #3794ff';
     setTimeout(() => {
       try {
+        debug(\`[STEP 5.1] Executing DOM click() on <\${btn.tagName.toLowerCase()}>\`);
         btn.click();
-        log('✅ Clicked.');
+        log('✅ [STEP 6] Clicked successfully.');
         log(typeLabel.includes('RETRY') ? '[STAT] RETRY_CLICKED' : '[STAT] ACCEPT_CLICKED');
       } catch (e) {
+        debug(\`[STEP 5.2] DOM click failed, using dispatchEvent fallback: \${e.message}\`);
         btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+        log('✅ [STEP 6] Dispatched click event successfully.');
       }
       btn.__clicked = false;
     }, CONFIG.clickDelay);

@@ -30,10 +30,19 @@ async function triggerAcceptTest() {
       process.exit(1);
     }
     
-    const results = await Promise.all(pageTargets.map(target => sendTestCommand(target)));
-    overallSuccess = results.some(success => success);
+    // Refinement: Pick the best target
+    // 1. Prefer the main workbench.html
+    // 2. Avoid "Launchpad" if others are available
+    const bestTarget = pageTargets.find(t => t.url?.endsWith('workbench.html')) || 
+                       pageTargets.find(t => !t.title.includes('Launchpad')) ||
+                       pageTargets[0];
     
-    return overallSuccess;
+    if (pageTargets.length > 1) {
+      console.log(`ℹ️ Found ${pageTargets.length} targets. Testing on: ${bestTarget.title || bestTarget.url}`);
+    }
+
+    const success = await sendTestCommand(bestTarget);
+    return success;
   } catch (e) {
     console.error(`❌ Error: ${e.message}`);
     return false;
@@ -59,7 +68,7 @@ function sendTestCommand(target) {
     };
 
     ws.on('open', () => {
-      console.log(`🚀 Starting Auto-Accept Test for label: "${TEST_BUTTON_LABEL}"...`);
+      console.log(`🚀 Starting Auto-Accept Test for label: "${TEST_BUTTON_LABEL}" on ${target.title}...`);
       
       const injection = `
       (function() {
@@ -97,6 +106,7 @@ function sendTestCommand(target) {
           body.appendChild(patternDiv);
           
           const btnContainer = document.createElement('div');
+          btnContainer.className = 'footer'; // Match real Antigravity structure
           btnContainer.style.cssText = 'display:flex;justify-content:flex-end;gap:10px;';
           
           const cancelBtn = document.createElement('button');
@@ -151,7 +161,7 @@ function sendTestCommand(target) {
       
       if (msg.id === 1) {
         if (msg.result?.result?.value === 'triggered') {
-          console.log(`✅ Test dialog injected into ${target.title}. Monitoring for Auto-Click...`);
+          console.log(`✅ [${target.title}] Test dialog injected. Monitoring for Auto-Click...`);
         } else {
           console.log(`❌ Injection failed or returned unexpected result:`, JSON.stringify(msg));
         }

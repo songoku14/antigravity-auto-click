@@ -36,7 +36,7 @@ antigravity-auto-click/
 ├── samples/               # Dữ liệu mẫu (HTML DOM dumps) để kiểm thử
 ├── scratch/               # File nháp và thử nghiệm tạm thời
 ├── scripts/               # Bộ công cụ điều khiển & Script tiện ích
-│   ├── core/              # Vận hành hệ thống (Start, Stop, Status)
+│   ├── core/              # Vận hành hệ thống (Start, Stop, Restart, Status)
 │   ├── tests/             # Kiểm thử (Live triggers & Regression)
 │   ├── tools/             # Công cụ phát triển (DOM Dump, Analyzers)
 │   ├── menu.sh            # Giao diện điều khiển chính (CLI Menu)

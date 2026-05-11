@@ -29,11 +29,20 @@ async function triggerTest() {
       console.error('❌ Error: No active Antigravity pages found to test.');
       process.exit(1);
     }
+
+    // Refinement: Pick the best target
+    // 1. Prefer the main workbench.html
+    // 2. Avoid "Launchpad" if others are available
+    const bestTarget = pageTargets.find(t => t.url?.endsWith('workbench.html')) || 
+                       pageTargets.find(t => !t.title.includes('Launchpad')) ||
+                       pageTargets[0];
     
-    const results = await Promise.all(pageTargets.map(target => sendTestCommand(target)));
-    const overallSuccess = results.some(success => success);
+    if (pageTargets.length > 1) {
+      console.log(`ℹ️ Found ${pageTargets.length} targets. Testing on: ${bestTarget.title || bestTarget.url}`);
+    }
     
-    return overallSuccess;
+    const success = await sendTestCommand(bestTarget);
+    return success;
   } catch (e) {
     console.error(`❌ Error: ${e.message}`);
     return false;
@@ -79,6 +88,7 @@ function sendTestCommand(target) {
           body.textContent = 'Server is currently experiencing high traffic. Please try again later.';
           
           const btnContainer = document.createElement('div');
+          btnContainer.className = 'footer'; // Match real Antigravity structure
           btnContainer.style.cssText = 'display:flex;justify-content:flex-end;';
           
           const btn = document.createElement('button');

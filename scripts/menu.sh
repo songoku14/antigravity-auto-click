@@ -67,10 +67,11 @@ show_menu() {
     echo "------------------------------------------------------"
     echo " 4) 🚀 Start All Features (Bắt đầu chạy)"
     echo " 5) 🛑 Stop All Features  (Dừng hoàn toàn)"
+    echo " 6) 🔄 Restart All Features (Khởi động lại)"
     echo "------------------------------------------------------"
-    echo " 6) 📥 Bật Khởi động cùng máy tính"
-    echo " 7) 🗑️ Tắt Khởi động cùng máy tính"
-    echo " 8) 🐛 Bật CDP (Chrome DevTools Protocol)"
+    echo " 7) 📥 Bật Khởi động cùng máy tính"
+    echo " 8) 🗑️ Tắt Khởi động cùng máy tính"
+    echo " 9) 🐛 Bật CDP (Chrome DevTools Protocol)"
     echo " 0) 🚪 Thoát"
     echo "======================================================"
     echo ""
@@ -230,39 +231,64 @@ while true; do
     
     case $choice in
         1)
-            bash "$SCRIPT_DIR/core/status.sh"
-            echo ""
-            echo "------------------------------------------------------"
-            echo " TÙY CHỌN:"
-            echo " 1) 📋 Xem log thời gian thực (tail -f)"
-            echo " 2) 🔄 Reset bộ đếm thống kê"
-            echo " 0) 🔙 Quay lại Menu chính"
-            echo "------------------------------------------------------"
-            read -p "Lựa chọn của bạn: " sub_choice
-            
-            case $sub_choice in
-                1)
-                    LOG_FILE="$HOME/Library/Logs/AntigravityAutoRetry/stdout.log"
-                    if [ -f "$LOG_FILE" ]; then
-                        echo "Đang theo dõi log (Nhấn Ctrl+C để thoát)..."
-                        tail -f "$LOG_FILE"
-                    else
-                        echo "Chưa có file log nào."
+            while true; do
+                clear
+                bash "$SCRIPT_DIR/core/status.sh"
+                
+                # Get current settings for display
+                CUR_RETRY=$(jq -r '.autoRetry // true' "$PROJECT_ROOT/config.json" 2>/dev/null || echo "true")
+                CUR_ACCEPT=$(jq -r 'if .autoAccept | type == "boolean" then .autoAccept else .autoAccept.enabled // true end' "$PROJECT_ROOT/config.json" 2>/dev/null || echo "true")
+                
+                [ "$CUR_RETRY" = "true" ] && RETRY_LBL="\033[32mON\033[0m" || RETRY_LBL="\033[31mOFF\033[0m"
+                [ "$CUR_ACCEPT" = "true" ] && ACCEPT_LBL="\033[32mON\033[0m" || ACCEPT_LBL="\033[31mOFF\033[0m"
+
+                echo ""
+                echo "------------------------------------------------------"
+                echo " TÙY CHỌN CHI TIẾT:"
+                echo " 1) 📋 Xem log thời gian thực (tail -f)"
+                echo " 2) 🔄 Reset bộ đếm thống kê"
+                echo -e " 3) 🔄 Toggle Auto Retry   (Hiện tại: $RETRY_LBL)"
+                echo -e " 4) 🔄 Toggle Auto Accept  (Hiện tại: $ACCEPT_LBL)"
+                echo " 0) 🔙 Quay lại Menu chính"
+                echo "------------------------------------------------------"
+                read -p "Lựa chọn của bạn: " sub_choice
+                
+                case $sub_choice in
+                    1)
+                        LOG_FILE="$HOME/Library/Logs/AntigravityAutoRetry/stdout.log"
+                        if [ -f "$LOG_FILE" ]; then
+                            echo "Đang theo dõi log (Nhấn Ctrl+C để thoát)..."
+                            tail -f "$LOG_FILE"
+                        else
+                            echo "Chưa có file log nào."
+                            sleep 1
+                        fi
+                        ;;
+                    2)
+                        bash "$SCRIPT_DIR/core/status.sh" --reset
                         sleep 1
-                    fi
-                    ;;
-                2)
-                    bash "$SCRIPT_DIR/core/status.sh" --reset
-                    sleep 1
-                    ;;
-                0)
-                    # Quay lại menu chính
-                    ;;
-                *)
-                    echo "❌ Lựa chọn không hợp lệ."
-                    sleep 1
-                    ;;
-            esac
+                        ;;
+                    3)
+                        if [ "$CUR_RETRY" = "true" ]; then NEW_VAL="false"; else NEW_VAL="true"; fi
+                        jq ".autoRetry = $NEW_VAL" "$PROJECT_ROOT/config.json" > "$PROJECT_ROOT/config.json.tmp" && mv "$PROJECT_ROOT/config.json.tmp" "$PROJECT_ROOT/config.json"
+                        echo -e "✅ Đã chuyển Auto Retry sang: $NEW_VAL"
+                        sleep 1
+                        ;;
+                    4)
+                        if [ "$CUR_ACCEPT" = "true" ]; then NEW_VAL="false"; else NEW_VAL="true"; fi
+                        jq "if .autoAccept | type == \"boolean\" then .autoAccept = $NEW_VAL else .autoAccept.enabled = $NEW_VAL end" "$PROJECT_ROOT/config.json" > "$PROJECT_ROOT/config.json.tmp" && mv "$PROJECT_ROOT/config.json.tmp" "$PROJECT_ROOT/config.json"
+                        echo -e "✅ Đã chuyển Auto Accept sang: $NEW_VAL"
+                        sleep 1
+                        ;;
+                    0)
+                        break
+                        ;;
+                    *)
+                        echo "❌ Lựa chọn không hợp lệ."
+                        sleep 1
+                        ;;
+                esac
+            done
             ;;
         2)
             show_test_menu
@@ -281,14 +307,19 @@ while true; do
             read -p "Nhấn Enter để quay lại menu..."
             ;;
         6)
-            bash "$SCRIPT_DIR/install.sh"
+            bash "$SCRIPT_DIR/core/restart.sh"
+            sleep 1
             read -p "Nhấn Enter để quay lại menu..."
             ;;
         7)
-            bash "$SCRIPT_DIR/uninstall.sh"
+            bash "$SCRIPT_DIR/install.sh"
             read -p "Nhấn Enter để quay lại menu..."
             ;;
         8)
+            bash "$SCRIPT_DIR/uninstall.sh"
+            read -p "Nhấn Enter để quay lại menu..."
+            ;;
+        9)
             echo "======================================================"
             echo -e "🐛 \033[33mBẬT CHẾ ĐỘ CDP (CHROME DEVTOOLS PROTOCOL)\033[0m"
             echo "======================================================"
