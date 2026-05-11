@@ -3,6 +3,8 @@
  * 
  * CLI utility to trigger a dummy "High Traffic" dialog in Antigravity
  * to verify the auto-retry script is working.
+ * 
+ * This version is self-contained and injects the mock dialog directly.
  */
 
 const WebSocket = require('ws');
@@ -29,7 +31,7 @@ async function triggerTest() {
     }
     
     const results = await Promise.all(pageTargets.map(target => sendTestCommand(target)));
-    overallSuccess = results.some(success => success);
+    const overallSuccess = results.some(success => success);
     
     return overallSuccess;
   } catch (e) {
@@ -59,12 +61,55 @@ function sendTestCommand(target) {
     };
 
     ws.on('open', () => {
+      const injectionCode = `
+      (function() {
+        window.__triggerAutoRetryTest = function() {
+          console.log('[AutoRetry] [TEST] Simulating HIGH TRAFFIC dialog...');
+          
+          const container = document.createElement('div');
+          container.className = 'monaco-workbench monaco-dialog-box test-dialog';
+          container.style.cssText = 'position:fixed;top:60%;left:70%;transform:translate(-50%, -50%);background:#252526;color:#ccc;padding:25px;border:1px solid #3794ff;z-index:999999;box-shadow:0 10px 40px rgba(0,0,0,0.8);border-radius:8px;width:400px;font-family:sans-serif;border-left: 5px solid #f14c4c;';
+          
+          const title = document.createElement('div');
+          title.style.cssText = 'margin-bottom:10px;font-weight:bold;color:#f14c4c;';
+          title.textContent = 'High Traffic (TEST)';
+          
+          const body = document.createElement('div');
+          body.style.cssText = 'margin-bottom:15px;';
+          body.textContent = 'Server is currently experiencing high traffic. Please try again later.';
+          
+          const btnContainer = document.createElement('div');
+          btnContainer.style.cssText = 'display:flex;justify-content:flex-end;';
+          
+          const btn = document.createElement('button');
+          btn.className = 'monaco-button';
+          btn.textContent = 'Retry';
+          btn.style.cssText = 'background:#0e639c;color:white;border:none;padding:4px 15px;cursor:pointer;';
+          
+          btn.onclick = () => {
+            console.log('[AutoRetry] [TEST] Dialog button CLICKED successfully!');
+            container.remove();
+          };
+          
+          btnContainer.appendChild(btn);
+          container.appendChild(title);
+          container.appendChild(body);
+          container.appendChild(btnContainer);
+          document.body.appendChild(container);
+          
+          return 'test_dialog_triggered';
+        };
+        
+        return window.__triggerAutoRetryTest();
+      })();
+      `;
+
       ws.send(JSON.stringify({ id: 2, method: 'Runtime.enable' }));
       ws.send(JSON.stringify({
         id: 1,
         method: 'Runtime.evaluate',
         params: {
-          expression: 'window.__triggerAutoRetryTest ? window.__triggerAutoRetryTest() : "not_injected"',
+          expression: injectionCode,
           returnByValue: true
         }
       }));
@@ -77,21 +122,16 @@ function sendTestCommand(target) {
         const result = msg.result?.result?.value;
         if (result === 'test_dialog_triggered') {
           console.log(`✅ [${target.title}] Test dialog injected. Monitoring for Auto-Click...`);
-        } else if (result === 'not_injected') {
-          finish(false, `⚠️  [${target.title}] Failed: Script not injected.`);
         } else {
-          finish(false, `❌ [${target.title}] Unexpected result.`);
+          finish(false, `❌ [${target.title}] Injection failed: ${JSON.stringify(msg.result)}`);
         }
       }
 
       if (msg.method === 'Runtime.consoleAPICalled') {
         const text = (msg.params.args || []).map(a => a.value || '').join(' ');
-        if (text.includes('✅ Clicked') && text.includes('successfully')) {
+        
+        if (text.includes('✅ Clicked') || text.includes('CLICKED successfully')) {
           finish(true, `✨ [${target.title}] SUCCESS: Dialog handled!`);
-        } else if (text.includes('Test dialog timed out')) {
-          // Ignore timeout messages if they keep coming, wait for the actual 10s timeout here
-          // Unless we want to fail immediately on first timeout message
-          // finish(false, `❌ [${target.title}] FAILURE: Dialog timed out.`);
         }
       }
     });
@@ -117,3 +157,4 @@ async function run() {
 }
 
 run();
+
