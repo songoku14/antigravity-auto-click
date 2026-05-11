@@ -22,7 +22,7 @@ async function mockDialog() {
   console.log('\x1b[36m🎭 GIẢ LẬP DIALOG TỪ SAMPLE\x1b[0m');
   console.log('\x1b[36m======================================================\x1b[0m');
 
-  const samplesDir = path.join(__dirname, '..', 'samples');
+  const samplesDir = path.join(__dirname, '..', '..', 'samples');
   if (!fs.existsSync(samplesDir)) {
     console.log('❌ Thư mục samples/ không tồn tại. Hãy chạy tính năng Phân tích trước.');
     process.exit(0);
@@ -73,8 +73,11 @@ async function mockDialog() {
     console.log(`\nPhát hiện ${pageTargets.length} trang. Đang thực hiện giả lập...`);
 
     // Inject into the first active page found
-    const target = pageTargets[0];
-    console.log(`🎯 Đang inject vào: "${target.title}"`);
+    // Ưu tiên workbench, bỏ qua Launchpad nếu có thể
+    const target = pageTargets.find(t => t.url?.endsWith('workbench.html')) || 
+                   pageTargets.find(t => !t.title.includes('Launchpad')) ||
+                   pageTargets[0];
+    console.log(`🎯 Đang inject vào: "${target.title || target.url}"`);
 
     const success = await injectMockHtml(target, selected.analysis.html);
     
@@ -103,40 +106,69 @@ function injectMockHtml(target, html) {
     const escapedHtml = html.replace(/`/g, '\\`').replace(/\$/g, '\\$');
     const injectionCode = `
       (function() {
+        const MOCK_CLASS = 'antigravity-mock-dialog';
         console.log('[Mock] Injecting sample dialog...');
-        // Remove existing test dialogs if any
+        
+        // Cleanup existing
+        document.querySelectorAll('.' + MOCK_CLASS).forEach(m => m.remove());
         const old = document.querySelector('.test-mock-container');
         if (old) old.remove();
 
-        const container = document.createElement('div');
-        container.className = 'test-mock-container';
+        // Create Backdrop
+        const backdrop = document.createElement('div');
+        backdrop.className = 'test-mock-container ' + MOCK_CLASS;
+        backdrop.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:999998;background-color:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px);pointer-events:none;';
         
-        // Use DOMParser to bypass TrustedHTML if enabled
+        // Create Dialog Container
+        const container = document.createElement('div');
+        container.className = 'monaco-workbench monaco-dialog-box test-dialog ' + MOCK_CLASS;
+        
+        // Apply premium styles
+        container.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%, -50%);background:#252526;color:#ccc;padding:20px;border:1px solid #3794ff;z-index:999999;box-shadow:0 10px 40px rgba(0,0,0,0.8);border-radius:8px;width:600px;max-width:90vw;font-family:sans-serif;border-left:5px solid #3794ff;pointer-events:auto;';
+        
+        // Robust HTML Injection with Trusted Types bypass
+        // Robust HTML Injection with Trusted Types bypass
         try {
-          const parser = new DOMParser();
-          const doc = parser.parseFromString(\`${escapedHtml}\`, 'text/html');
-          if (doc.body.firstChild) {
-            container.appendChild(doc.body.firstChild);
-          } else {
-            container.textContent = 'Failed to parse HTML';
-          }
+          const fragment = document.createRange().createContextualFragment(\`${escapedHtml}\`);
+          container.appendChild(fragment);
+          console.log('[Mock] Injected via ContextualFragment');
         } catch (e) {
-          console.error('[Mock] DOMParser failed:', e);
-          container.textContent = 'Injection error: ' + e.message;
+          console.error('[Mock] Fragment injection failed, trying DOMParser:', e);
+          try {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(\`${escapedHtml}\`, 'text/html');
+            while (doc.body.firstChild) {
+              container.appendChild(doc.body.firstChild);
+            }
+            console.log('[Mock] Injected via DOMParser');
+          } catch (e2) {
+            console.error('[Mock] DOMParser also failed:', e2);
+            if (window.trustedTypes && window.trustedTypes.createPolicy) {
+              try {
+                const policy = window.trustedTypes.createPolicy('antigravity-bypass-' + Date.now(), { createHTML: s => s });
+                container.innerHTML = policy.createHTML(\`${escapedHtml}\`);
+                console.log('[Mock] Injected via TrustedTypes Policy');
+              } catch (policyErr) {
+                container.innerText = 'Trusted Types Blocked: ' + policyErr.message;
+              }
+            } else {
+              try {
+                container.innerHTML = \`${escapedHtml}\`;
+              } catch (e3) {
+                container.innerText = 'Injection Blocked: ' + e3.message;
+              }
+            }
+          }
         }
         
-        // Ensure it's appended to body
+        document.body.appendChild(backdrop);
         document.body.appendChild(container);
         
-        // Optional: ensure it's visible if it wasn't
-        const dialog = container.firstElementChild;
-        if (dialog) {
-          dialog.style.display = 'block';
-          dialog.style.visibility = 'visible';
-          dialog.style.opacity = '1';
-          // Ensure it's on top
-          dialog.style.zIndex = '999999';
-        }
+        // Auto-cleanup after 60s for manual inspection
+        setTimeout(() => {
+          if (document.contains(container)) container.remove();
+          if (document.contains(backdrop)) backdrop.remove();
+        }, 60000);
         
         return true;
       })()
@@ -158,8 +190,14 @@ function injectMockHtml(target, html) {
       if (msg.id === 1) {
         finished = true;
         ws.terminate();
-        const success = msg.result?.result?.value === true;
-        resolve(success);
+        
+        if (msg.result?.exceptionDetails) {
+          console.error('   ❌ Browser Exception:', msg.result.exceptionDetails.exception?.description || msg.result.exceptionDetails.text);
+          resolve(false);
+        } else {
+          const success = msg.result?.result?.value === true;
+          resolve(success);
+        }
       }
     });
     

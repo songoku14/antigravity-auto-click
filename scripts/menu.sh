@@ -104,72 +104,7 @@ show_test_menu() {
                 read -p "Nhấn Enter để tiếp tục..."
                 ;;
             3)
-                echo "🧪 Đang chuẩn bị bộ kiểm tra hồi quy (SAMPLES)..."
-                SAMPLES_DIR="$PROJECT_ROOT/samples"
-                if [ ! -d "$SAMPLES_DIR" ]; then
-                    echo "❌ Thư mục samples/ không tồn tại."
-                    sleep 1
-                    continue
-                fi
-
-                read -p "🔍 Nhập từ khóa tìm kiếm (bỏ trống để xem tất cả): " search_term
-                
-                # Tìm kiếm file khớp từ khóa
-                FILES=()
-                while IFS= read -r -d $'\0' file; do
-                    FILES+=("$(basename "$file")")
-                done < <(find "$SAMPLES_DIR" -maxdepth 1 -iname "*${search_term}*.html" -print0 2>/dev/null)
-
-                # Fallback nếu không thấy mẫu nào
-                if [ ${#FILES[@]} -eq 0 ]; then
-                    echo "⚠️ Không tìm thấy mẫu khớp với: '$search_term'"
-                    echo "🔍 Tự động hiển thị 10 mẫu 'full_dom' mới nhất..."
-                    # Dùng while read để an toàn với dấu cách
-                    while IFS= read -r file; do
-                        [ -n "$file" ] && FILES+=("$(basename "$file")")
-                    done < <(ls -t "$SAMPLES_DIR"/*full_dom*.html 2>/dev/null | head -n 10)
-                fi
-
-                if [ ${#FILES[@]} -eq 0 ]; then
-                    echo "ℹ️ Không tìm thấy mẫu nào khả dụng trong thư mục samples/."
-                    read -p "Nhấn Enter để tiếp tục..."
-                    continue
-                fi
-
-                while true; do
-                    clear
-                    echo "======================================================"
-                    echo "         🧪 REGRESSION TEST - KẾT QUẢ TÌM KIẾM        "
-                    echo "======================================================"
-                    echo " Từ khóa: '$search_term' (Tìm thấy: ${#FILES[@]} mẫu)"
-                    echo "------------------------------------------------------"
-                    echo " a) 🏃 Chạy TẤT CẢ các mẫu trong danh sách này"
-                    echo " 0) 🔙 Quay lại Menu Test Lab"
-                    echo "------------------------------------------------------"
-                    for i in "${!FILES[@]}"; do
-                        echo " $((i+1))) ${FILES[$i]}"
-                    done
-                    echo "------------------------------------------------------"
-                    read -p "Lựa chọn của bạn: " sample_choice
-
-                    if [[ "$sample_choice" == "0" ]]; then
-                        break
-                    elif [[ "$sample_choice" == "a" ]]; then
-                        echo "🧪 Đang chạy Regression Test cho toàn bộ danh sách..."
-                        for f in "${FILES[@]}"; do
-                            node "$SCRIPT_DIR/tests/regression.js" "$f"
-                        done
-                        read -p "Nhấn Enter để quay lại danh sách..."
-                    elif [[ "$sample_choice" =~ ^[0-9]+$ ]] && [ "$sample_choice" -gt 0 ] && [ "$sample_choice" -le ${#FILES[@]} ]; then
-                        SELECTED_FILE=${FILES[$((sample_choice-1))]}
-                        echo "🧪 Đang chạy Regression Test cho mẫu: $SELECTED_FILE"
-                        node "$SCRIPT_DIR/tests/regression.js" "$SELECTED_FILE"
-                        read -p "Nhấn Enter để quay lại danh sách..."
-                    else
-                        echo "❌ Lựa chọn không hợp lệ."
-                        sleep 1
-                    fi
-                done
+                run_regression_suite
                 ;;
             0)
                 return
@@ -179,6 +114,74 @@ show_test_menu() {
                 sleep 1
                 ;;
         esac
+    done
+}
+
+run_regression_suite() {
+    echo "🧪 Đang chuẩn bị bộ kiểm tra hồi quy (SAMPLES)..."
+    SAMPLES_DIR="$PROJECT_ROOT/samples"
+    if [ ! -d "$SAMPLES_DIR" ]; then
+        echo "❌ Thư mục samples/ không tồn tại."
+        sleep 1
+        return
+    fi
+
+    read -p "🔍 Nhập từ khóa tìm kiếm (bỏ trống để xem tất cả): " search_term
+    
+    # Tìm kiếm file khớp từ khóa
+    FILES=()
+    while IFS= read -r -d $'\0' file; do
+        FILES+=("$(basename "$file")")
+    done < <(find "$SAMPLES_DIR" -maxdepth 1 -iname "*${search_term}*.html" -print0 2>/dev/null)
+
+    # Fallback nếu không thấy mẫu nào
+    if [ ${#FILES[@]} -eq 0 ]; then
+        echo "⚠️ Không tìm thấy mẫu khớp với: '$search_term'"
+        echo "🔍 Tự động hiển thị 10 mẫu 'full_dom' mới nhất..."
+        while IFS= read -r file; do
+            [ -n "$file" ] && FILES+=("$(basename "$file")")
+        done < <(ls -t "$SAMPLES_DIR"/*full_dom*.html 2>/dev/null | head -n 10)
+    fi
+
+    if [ ${#FILES[@]} -eq 0 ]; then
+        echo "ℹ️ Không tìm thấy mẫu nào khả dụng trong thư mục samples/."
+        read -p "Nhấn Enter để tiếp tục..."
+        return
+    fi
+
+    while true; do
+        clear
+        echo "======================================================"
+        echo "         🧪 REGRESSION TEST - KẾT QUẢ TÌM KIẾM        "
+        echo "======================================================"
+        echo " Từ khóa: '$search_term' (Tìm thấy: ${#FILES[@]} mẫu)"
+        echo "------------------------------------------------------"
+        echo " a) 🏃 Chạy TẤT CẢ các mẫu trong danh sách này"
+        echo " 0) 🔙 Quay lại Menu Test Lab"
+        echo "------------------------------------------------------"
+        for i in "${!FILES[@]}"; do
+            echo " $((i+1))) ${FILES[$i]}"
+        done
+        echo "------------------------------------------------------"
+        read -p "Lựa chọn của bạn: " sample_choice
+
+        if [[ "$sample_choice" == "0" ]]; then
+            break
+        elif [[ "$sample_choice" == "a" ]]; then
+            echo "🧪 Đang chạy Regression Test cho toàn bộ danh sách..."
+            for f in "${FILES[@]}"; do
+                node "$SCRIPT_DIR/tests/regression.js" "$f"
+            done
+            read -p "Nhấn Enter để quay lại danh sách..."
+        elif [[ "$sample_choice" =~ ^[0-9]+$ ]] && [ "$sample_choice" -gt 0 ] && [ "$sample_choice" -le ${#FILES[@]} ]; then
+            SELECTED_FILE=${FILES[$((sample_choice-1))]}
+            echo "🧪 Đang chạy Regression Test cho mẫu: $SELECTED_FILE"
+            node "$SCRIPT_DIR/tests/regression.js" "$SELECTED_FILE"
+            read -p "Nhấn Enter để quay lại danh sách..."
+        else
+            echo "❌ Lựa chọn không hợp lệ."
+            sleep 1
+        fi
     done
 }
 

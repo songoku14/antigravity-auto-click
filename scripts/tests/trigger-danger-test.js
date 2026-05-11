@@ -52,11 +52,15 @@ function sendDangerCommand(target) {
       
       const injection = `
       (function() {
+        const MOCK_CLASS = 'antigravity-mock-dialog';
         window.__triggerDangerTest = function() {
           console.log('[AutoRetry] [TEST] Simulating DANGEROUS dialog...');
           
+          // Cleanup
+          document.querySelectorAll('.' + MOCK_CLASS).forEach(m => m.remove());
+
           const container = document.createElement('div');
-          container.className = 'monaco-workbench monaco-dialog-box test-danger-dialog';
+          container.className = 'monaco-workbench monaco-dialog-box test-danger-dialog ' + MOCK_CLASS;
           container.style.cssText = 'position:fixed;top:30%;left:50%;transform:translateX(-50%);background:#252526;color:#ccc;padding:25px;border:1px solid #f14c4c;z-index:999999;box-shadow:0 10px 40px rgba(255,0,0,0.4);border-radius:8px;width:480px;font-family:sans-serif;border-left: 5px solid #f14c4c;';
           
           const title = document.createElement('div');

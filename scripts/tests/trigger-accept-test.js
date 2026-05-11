@@ -72,13 +72,17 @@ function sendTestCommand(target) {
       
       const injection = `
       (function() {
+        const MOCK_CLASS = 'antigravity-mock-dialog';
         // ALWAYS overwrite to ensure we use the latest fix (TrustedHTML)
         window.__triggerAcceptTest = function(label) {
           const btnLabel = label || 'Run';
           console.log('[AutoRetry] [TEST] [STEP 1] Đã hiển thị dialog test -> OK');
           
+          // Cleanup
+          document.querySelectorAll('.' + MOCK_CLASS).forEach(m => m.remove());
+          
           const container = document.createElement('div');
-          container.className = 'monaco-workbench monaco-dialog-box test-accept-dialog';
+          container.className = 'monaco-workbench monaco-dialog-box test-accept-dialog ' + MOCK_CLASS;
           container.style.cssText = 'position:fixed;top:60%;left:70%;transform:translateX(-50%);background:#252526;color:#ccc;padding:25px;border:1px solid #3794ff;z-index:999999;box-shadow:0 10px 40px rgba(0,0,0,0.9);border-radius:8px;width:480px;font-family:sans-serif;border-left: 5px solid #3794ff;';
           
           const title = document.createElement('div');

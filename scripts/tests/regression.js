@@ -9,7 +9,9 @@ const fs = require('fs');
 const path = require('path');
 const { JSDOM } = require('jsdom');
 const readline = require('readline');
+const WebSocket = require('ws');
 const { getInjectionScript } = require('../../src/payload/injection-payload');
+const { findCDPPort, getTargets, filterPageTargets } = require('../../src/core/discovery');
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -21,7 +23,8 @@ const question = (query) => new Promise((resolve) => rl.question(query, resolve)
 const SAMPLES_DIR = path.join(__dirname, '..', '..', 'samples');
 
 async function runRegressionTests() {
-  const pattern = process.argv[2];
+  // Lấy pattern: bỏ qua node, script path và các flags bắt đầu bằng --
+  const pattern = process.argv.slice(2).find(arg => !arg.startsWith('--'));
   
   console.log('\x1b[36m======================================================\x1b[0m');
   console.log('\x1b[36m🧪 BẮT ĐẦU KIỂM TRA HỒI QUY (REGRESSION TEST)\x1b[0m');
@@ -183,6 +186,10 @@ async function saveAsSample(originalHtmlPath, analysis, expectedBtn, category) {
 
 async function verifySample(htmlPath, metadata) {
   const htmlContent = fs.readFileSync(htmlPath, 'utf8');
+  
+  // Tự động inject vào Antigravity nếu app đang mở
+  await injectToAntigravity(htmlContent, path.basename(htmlPath));
+
   // Pre-process HTML to remove script tags that might break jsdom
   const cleanHtml = htmlContent.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
 
@@ -310,6 +317,138 @@ async function verifySample(htmlPath, metadata) {
     return { success: false };
   } finally {
     window.close();
+  }
+}
+
+async function injectToAntigravity(html, filename) {
+  const port = findCDPPort();
+  if (!port) return;
+
+  try {
+    const targets = await getTargets(port);
+    const pageTargets = filterPageTargets(targets);
+    if (pageTargets.length === 0) return;
+
+    // Ưu tiên workbench, bỏ qua Launchpad nếu có thể
+    const target = pageTargets.find(t => t.url?.endsWith('workbench.html')) || 
+                   pageTargets.find(t => !t.title.includes('Launchpad')) ||
+                   pageTargets[0];
+
+    const ws = new WebSocket(target.webSocketDebuggerUrl);
+
+    await new Promise((resolve) => {
+      ws.on('open', () => {
+        // Prepare injection code
+        const escapedHtml = html.replace(/`/g, '\\`').replace(/\$/g, '\\$');
+        const injectionCode = `
+          (function() {
+            const MOCK_CLASS = 'antigravity-mock-dialog';
+            console.log('[Regression] Injecting sample: ${filename}');
+            
+            // Cleanup existing
+            document.querySelectorAll('.' + MOCK_CLASS).forEach(m => m.remove());
+            const old = document.querySelector('.test-mock-container');
+            if (old) old.remove();
+
+            // Create Backdrop (from trigger-test.js style)
+            const backdrop = document.createElement('div');
+            backdrop.className = 'test-mock-container ' + MOCK_CLASS;
+            backdrop.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:999998;background-color:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px);pointer-events:none;';
+            
+            // Create Dialog Container (Premium style from trigger-test.js)
+            const container = document.createElement('div');
+            container.className = 'monaco-workbench monaco-dialog-box test-dialog ' + MOCK_CLASS;
+            
+            // Apply premium styles
+            container.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%, -50%);background:#252526;color:#ccc;padding:20px;border:1px solid #3794ff;z-index:999999;box-shadow:0 10px 40px rgba(0,0,0,0.8);border-radius:8px;width:600px;max-width:90vw;font-family:sans-serif;border-left:5px solid #3794ff;pointer-events:auto;';
+            
+            // Robust HTML Injection with Trusted Types bypass
+            try {
+              const parser = new DOMParser();
+              const doc = parser.parseFromString(\`${escapedHtml}\`, 'text/html');
+              
+              // Move all children from body to container
+              const fragment = document.createRange().createContextualFragment(\`${escapedHtml}\`);
+              container.appendChild(fragment);
+              console.log('[Regression] Injected via ContextualFragment');
+            } catch (e) {
+              console.error('[Regression] Fragment injection failed, trying DOMParser:', e);
+              try {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(\`${escapedHtml}\`, 'text/html');
+                while (doc.body.firstChild) {
+                  container.appendChild(doc.body.firstChild);
+                }
+                console.log('[Regression] Injected via DOMParser');
+              } catch (e2) {
+                console.error('[Regression] DOMParser also failed:', e2);
+                if (window.trustedTypes && window.trustedTypes.createPolicy) {
+                  try {
+                    const policy = window.trustedTypes.createPolicy('antigravity-bypass-' + Date.now(), { createHTML: s => s });
+                    container.innerHTML = policy.createHTML(\`${escapedHtml}\`);
+                    console.log('[Regression] Injected via TrustedTypes Policy');
+                  } catch (policyErr) {
+                    container.innerText = 'Trusted Types Blocked: ' + policyErr.message;
+                  }
+                } else {
+                  try {
+                    container.innerHTML = \`${escapedHtml}\`;
+                  } catch (e3) {
+                    container.innerText = 'Injection Blocked: ' + e3.message;
+                  }
+                }
+              }
+            }
+            
+            document.body.appendChild(backdrop);
+            document.body.appendChild(container);
+            
+            // Auto-cleanup after 20s if not handled by daemon
+            setTimeout(() => {
+              if (document.contains(container)) container.remove();
+              if (document.contains(backdrop)) backdrop.remove();
+            }, 20000);
+
+            return true;
+          })()
+        `;
+
+        ws.send(JSON.stringify({
+          id: 1,
+          method: 'Runtime.evaluate',
+          params: { expression: injectionCode, returnByValue: true }
+        }));
+      });
+
+      ws.on('message', (data) => {
+        const msg = JSON.parse(data.toString());
+        if (msg.id === 1) {
+          if (msg.result?.exceptionDetails) {
+            console.error('   ❌ BROWSER ERROR:', msg.result.exceptionDetails.exception?.description || msg.result.exceptionDetails.text);
+          } else {
+            console.log(`   📺 \x1b[32mINJECTED\x1b[0m: Đã đẩy lên giao diện Antigravity.`);
+          }
+          ws.terminate();
+          resolve();
+        }
+      });
+
+      ws.on('error', () => {
+        ws.terminate();
+        resolve();
+      });
+
+      setTimeout(() => {
+        ws.terminate();
+        resolve();
+      }, 3000);
+    });
+
+    // Wait a bit for user to see
+    await new Promise(r => setTimeout(r, 1000));
+
+  } catch (e) {
+    console.error('   ⚠️ Error in live injection:', e.message);
   }
 }
 

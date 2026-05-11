@@ -72,11 +72,15 @@ function sendTestCommand(target) {
     ws.on('open', () => {
       const injectionCode = `
       (function() {
+        const MOCK_CLASS = 'antigravity-mock-dialog';
         window.__triggerAutoRetryTest = function() {
           console.log('[AutoRetry] [TEST] Simulating HIGH TRAFFIC dialog...');
           
+          // Cleanup
+          document.querySelectorAll('.' + MOCK_CLASS).forEach(m => m.remove());
+
           const container = document.createElement('div');
-          container.className = 'monaco-workbench monaco-dialog-box test-dialog';
+          container.className = 'monaco-workbench monaco-dialog-box test-dialog ' + MOCK_CLASS;
           container.style.cssText = 'position:fixed;top:60%;left:70%;transform:translate(-50%, -50%);background:#252526;color:#ccc;padding:25px;border:1px solid #3794ff;z-index:999999;box-shadow:0 10px 40px rgba(0,0,0,0.8);border-radius:8px;width:400px;font-family:sans-serif;border-left: 5px solid #f14c4c;';
           
           const title = document.createElement('div');

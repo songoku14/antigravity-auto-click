@@ -5,7 +5,7 @@
  * It uses MutationObserver to watch for error dialogs and auto-click Retry/Accept.
  */
 
-const INJECTION_VERSION = 34;
+const INJECTION_VERSION = 36;
 
 /**
  * Trả về string JavaScript sẽ được inject vào DOM qua CDP Runtime.evaluate
@@ -17,6 +17,7 @@ function getInjectionScript(userConfig = {}) {
 (function() {
   const SCRIPT_VERSION = ${INJECTION_VERSION};
   const USER_CONFIG = ${configJson};
+  const MOCK_MARKER_CLASS = 'antigravity-mock-dialog';
   
   // ============================================================
   // 1. Versioning & Cleanup Logic
@@ -41,6 +42,7 @@ function getInjectionScript(userConfig = {}) {
   // ============================================================
   const CONFIG = {
     dialogContainerSelectors: [
+      '.' + MOCK_MARKER_CLASS,
       '.monaco-dialog-box',
       '.dialog-shadow',
       '.notifications-toasts',
@@ -74,26 +76,26 @@ function getInjectionScript(userConfig = {}) {
     ],
 
     retryButtonPatterns: [
-      /\\bretry\\b/i,
-      /\\btry\\s*again\\b/i,
-      /\\bthử\\s*lại\\b/i,
-      /\\breconnect\\b/i
+      /^retry$/i,
+      /^try\\s*again$/i,
+      /^thử\\s*lại$/i,
+      /^reconnect$/i,
+      /\\bretry\\b/i
     ],
 
     actionButtonPatterns: [
-      /\\baccept\\b/i,
-      /\\brun\\b/i,
-      /\\bexecute\\b/i,
-      /\\ballow\\b/i,
-      /\\bjoin\\b/i,
-      /\\byes\\b/i,
-      /\\bapprove\\b/i,
-      /\\bcontinue\\b/i,
-      /\\bproceed\\b/i,
-      /\\bok\\b/i,
-      /\\bconfirm\\b/i,
-      /\\balways\\s*allow\\b/i,
-      /\\baccept\\s*all\\b/i
+      /^accept$/i,
+      /^run$/i,
+      /^execute$/i,
+      /^allow$/i,
+      /^approve$/i,
+      /^yes$/i,
+      /^ok$/i,
+      /^confirm$/i,
+      /^continue$/i,
+      /^proceed$/i,
+      /\\baccept\\s*all\\b/i,
+      /\\balways\\s*allow\\b/i
     ],
 
     retryContextPatterns: [
@@ -179,6 +181,18 @@ function getInjectionScript(userConfig = {}) {
 
   function debug(msg) {
     if (USER_CONFIG.debug) console.log('[AutoRetry] [DEBUG] ' + msg);
+  }
+
+  function cleanupMocks() {
+    try {
+      const mocks = document.querySelectorAll('.' + MOCK_MARKER_CLASS);
+      if (mocks.length > 0) {
+        log('Cleaning up ' + mocks.length + ' mock dialogs...');
+        mocks.forEach(m => m.remove());
+      }
+    } catch (e) {
+      debug('Cleanup error: ' + e.message);
+    }
   }
 
   // ============================================================
@@ -449,6 +463,7 @@ function getInjectionScript(userConfig = {}) {
     lastClickTime = Date.now();
     log(typeLabel + '! [STEP 5] Clicking button "' + btnText + '"');
 
+    const isMock = btn.closest('.' + MOCK_MARKER_CLASS);
     btn.style.outline = '3px solid #3794ff';
     
     const executeClick = (isFallback = false) => {
@@ -478,22 +493,28 @@ function getInjectionScript(userConfig = {}) {
         // Check if button is still in DOM and visible
         const stillPresent = document.contains(btn) && btn.offsetParent !== null;
         if (stillPresent) {
-          log('⚠️ [STEP 7] Button still visible after click. Retrying with fallback...');
-          executeClick(true);
-          
-          setTimeout(() => {
-            const finalCheck = document.contains(btn) && btn.offsetParent !== null;
-            if (finalCheck) {
-              log('❌ [STEP 8] Dialog persistent even after fallback click. Manual intervention may be required.');
-            } else {
-              log('✅ [STEP 8] Fallback click worked. Dialog dismissed.');
-              log(typeLabel.includes('RETRY') ? '[STAT] RETRY_CLICKED' : '[STAT] ACCEPT_CLICKED');
-            }
-            btn.__clicked = false;
-          }, 500);
+          if (isMock) {
+            log('⚠️ [STEP 7] Mock button still visible. Triggering robust cleanup...');
+            cleanupMocks();
+          } else {
+            log('⚠️ [STEP 7] Button still visible after click. Retrying with fallback...');
+            executeClick(true);
+            
+            setTimeout(() => {
+              const finalCheck = document.contains(btn) && btn.offsetParent !== null;
+              if (finalCheck) {
+                log('❌ [STEP 8] Dialog persistent even after fallback click. Manual intervention may be required.');
+              } else {
+                log('✅ [STEP 8] Fallback click worked. Dialog dismissed.');
+                log(typeLabel.includes('RETRY') ? '[STAT] RETRY_CLICKED' : '[STAT] ACCEPT_CLICKED');
+              }
+              btn.__clicked = false;
+            }, 500);
+          }
         } else {
           log('✅ [STEP 6] Clicked successfully, dialog dismissed.');
           log(typeLabel.includes('RETRY') ? '[STAT] RETRY_CLICKED' : '[STAT] ACCEPT_CLICKED');
+          if (isMock) cleanupMocks(); // Clean up other potential mocks
           btn.__clicked = false;
         }
       }, 500);
