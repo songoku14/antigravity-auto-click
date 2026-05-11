@@ -5,7 +5,7 @@
  * It uses MutationObserver to watch for error dialogs and auto-click Retry/Accept.
  */
 
-const INJECTION_VERSION = 33;
+const INJECTION_VERSION = 34;
 
 /**
  * Trả về string JavaScript sẽ được inject vào DOM qua CDP Runtime.evaluate
@@ -447,21 +447,56 @@ function getInjectionScript(userConfig = {}) {
     btn.__clicked = true;
     actionCount++;
     lastClickTime = Date.now();
-    log(\`\${typeLabel}! [STEP 5] Clicking button "\${btnText}"\`);
+    log(typeLabel + '! [STEP 5] Clicking button "' + btnText + '"');
 
     btn.style.outline = '3px solid #3794ff';
-    setTimeout(() => {
+    
+    const executeClick = (isFallback = false) => {
       try {
-        debug(\`[STEP 5.1] Executing DOM click() on <\${btn.tagName.toLowerCase()}>\`);
-        btn.click();
-        log('✅ [STEP 6] Clicked successfully.');
-        log(typeLabel.includes('RETRY') ? '[STAT] RETRY_CLICKED' : '[STAT] ACCEPT_CLICKED');
+        if (!isFallback) {
+          debug('[STEP 5.1] Executing DOM click() on <' + btn.tagName.toLowerCase() + '>');
+          btn.click();
+        } else {
+          debug('[STEP 5.2] Executing fallback MouseEvent sequence on <' + btn.tagName.toLowerCase() + '>');
+          const opts = { bubbles: true, cancelable: true, view: window };
+          btn.dispatchEvent(new MouseEvent('mousedown', opts));
+          btn.dispatchEvent(new MouseEvent('mouseup', opts));
+          btn.dispatchEvent(new MouseEvent('click', opts));
+        }
+        return true;
       } catch (e) {
-        debug(\`[STEP 5.2] DOM click failed, using dispatchEvent fallback: \${e.message}\`);
-        btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-        log('✅ [STEP 6] Dispatched click event successfully.');
+        debug('[STEP 5.3] Click execution failed: ' + e.message);
+        return false;
       }
-      btn.__clicked = false;
+    };
+
+    setTimeout(() => {
+      executeClick(false);
+      
+      // Verify after a short delay
+      setTimeout(() => {
+        // Check if button is still in DOM and visible
+        const stillPresent = document.contains(btn) && btn.offsetParent !== null;
+        if (stillPresent) {
+          log('⚠️ [STEP 7] Button still visible after click. Retrying with fallback...');
+          executeClick(true);
+          
+          setTimeout(() => {
+            const finalCheck = document.contains(btn) && btn.offsetParent !== null;
+            if (finalCheck) {
+              log('❌ [STEP 8] Dialog persistent even after fallback click. Manual intervention may be required.');
+            } else {
+              log('✅ [STEP 8] Fallback click worked. Dialog dismissed.');
+              log(typeLabel.includes('RETRY') ? '[STAT] RETRY_CLICKED' : '[STAT] ACCEPT_CLICKED');
+            }
+            btn.__clicked = false;
+          }, 500);
+        } else {
+          log('✅ [STEP 6] Clicked successfully, dialog dismissed.');
+          log(typeLabel.includes('RETRY') ? '[STAT] RETRY_CLICKED' : '[STAT] ACCEPT_CLICKED');
+          btn.__clicked = false;
+        }
+      }, 500);
     }, CONFIG.clickDelay);
   }
 

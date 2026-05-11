@@ -98,7 +98,18 @@ function sendTestCommand(target) {
           
           btn.onclick = () => {
             console.log('[AutoRetry] [TEST] Dialog button CLICKED successfully!');
-            container.remove();
+            try {
+              container.remove();
+              setTimeout(() => {
+                if (document.contains(container)) {
+                  console.error('[AutoRetry] [TEST] CRITICAL: container.remove() failed to remove the element!');
+                } else {
+                  console.log('[AutoRetry] [TEST] Verification: Dialog removed from DOM.');
+                }
+              }, 100);
+            } catch (e) {
+              console.error('[AutoRetry] [TEST] Error removing container: ' + e.message);
+            }
           };
           
           btnContainer.appendChild(btn);
@@ -140,8 +151,12 @@ function sendTestCommand(target) {
       if (msg.method === 'Runtime.consoleAPICalled') {
         const text = (msg.params.args || []).map(a => a.value || '').join(' ');
         
-        if (text.includes('✅ Clicked') || text.includes('CLICKED successfully')) {
-          finish(true, `✨ [${target.title}] SUCCESS: Dialog handled!`);
+        if (text.includes('Verification: Dialog removed from DOM.')) {
+          finish(true, `✨ [${target.title}] SUCCESS: Dialog handled and verified removed!`);
+        } else if (text.includes('CRITICAL: container.remove() failed')) {
+          finish(false, `❌ [${target.title}] FAILURE: Dialog click registered but removal failed!`);
+        } else if (text.includes('✅ [STEP 8] Fallback click worked')) {
+          console.log(`   ${yellow}ℹ️ Fallback click was required but worked.${reset}`);
         }
       }
     });
