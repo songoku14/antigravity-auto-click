@@ -56,7 +56,9 @@ show_menu() {
         ACCEPT_COUNT=$(jq -r '.accept.clicked' "$ACTIVITY_FILE" 2>/dev/null || echo "0")
     fi
 
-    echo -e "   Tổng quan:  $STATUS_HEADER"
+    [ "$CDP_ENABLED" = "yes" ] && CDP_STATUS_LABEL="\033[32mACTIVE\033[0m" || CDP_STATUS_LABEL="\033[31mOFF\033[0m"
+
+    echo -e "   Tổng quan:  $STATUS_HEADER    |    CDP Debug:  $CDP_STATUS_LABEL"
     echo -e "   Auto Retry: $RETRY_STATUS ($RETRY_COUNT)    |    Auto Accept: $ACCEPT_STATUS ($ACCEPT_COUNT)"
     echo "======================================================"
     echo " 1) 📊 Xem Trạng thái & Logs chi tiết"
