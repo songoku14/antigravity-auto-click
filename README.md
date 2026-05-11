@@ -76,7 +76,23 @@ Từ giờ, luôn mở IDE bằng cách gõ lệnh `antigravity` trong Terminal.
 - Chạy dev: `npm start`
 - Xem Log: `tail -f daemon.log`
 
-## 4. Hệ Thống AI Agents
+## 4. Kiểm thử & Phát triển (Testing Lab & Developer Tools)
+
+Hệ thống cung cấp bộ công cụ mạnh mẽ để đảm bảo tính ổn định và hỗ trợ mở rộng.
+
+### 🧪 Testing Lab (Option 2 trong CLI)
+Dùng để kiểm tra độ tin cậy của hệ thống mà không cần chờ lỗi thật xảy ra.
+- **Auto-Retry (Live)**: `node scripts/tests/trigger-test.js` - Tạo một Dialog giả lập lỗi High Traffic ngay trong IDE.
+- **Auto-Accept (Live)**: `node scripts/tests/trigger-accept-test.js` - Tạo các Dialog giả lập yêu cầu Run/Execute/Accept của Agent.
+- **Regression (Offline)**: `node scripts/tests/regression.js` - Kiểm tra logic nhận diện đối với các mẫu HTML (samples) đã lưu sẵn. Rất hữu ích khi bạn sửa Regex trong `injection-payload.js`.
+
+### 🛠️ Developer Tools (Option 3 trong CLI)
+Công cụ hỗ trợ phân tích và mở rộng tính năng.
+- **Phân tích Dialog hiện tại**: `node scripts/tools/analyze-dialog.js` - Quét IDE và hiển thị các container/nút bấm mà hệ thống nhận diện được (kèm thông tin chi tiết về class, text).
+- **Giả lập Dialog từ Sample**: `node scripts/tests/mock-dialog.js` - Lấy một mẫu HTML từ thư mục `samples/` và "bơm" ngược lại vào IDE để xem nó hiển thị thế nào.
+- **Dump DOM**: `node scripts/tools/dump-dom.js` - Chụp lại toàn bộ cấu trúc HTML của IDE và lưu vào thư mục `samples/`. Đây là bước đầu tiên để tạo một ca kiểm thử mới (Test Case).
+
+## 5. Hệ Thống AI Agents
 
 ```mermaid
 graph TD
@@ -93,7 +109,7 @@ graph TD
 - **Tester:** Kiểm thử & Xác nhận.
 - **Docs-Agent:** Bảo trì tài liệu.
 
-## 5. Skills (Lệnh AI)
+## 6. Skills (Lệnh AI)
 - **/status**: Kiểm tra trạng thái & log.
 - **/test**: Giả lập lỗi để xác nhận hoạt động.
 - **/deploy**: Khởi chạy hệ thống.
