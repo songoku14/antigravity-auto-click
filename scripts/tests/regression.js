@@ -23,13 +23,18 @@ const question = (query) => new Promise((resolve) => rl.question(query, resolve)
 const SAMPLES_DIR = path.join(__dirname, '..', '..', 'samples');
 
 async function runRegressionTests() {
-  // Lấy pattern: bỏ qua node, script path và các flags bắt đầu bằng --
-  const pattern = process.argv.slice(2).find(arg => !arg.startsWith('--'));
+  // Lấy patterns và flags
+  const args = process.argv.slice(2);
+  const pattern = args.find(arg => !arg.startsWith('--'));
+  const verifyExecution = args.includes('--verify');
   
   console.log('\x1b[36m======================================================\x1b[0m');
   console.log('\x1b[36m🧪 BẮT ĐẦU KIỂM TRA HỒI QUY (REGRESSION TEST)\x1b[0m');
   if (pattern) {
     console.log(`\x1b[33m🔍 Tìm kiếm mẫu khớp với: "${pattern}"\x1b[0m`);
+  }
+  if (verifyExecution) {
+    console.log('\x1b[35m⚡ CHẾ ĐỘ XÁC MINH THỰC THI (VERIFY EXECUTION) ĐANG BẬT\x1b[0m');
   }
   console.log('\x1b[36m======================================================\x1b[0m');
 
@@ -80,7 +85,7 @@ async function runRegressionTests() {
 
     console.log(`\n📄 Đang kiểm tra: \x1b[34m${htmlFile}\x1b[0m`);
     
-    const result = await verifySample(htmlPath, metadata);
+    const result = await verifySample(htmlPath, metadata, verifyExecution);
     if (result.success) passed++;
     
     // Store last result for single-file runs
@@ -184,11 +189,11 @@ async function saveAsSample(originalHtmlPath, analysis, expectedBtn, category) {
   console.log(`      - HTML: samples/${htmlFilename}`);
 }
 
-async function verifySample(htmlPath, metadata) {
+async function verifySample(htmlPath, metadata, verifyExecution = false) {
   const htmlContent = fs.readFileSync(htmlPath, 'utf8');
   
   // Tự động inject vào Antigravity nếu app đang mở
-  await injectToAntigravity(htmlContent, path.basename(htmlPath));
+  const executionResult = await injectToAntigravity(htmlContent, path.basename(htmlPath), metadata, verifyExecution);
 
   // Pre-process HTML to remove script tags that might break jsdom
   const cleanHtml = htmlContent.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
@@ -300,6 +305,18 @@ async function verifySample(htmlPath, metadata) {
       
       const snippet = matchedContainer.text.replace(/\s+/g, ' ').substring(0, 160).trim();
       console.log(`      \x1b[90mDialog Content: "${snippet}..."\x1b[0m`);
+
+      // If execution verification was requested, check the result
+      if (verifyExecution) {
+        if (executionResult && executionResult.clicked) {
+          console.log(`   ✨ \x1b[32mEXECUTION PASS\x1b[0m: Auto-Click daemon đã xử lý thành công.`);
+          return { success: true, analysis, matchedButton, matchedContainer };
+        } else {
+          console.log(`   ❌ \x1b[31mEXECUTION FAIL\x1b[0m: Auto-Click daemon không phản hồi hoặc không thể click.`);
+          return { success: false, analysis, matchedButton, matchedContainer };
+        }
+      }
+
       return { success: true, analysis, matchedButton, matchedContainer };
     } else {
       const allButtons = analysis.containers.flatMap(c => c.buttons).map(b => b.text);
@@ -320,98 +337,110 @@ async function verifySample(htmlPath, metadata) {
   }
 }
 
-async function injectToAntigravity(html, filename) {
+async function injectToAntigravity(html, filename, metadata, verifyExecution = false) {
   const port = findCDPPort();
-  if (!port) return;
+  if (!port) return { success: false, error: 'no_port' };
 
   try {
     const targets = await getTargets(port);
     const pageTargets = filterPageTargets(targets);
-    if (pageTargets.length === 0) return;
+    if (pageTargets.length === 0) return { success: false, error: 'no_targets' };
 
-    // Ưu tiên workbench, bỏ qua Launchpad nếu có thể
     const target = pageTargets.find(t => t.url?.endsWith('workbench.html')) || 
                    pageTargets.find(t => !t.title.includes('Launchpad')) ||
                    pageTargets[0];
 
     const ws = new WebSocket(target.webSocketDebuggerUrl);
+    let executionStatus = { success: false, clicked: false, removed: false };
+    const MOCK_CLASS = 'antigravity-mock-dialog';
+
+    // Extract useful info from metadata if available
+    const sampleData = {
+      text: metadata?.analysis?.text || "Regression Sample: " + filename,
+      buttons: metadata?.analysis?.buttons?.filter(b => b.tagName === 'button').map(b => b.text) || ["Retry"],
+      category: metadata?.metadata?.category || "retry"
+    };
 
     await new Promise((resolve) => {
       ws.on('open', () => {
-        // Prepare injection code
-        const escapedHtml = html.replace(/`/g, '\\`').replace(/\$/g, '\\$');
+        const sampleJson = JSON.stringify(sampleData);
         const injectionCode = `
           (function() {
-            const MOCK_CLASS = 'antigravity-mock-dialog';
-            console.log('[Regression] Injecting sample: ${filename}');
+            const MOCK_CLASS = '${MOCK_CLASS}';
+            const data = ${sampleJson};
+            console.log('[Regression] Injecting sample (SAFE MODE): ' + data.category);
             
-            // Cleanup existing
+            // Cleanup
             document.querySelectorAll('.' + MOCK_CLASS).forEach(m => m.remove());
             const old = document.querySelector('.test-mock-container');
             if (old) old.remove();
 
-            // Create Backdrop (from trigger-test.js style)
+            // Create Backdrop
             const backdrop = document.createElement('div');
             backdrop.className = 'test-mock-container ' + MOCK_CLASS;
             backdrop.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:999998;background-color:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px);pointer-events:none;';
             
-            // Create Dialog Container (Premium style from trigger-test.js)
+            // Create Dialog Container (Standard structure)
             const container = document.createElement('div');
             container.className = 'monaco-workbench monaco-dialog-box test-dialog ' + MOCK_CLASS;
             
-            // Apply premium styles
-            container.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%, -50%);background:#252526;color:#ccc;padding:20px;border:1px solid #3794ff;z-index:999999;box-shadow:0 10px 40px rgba(0,0,0,0.8);border-radius:8px;width:600px;max-width:90vw;font-family:sans-serif;border-left:5px solid #3794ff;pointer-events:auto;';
+            // Standard Premium Styles (from trigger-test.js)
+            const isRetry = data.category === 'retry';
+            const themeColor = isRetry ? '#f14c4c' : '#3794ff';
             
-            // Robust HTML Injection with Trusted Types bypass
-            try {
-              const parser = new DOMParser();
-              const doc = parser.parseFromString(\`${escapedHtml}\`, 'text/html');
+            container.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%, -50%);background:#252526;color:#ccc;padding:25px;border:1px solid ' + themeColor + ';z-index:999999;box-shadow:0 10px 40px rgba(0,0,0,0.8);border-radius:8px;width:500px;max-width:90vw;font-family:sans-serif;border-left:5px solid ' + themeColor + ';pointer-events:auto;';
+            
+            // Build Content safely using textContent
+            const title = document.createElement('div');
+            title.style.cssText = 'margin-bottom:10px;font-weight:bold;color:' + themeColor + ';';
+            title.textContent = isRetry ? 'High Traffic / Error (SAMPLE)' : 'Agent Prompt (SAMPLE)';
+            
+            const body = document.createElement('div');
+            body.style.cssText = 'margin-bottom:20px;font-size:13px;line-height:1.4;max-height:300px;overflow-y:auto;';
+            // Clean up text (remove button text at the end if it was concatenated)
+            let cleanText = data.text;
+            data.buttons.forEach(btn => {
+              if (cleanText.endsWith(btn)) cleanText = cleanText.substring(0, cleanText.length - btn.length);
+            });
+            body.textContent = cleanText;
+            
+            const btnContainer = document.createElement('div');
+            btnContainer.className = 'footer';
+            btnContainer.style.cssText = 'display:flex;justify-content:flex-end;gap:10px;';
+            
+            // Create buttons from sample metadata
+            data.buttons.forEach(btnText => {
+              const btn = document.createElement('button');
+              btn.className = 'monaco-button';
+              btn.textContent = btnText;
               
-              // Move all children from body to container
-              const fragment = document.createRange().createContextualFragment(\`${escapedHtml}\`);
-              container.appendChild(fragment);
-              console.log('[Regression] Injected via ContextualFragment');
-            } catch (e) {
-              console.error('[Regression] Fragment injection failed, trying DOMParser:', e);
-              try {
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(\`${escapedHtml}\`, 'text/html');
-                while (doc.body.firstChild) {
-                  container.appendChild(doc.body.firstChild);
-                }
-                console.log('[Regression] Injected via DOMParser');
-              } catch (e2) {
-                console.error('[Regression] DOMParser also failed:', e2);
-                if (window.trustedTypes && window.trustedTypes.createPolicy) {
-                  try {
-                    const policy = window.trustedTypes.createPolicy('antigravity-bypass-' + Date.now(), { createHTML: s => s });
-                    container.innerHTML = policy.createHTML(\`${escapedHtml}\`);
-                    console.log('[Regression] Injected via TrustedTypes Policy');
-                  } catch (policyErr) {
-                    container.innerText = 'Trusted Types Blocked: ' + policyErr.message;
-                  }
-                } else {
-                  try {
-                    container.innerHTML = \`${escapedHtml}\`;
-                  } catch (e3) {
-                    container.innerText = 'Injection Blocked: ' + e3.message;
-                  }
-                }
-              }
-            }
+              const isPrimary = /retry|accept|run|execute|allow|approve|yes|proceed|ok|confirm|continue/i.test(btnText);
+              btn.style.cssText = isPrimary 
+                ? 'background:#0e639c;color:white;border:none;padding:6px 15px;cursor:pointer;border-radius:2px;' 
+                : 'background:#3a3d41;color:white;border:none;padding:6px 15px;cursor:pointer;border-radius:2px;';
+              
+              btn.onclick = () => {
+                console.log('[Regression] Sample button CLICKED: ' + btnText);
+                container.remove();
+                backdrop.remove();
+              };
+              btnContainer.appendChild(btn);
+            });
+            
+            container.appendChild(title);
+            container.appendChild(body);
+            container.appendChild(btnContainer);
             
             document.body.appendChild(backdrop);
             document.body.appendChild(container);
             
-            // Auto-cleanup after 20s if not handled by daemon
-            setTimeout(() => {
-              if (document.contains(container)) container.remove();
-              if (document.contains(backdrop)) backdrop.remove();
-            }, 20000);
-
             return true;
           })()
         `;
+
+        if (verifyExecution) {
+          ws.send(JSON.stringify({ id: 2, method: 'Runtime.enable' }));
+        }
 
         ws.send(JSON.stringify({
           id: 1,
@@ -422,30 +451,77 @@ async function injectToAntigravity(html, filename) {
 
       ws.on('message', (data) => {
         const msg = JSON.parse(data.toString());
+        
         if (msg.id === 1) {
           if (msg.result?.exceptionDetails) {
             console.error('   ❌ BROWSER ERROR:', msg.result.exceptionDetails.exception?.description || msg.result.exceptionDetails.text);
+            executionStatus.success = false;
+            if (!verifyExecution) {
+              ws.terminate();
+              resolve(executionStatus);
+            }
           } else {
-            console.log(`   📺 \x1b[32mINJECTED\x1b[0m: Đã đẩy lên giao diện Antigravity.`);
+            console.log(`   📺 \x1b[32mINJECTED\x1b[0m: Đã đẩy lên giao diện Antigravity (Safe Mode).`);
+            executionStatus.success = true;
+            if (!verifyExecution) {
+              ws.terminate();
+              resolve(executionStatus);
+            }
           }
-          ws.terminate();
-          resolve();
+        }
+
+        if (verifyExecution && msg.method === 'Runtime.consoleAPICalled') {
+          const text = (msg.params.args || []).map(a => a.value || '').join(' ');
+          
+          // Kiểm tra log từ daemon
+          if (text.includes('RETRY_CLICKED') || text.includes('ACCEPT_CLICKED') || text.includes('Clicked successfully')) {
+            executionStatus.clicked = true;
+          }
+          
+          // Kiểm tra log từ script sample (onclick handler)
+          if (text.includes('Sample button CLICKED')) {
+            executionStatus.clicked = true;
+          }
+          
+          // Nếu đã click, đợi thêm một chút để kiểm tra xem dialog có biến mất không
+          if (executionStatus.clicked) {
+            setTimeout(() => {
+              ws.send(JSON.stringify({
+                id: 100,
+                method: 'Runtime.evaluate',
+                params: { expression: `document.querySelector(".${MOCK_CLASS}") === null`, returnByValue: true }
+              }));
+            }, 1000);
+          }
+        }
+
+        if (verifyExecution && msg.id === 100) {
+          if (msg.result?.result?.value === true) {
+            executionStatus.removed = true;
+            ws.terminate();
+            resolve(executionStatus);
+          }
         }
       });
 
       ws.on('error', () => {
         ws.terminate();
-        resolve();
+        resolve(executionStatus);
       });
 
+      // Tăng timeout nếu cần verify
+      const timeoutMs = verifyExecution ? 15000 : 3000;
       setTimeout(() => {
         ws.terminate();
-        resolve();
-      }, 3000);
+        resolve(executionStatus);
+      }, timeoutMs);
     });
 
-    // Wait a bit for user to see
-    await new Promise(r => setTimeout(r, 1000));
+    if (!verifyExecution) {
+      await new Promise(r => setTimeout(r, 1000));
+    }
+    
+    return executionStatus;
 
   } catch (e) {
     console.error('   ⚠️ Error in live injection:', e.message);

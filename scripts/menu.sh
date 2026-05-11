@@ -149,6 +149,13 @@ run_regression_suite() {
         return
     fi
 
+    # Hỏi xem có muốn verify execution không
+    read -p "⚡ Bạn có muốn xác minh thực thi (Verify Auto-Click) không? (y/N): " verify_choice
+    VERIFY_FLAG=""
+    if [[ "$verify_choice" =~ ^[Yy]$ ]]; then
+        VERIFY_FLAG="--verify"
+    fi
+
     while true; do
         clear
         echo "======================================================"
@@ -170,13 +177,13 @@ run_regression_suite() {
         elif [[ "$sample_choice" == "a" ]]; then
             echo "🧪 Đang chạy Regression Test cho toàn bộ danh sách..."
             for f in "${FILES[@]}"; do
-                node "$SCRIPT_DIR/tests/regression.js" "$f"
+                node "$SCRIPT_DIR/tests/regression.js" "$f" $VERIFY_FLAG
             done
             read -p "Nhấn Enter để quay lại danh sách..."
         elif [[ "$sample_choice" =~ ^[0-9]+$ ]] && [ "$sample_choice" -gt 0 ] && [ "$sample_choice" -le ${#FILES[@]} ]; then
             SELECTED_FILE=${FILES[$((sample_choice-1))]}
             echo "🧪 Đang chạy Regression Test cho mẫu: $SELECTED_FILE"
-            node "$SCRIPT_DIR/tests/regression.js" "$SELECTED_FILE"
+            node "$SCRIPT_DIR/tests/regression.js" "$SELECTED_FILE" $VERIFY_FLAG
             read -p "Nhấn Enter để quay lại danh sách..."
         else
             echo "❌ Lựa chọn không hợp lệ."

@@ -79,7 +79,7 @@ async function mockDialog() {
                    pageTargets[0];
     console.log(`🎯 Đang inject vào: "${target.title || target.url}"`);
 
-    const success = await injectMockHtml(target, selected.analysis.html);
+    const success = await injectMockHtml(target, selected);
     
     if (success) {
       console.log('\n\x1b[32m✅ ĐÃ GIẢ LẬP THÀNH CÔNG!\x1b[0m');
@@ -96,85 +96,90 @@ async function mockDialog() {
   rl.close();
 }
 
-function injectMockHtml(target, html) {
+function injectMockHtml(target, sample) {
   return new Promise((resolve) => {
     const ws = new WebSocket(target.webSocketDebuggerUrl);
-    let finished = false;
 
-    // We wrap the HTML in a container to ensure it's visible and fixed
-    // and we escape backticks for the template string
-    const escapedHtml = html.replace(/`/g, '\\`').replace(/\$/g, '\\$');
-    const injectionCode = `
-      (function() {
-        const MOCK_CLASS = 'antigravity-mock-dialog';
-        console.log('[Mock] Injecting sample dialog...');
-        
-        // Cleanup existing
-        document.querySelectorAll('.' + MOCK_CLASS).forEach(m => m.remove());
-        const old = document.querySelector('.test-mock-container');
-        if (old) old.remove();
-
-        // Create Backdrop
-        const backdrop = document.createElement('div');
-        backdrop.className = 'test-mock-container ' + MOCK_CLASS;
-        backdrop.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:999998;background-color:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px);pointer-events:none;';
-        
-        // Create Dialog Container
-        const container = document.createElement('div');
-        container.className = 'monaco-workbench monaco-dialog-box test-dialog ' + MOCK_CLASS;
-        
-        // Apply premium styles
-        container.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%, -50%);background:#252526;color:#ccc;padding:20px;border:1px solid #3794ff;z-index:999999;box-shadow:0 10px 40px rgba(0,0,0,0.8);border-radius:8px;width:600px;max-width:90vw;font-family:sans-serif;border-left:5px solid #3794ff;pointer-events:auto;';
-        
-        // Robust HTML Injection with Trusted Types bypass
-        // Robust HTML Injection with Trusted Types bypass
-        try {
-          const fragment = document.createRange().createContextualFragment(\`${escapedHtml}\`);
-          container.appendChild(fragment);
-          console.log('[Mock] Injected via ContextualFragment');
-        } catch (e) {
-          console.error('[Mock] Fragment injection failed, trying DOMParser:', e);
-          try {
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(\`${escapedHtml}\`, 'text/html');
-            while (doc.body.firstChild) {
-              container.appendChild(doc.body.firstChild);
-            }
-            console.log('[Mock] Injected via DOMParser');
-          } catch (e2) {
-            console.error('[Mock] DOMParser also failed:', e2);
-            if (window.trustedTypes && window.trustedTypes.createPolicy) {
-              try {
-                const policy = window.trustedTypes.createPolicy('antigravity-bypass-' + Date.now(), { createHTML: s => s });
-                container.innerHTML = policy.createHTML(\`${escapedHtml}\`);
-                console.log('[Mock] Injected via TrustedTypes Policy');
-              } catch (policyErr) {
-                container.innerText = 'Trusted Types Blocked: ' + policyErr.message;
-              }
-            } else {
-              try {
-                container.innerHTML = \`${escapedHtml}\`;
-              } catch (e3) {
-                container.innerText = 'Injection Blocked: ' + e3.message;
-              }
-            }
-          }
-        }
-        
-        document.body.appendChild(backdrop);
-        document.body.appendChild(container);
-        
-        // Auto-cleanup after 60s for manual inspection
-        setTimeout(() => {
-          if (document.contains(container)) container.remove();
-          if (document.contains(backdrop)) backdrop.remove();
-        }, 60000);
-        
-        return true;
-      })()
-    `;
+    // Extract info for safe injection
+    const sampleData = {
+      text: sample.analysis?.text || "Mock Sample",
+      buttons: sample.analysis?.buttons?.filter(b => b.tagName === 'button').map(b => b.text) || ["Retry"],
+      category: sample.metadata?.category || "retry"
+    };
 
     ws.on('open', () => {
+      const sampleJson = JSON.stringify(sampleData);
+      const injectionCode = `
+        (function() {
+          const MOCK_CLASS = 'antigravity-mock-dialog';
+          const data = ${sampleJson};
+          console.log('[Mock] Injecting sample (SAFE MODE): ' + data.category);
+          
+          // Cleanup
+          document.querySelectorAll('.' + MOCK_CLASS).forEach(m => m.remove());
+          const old = document.querySelector('.test-mock-container');
+          if (old) old.remove();
+
+          // Create Backdrop
+          const backdrop = document.createElement('div');
+          backdrop.className = 'test-mock-container ' + MOCK_CLASS;
+          backdrop.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:999998;background-color:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px);pointer-events:none;';
+          
+          // Create Dialog Container
+          const container = document.createElement('div');
+          container.className = 'monaco-workbench monaco-dialog-box test-dialog ' + MOCK_CLASS;
+          
+          const isRetry = data.category === 'retry';
+          const themeColor = isRetry ? '#f14c4c' : '#3794ff';
+          
+          container.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%, -50%);background:#252526;color:#ccc;padding:25px;border:1px solid ' + themeColor + ';z-index:999999;box-shadow:0 10px 40px rgba(0,0,0,0.8);border-radius:8px;width:500px;max-width:90vw;font-family:sans-serif;border-left:5px solid ' + themeColor + ';pointer-events:auto;';
+          
+          const title = document.createElement('div');
+          title.style.cssText = 'margin-bottom:10px;font-weight:bold;color:' + themeColor + ';';
+          title.textContent = isRetry ? 'High Traffic / Error (SAMPLE)' : 'Agent Prompt (SAMPLE)';
+          
+          const body = document.createElement('div');
+          body.style.cssText = 'margin-bottom:20px;font-size:13px;line-height:1.4;max-height:300px;overflow-y:auto;';
+          
+          // Clean text
+          let cleanText = data.text;
+          data.buttons.forEach(btn => {
+            if (cleanText.endsWith(btn)) cleanText = cleanText.substring(0, cleanText.length - btn.length);
+          });
+          body.textContent = cleanText;
+          
+          const btnContainer = document.createElement('div');
+          btnContainer.className = 'footer';
+          btnContainer.style.cssText = 'display:flex;justify-content:flex-end;gap:10px;';
+          
+          data.buttons.forEach(btnText => {
+            const btn = document.createElement('button');
+            btn.className = 'monaco-button';
+            btn.textContent = btnText;
+            
+            const isPrimary = /retry|accept|run|execute|allow|approve|yes|proceed|ok|confirm|continue/i.test(btnText);
+            btn.style.cssText = isPrimary 
+              ? 'background:#0e639c;color:white;border:none;padding:6px 15px;cursor:pointer;border-radius:2px;' 
+              : 'background:#3a3d41;color:white;border:none;padding:6px 15px;cursor:pointer;border-radius:2px;';
+            
+            btn.onclick = () => {
+              container.remove();
+              backdrop.remove();
+            };
+            btnContainer.appendChild(btn);
+          });
+          
+          container.appendChild(title);
+          container.appendChild(body);
+          container.appendChild(btnContainer);
+          
+          document.body.appendChild(backdrop);
+          document.body.appendChild(container);
+          
+          return true;
+        })()
+      `;
+
       ws.send(JSON.stringify({
         id: 1,
         method: 'Runtime.evaluate',
@@ -188,33 +193,19 @@ function injectMockHtml(target, html) {
     ws.on('message', (data) => {
       const msg = JSON.parse(data.toString());
       if (msg.id === 1) {
-        finished = true;
-        ws.terminate();
-        
         if (msg.result?.exceptionDetails) {
           console.error('   ❌ Browser Exception:', msg.result.exceptionDetails.exception?.description || msg.result.exceptionDetails.text);
           resolve(false);
         } else {
-          const success = msg.result?.result?.value === true;
-          resolve(success);
+          resolve(true);
         }
-      }
-    });
-    
-    ws.on('error', () => {
-      if (!finished) {
-        finished = true;
-        resolve(false);
+        ws.terminate();
       }
     });
 
-    setTimeout(() => {
-      if (!finished) {
-        finished = true;
-        ws.terminate();
-        resolve(false);
-      }
-    }, 5000);
+    ws.on('error', () => {
+      resolve(false);
+    });
   });
 }
 
