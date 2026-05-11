@@ -107,7 +107,7 @@ if [ -n "$ERRORS" ]; then
 fi
 
 # Show 3 latest logs for context
-LOG_FILE="$HOME/Library/Logs/AntigravityAutoRetry/stdout.log"
+LOG_FILE="$PROJECT_ROOT/logs/daemon.log"
 if [ -f "$LOG_FILE" ]; then
     echo "Dòng log cuối:"
     tail -n 3 "$LOG_FILE" | sed 's/^/  /'

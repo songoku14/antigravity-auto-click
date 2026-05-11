@@ -18,8 +18,9 @@ else
     pkill -f "node.*src/core/auto-retry.js" 2>/dev/null || true
     
     # Run in background
+    mkdir -p "$PROJECT_ROOT/logs"
     cd "$PROJECT_ROOT"
-    nohup node src/core/auto-retry.js > /dev/null 2>&1 &
+    nohup node src/core/auto-retry.js >> "$PROJECT_ROOT/logs/daemon.log" 2>&1 &
 fi
 
 echo "✅ Đã bắt đầu chạy ngầm."

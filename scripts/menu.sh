@@ -255,7 +255,7 @@ while true; do
                 
                 case $sub_choice in
                     1)
-                        LOG_FILE="$HOME/Library/Logs/AntigravityAutoRetry/stdout.log"
+                        LOG_FILE="$PROJECT_ROOT/logs/daemon.log"
                         if [ -f "$LOG_FILE" ]; then
                             echo "Đang theo dõi log (Nhấn Ctrl+C để thoát)..."
                             tail -f "$LOG_FILE"

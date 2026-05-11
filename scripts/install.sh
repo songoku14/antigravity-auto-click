@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PLIST_NAME="com.antigravity.autoretry"
 PLIST_SRC="$SCRIPT_DIR/$PLIST_NAME.plist"
 PLIST_DST="$HOME/Library/LaunchAgents/$PLIST_NAME.plist"
-LOG_DIR="$HOME/Library/Logs/AntigravityAutoRetry"
+LOG_DIR="$SCRIPT_DIR/logs"
 NODE_PATH=$(which node)
 
 echo "🔧 Installing Antigravity Auto-Retry..."
@@ -50,9 +50,9 @@ cat > "$PLIST_DST" << EOF
     <key>ThrottleInterval</key>
     <integer>10</integer>
     <key>StandardOutPath</key>
-    <string>$LOG_DIR/stdout.log</string>
+    <string>$LOG_DIR/daemon.log</string>
     <key>StandardErrorPath</key>
-    <string>$LOG_DIR/stderr.log</string>
+    <string>$LOG_DIR/daemon.log</string>
     <key>WorkingDirectory</key>
     <string>$SCRIPT_DIR</string>
     <key>EnvironmentVariables</key>
