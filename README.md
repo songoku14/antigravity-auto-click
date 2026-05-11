@@ -17,14 +17,37 @@ Verify your setup via the **Testing Lab** (Option 2 in CLI menu):
 | **Cơ chế** | Inject JavaScript (MutationObserver) để phát hiện và click nút. |
 | **Tính năng** | **Auto-Retry**: Click "Retry" khi gặp lỗi High Traffic.<br>**Auto-Accept**: Tự động click "Run", "Accept", v.v. (Hỗ trợ phân loại: Terminal, Review, System). |
 | **Bảo vệ** | Có cơ chế **Blacklist** chặn tự động chạy các lệnh Terminal nguy hiểm. |
-| **Ưu điểm** | Chính xác 100%, linh hoạt (tắt/mở riêng biệt), an toàn tuyệt đối. |
+| **Ưu điểm** | Chính xác cao, linh hoạt (tắt/mở riêng biệt), an toàn với cơ chế blacklist & rate-limit. |
 
 ## 2. Cấu Trúc Dự Án
-- `.agents/`: Cấu hình, luật và kỹ năng của AI Agents.
-- `scripts/`: Bộ script quản lý (menu, install, test).
-- `src/`: Mã nguồn chính (daemon, payload, extension).
-- `config.json`: Cấu hình danh sách Blacklist và các tính năng.
-- `tutorial.md`: Hướng dẫn sử dụng chi tiết.
+
+```text
+antigravity-auto-click/
+├── .agents/               # Trí tuệ nhân tạo (AI Agent configurations)
+├── logs/                  # Nhật ký vận hành hệ thống
+├── samples/               # Dữ liệu mẫu (HTML DOM dumps) để kiểm thử
+├── scratch/               # File nháp và thử nghiệm tạm thời
+├── scripts/               # Bộ công cụ điều khiển & Script tiện ích
+│   ├── core/              # Vận hành hệ thống (Start, Stop, Status)
+│   ├── tests/             # Kiểm thử (Live triggers & Regression)
+│   ├── tools/             # Công cụ phát triển (DOM Dump, Analyzers)
+│   ├── menu.sh            # Giao diện điều khiển chính (CLI Menu)
+│   └── install.sh         # Cài đặt tự động khởi động (LaunchAgent)
+├── src/                   # Mã nguồn chính
+│   ├── core/              # Daemon kết nối CDP & Điều phối injection
+│   ├── payload/           # JavaScript sẽ được inject vào IDE
+│   └── extension/         # Giao diện tích hợp vào VS Code
+├── config.json            # Cấu hình tính năng & Danh sách chặn (Blacklist)
+├── config.schema.json     # Schema định nghĩa cấu hình hợp lệ
+└── README.md              # Tài liệu hướng dẫn này
+```
+
+### Chi Tiết Thành Phần:
+- **`scripts/menu.sh`**: Entry point chính. Luôn bắt đầu từ đây để quản lý hệ thống.
+- **`src/core/auto-retry.js`**: "Trái tim" của hệ thống, chạy ngầm để theo dõi và điều khiển IDE.
+- **`src/payload/injection-payload.js`**: Chứa logic nhận diện Dialog (Regex, Container Scoping) và xử lý click.
+- **`config.json`**: Cho phép bạn tùy chỉnh các lệnh Terminal nguy hiểm cần chặn hoặc bật/tắt các loại Auto-Accept.
+- **`logs/activity-log.json`**: Lưu trữ lịch sử click để hiển thị thống kê trên Menu.
 
 ## 3. Hướng Dẫn Nhanh
 
@@ -57,7 +80,7 @@ graph TD
 
 - **BA:** Làm rõ yêu cầu.
 - **Orchestrator:** Điều phối dự án.
-- **Tech Leader:** Duyệt kiến trúc & Review code (Bắt buộc).
+- **Tech Leader:** Duyệt kiến trúc & Review code (BẮT BUỘC).
 - **Developer:** Viết mã nguồn.
 - **Tester:** Kiểm thử & Xác nhận.
 - **Docs-Agent:** Bảo trì tài liệu.

@@ -9,11 +9,6 @@ This project provides a daemon that runs in the background on macOS, connects to
 - **Vanilla JavaScript**: The payload that gets injected into the DOM. Uses `MutationObserver` for real-time detection.
 - **macOS LaunchAgent (launchd)**: Used to ensure the Node.js daemon starts automatically when the user logs in.
 
-## Project Structure
-- `src/auto-retry.js`: Main daemon that discovers CDP ports, filters targets (Workbench, Launchpad), connects, and injects code. Handles reconnection if the target reloads.
-- `src/discovery.js`: Helper module to find the `--remote-debugging-port` from the running process list (`ps aux`).
-- `src/injection-payload.js`: Returns the Javascript string to be evaluated. It includes a robust pattern-matching and rate-limiting system.
-- `scripts/`: Shell scripts for installing, starting, stopping, and uninstalling the LaunchAgent.
 
 ## Key Design Decisions
 - **Target Filtering**: We only inject into `page` targets that resemble the main UI (Workbench or Launchpad).

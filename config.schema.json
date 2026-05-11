@@ -1,0 +1,76 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Antigravity Auto-Click Configuration",
+  "type": "object",
+  "properties": {
+    "autoRetry": {
+      "type": "boolean",
+      "description": "Tự động click nút Retry khi gặp lỗi High Traffic.",
+      "default": true
+    },
+    "autoAccept": {
+      "oneOf": [
+        { "type": "boolean" },
+        {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "categories": {
+              "type": "object",
+              "properties": {
+                "terminal": {
+                  "type": "object",
+                  "properties": {
+                    "enabled": { "type": "boolean" },
+                    "patterns": {
+                      "type": "array",
+                      "items": { "type": "string" }
+                    }
+                  }
+                },
+                "review": {
+                  "type": "object",
+                  "properties": {
+                    "enabled": { "type": "boolean" },
+                    "patterns": {
+                      "type": "array",
+                      "items": { "type": "string" }
+                    }
+                  }
+                },
+                "system": {
+                  "type": "object",
+                  "properties": {
+                    "enabled": { "type": "boolean" },
+                    "patterns": {
+                      "type": "array",
+                      "items": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "description": "Tự động chấp nhận các đề xuất từ Agent.",
+      "default": true
+    },
+    "blacklist": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Danh sách các từ khóa hoặc lệnh terminal bị cấm tự động click.",
+      "default": ["rm ", "sudo ", "mkfs", "dd "]
+    },
+    "customRetryPatterns": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Các regex bổ sung để nhận diện nút Retry."
+    },
+    "customAcceptPatterns": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Các regex bổ sung để nhận diện nút Accept."
+    }
+  }
+}

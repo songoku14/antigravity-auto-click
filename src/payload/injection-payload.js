@@ -5,7 +5,7 @@
  * It uses MutationObserver to watch for error dialogs and auto-click Retry/Accept.
  */
 
-const INJECTION_VERSION = 31;
+const INJECTION_VERSION = 32;
 
 /**
  * Trả về string JavaScript sẽ được inject vào DOM qua CDP Runtime.evaluate
@@ -15,10 +15,12 @@ function getInjectionScript(userConfig = {}) {
 
   return `
 (function() {
-  const SCRIPT_VERSION = 31;
+  const SCRIPT_VERSION = ${INJECTION_VERSION};
   const USER_CONFIG = ${configJson};
   
-  // Kill old versions
+  // ============================================================
+  // 1. Versioning & Cleanup Logic
+  // ============================================================
   if (window.__autoRetryVersion && window.__autoRetryVersion < SCRIPT_VERSION) {
     if (window.__autoRetryCleanup) {
       window.__autoRetryCleanup();
@@ -34,6 +36,9 @@ function getInjectionScript(userConfig = {}) {
   window.__autoRetryInjected = true;
   window.__autoRetryVersion = SCRIPT_VERSION;
 
+  // ============================================================
+  // 2. Configuration & Patterns
+  // ============================================================
   const CONFIG = {
     dialogContainerSelectors: [
       '.monaco-dialog-box',
@@ -84,11 +89,13 @@ function getInjectionScript(userConfig = {}) {
       /\\byes\\b/i,
       /\\bapprove\\b/i,
       /\\bcontinue\\b/i,
+      /\\bproceed\\b/i,
+      /\\bok\\b/i,
+      /\\bconfirm\\b/i,
       /\\balways\\s*allow\\b/i,
       /\\baccept\\s*all\\b/i
     ],
 
-    // Context patterns to confirm a button is legitimate
     retryContextPatterns: [
       /high\\s*traffic/i,
       /server\\s*(is\\s*)?busy/i,
@@ -103,20 +110,6 @@ function getInjectionScript(userConfig = {}) {
       /connection\\s*lost/i
     ],
 
-    actionContextPatterns: [
-      /allow\\s*the\\s*following\\s*command/i,
-      /do\\s*you\\s*want\\s*to\\s*run/i,
-      /agent\\s*prompt/i,
-      /run\\s*this\\s*command/i,
-      /execute\\s*the\\s*following/i,
-      /allow\\s*this\\s*action/i,
-      /approve\\s*request/i,
-      /click\\s*run\\s*to\\s*continue/i,
-      /accept\\s*terms/i,
-      /security\\s*confirmation/i
-    ],
-
-    // Granular categories for Auto-Accept
     actionCategories: {
       terminal: [
         /allow\\s*the\\s*following\\s*command/i,
@@ -148,7 +141,6 @@ function getInjectionScript(userConfig = {}) {
     minClickInterval: 2000
   };
 
-  // Merge custom patterns from USER_CONFIG
   const toRegex = (p) => {
     try {
       const match = p.match(/^\\/(.*)\\/(.*)$/);
@@ -157,6 +149,7 @@ function getInjectionScript(userConfig = {}) {
     } catch(e) { return null; }
   };
 
+  // Merge custom patterns
   if (Array.isArray(USER_CONFIG.customRetryPatterns)) {
     USER_CONFIG.customRetryPatterns.forEach(p => {
       const re = toRegex(p);
@@ -170,15 +163,9 @@ function getInjectionScript(userConfig = {}) {
     });
   }
 
-  // Override categories patterns if provided in USER_CONFIG
-  if (USER_CONFIG.autoAccept && typeof USER_CONFIG.autoAccept === 'object' && USER_CONFIG.autoAccept.categories) {
-    for (const [cat, data] of Object.entries(USER_CONFIG.autoAccept.categories)) {
-      if (Array.isArray(data.patterns)) {
-        CONFIG.actionCategories[cat] = data.patterns.map(p => toRegex(p)).filter(Boolean);
-      }
-    }
-  }
-
+  // ============================================================
+  // 3. Runtime State
+  // ============================================================
   let actionCount = 0;
   let lastResetTime = Date.now();
   let lastClickTime = 0;
@@ -190,6 +177,9 @@ function getInjectionScript(userConfig = {}) {
     console.log('[AutoRetry] ' + msg);
   }
 
+  // ============================================================
+  // 4. Rate Limiting & Safety
+  // ============================================================
   function resetCounterIfNeeded() {
     const now = Date.now();
     if (now - lastResetTime > 60000) {
@@ -212,41 +202,10 @@ function getInjectionScript(userConfig = {}) {
     return true;
   }
 
-  function findInShadows(root, selector) {
-    let elements = Array.from(root.querySelectorAll(selector));
-    
-    // We only need to find elements with shadowRoot to recurse
-    // Using querySelectorAll('*') is expensive, but better than TreeWalker in some cases
-    // Actually, let's just stick to a faster walker or specific common roots
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT, {
-      acceptNode: function(node) {
-        return node.shadowRoot ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
-      }
-    });
-    
-    let node;
-    while (node = walker.nextNode()) {
-      elements = elements.concat(findInShadows(node.shadowRoot, selector));
-    }
-    return elements;
-  }
-
-  function findValidContainers() {
-    const containers = new Set();
-    for (const selector of CONFIG.dialogContainerSelectors) {
-      try {
-        const found = findInShadows(document, selector);
-        if (found.length > 0) {
-          found.forEach(el => {
-            const rect = el.getBoundingClientRect();
-            if (rect.width > 2 && rect.height > 2) {
-              containers.add(el);
-            }
-          });
-        }
-      } catch(e) {}
-    }
-    return Array.from(containers);
+  function isCommandBlocked(cmdText) {
+    if (!cmdText) return false;
+    const lowerCmd = cmdText.toLowerCase();
+    return CONFIG.blacklist.some(pattern => lowerCmd.includes(pattern.toLowerCase()));
   }
 
   function extractCommandText(btn) {
@@ -266,10 +225,35 @@ function getInjectionScript(userConfig = {}) {
     return null;
   }
 
-  function isCommandBlocked(cmdText) {
-    if (!cmdText) return false;
-    const lowerCmd = cmdText.toLowerCase();
-    return CONFIG.blacklist.some(pattern => lowerCmd.includes(pattern.toLowerCase()));
+  // ============================================================
+  // 5. DOM Exploration Utilities
+  // ============================================================
+  function findInShadows(root, selector) {
+    let elements = Array.from(root.querySelectorAll(selector));
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT, {
+      acceptNode: function(node) {
+        return node.shadowRoot ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+      }
+    });
+    let node;
+    while (node = walker.nextNode()) {
+      elements = elements.concat(findInShadows(node.shadowRoot, selector));
+    }
+    return elements;
+  }
+
+  function findValidContainers() {
+    const containers = new Set();
+    for (const selector of CONFIG.dialogContainerSelectors) {
+      try {
+        const found = findInShadows(document, selector);
+        found.forEach(el => {
+          const rect = el.getBoundingClientRect();
+          if (rect.width > 2 && rect.height > 2) containers.add(el);
+        });
+      } catch(e) {}
+    }
+    return Array.from(containers);
   }
 
   function findButtonsIn(root, patterns, typeLabel) {
@@ -284,17 +268,14 @@ function getInjectionScript(userConfig = {}) {
                           el.classList.contains('action-label') ||
                           el.classList.contains('button') ||
                           el.classList.contains('btn') ||
-                          el.classList.contains('bg-ide-button-background') ||
-                          el.classList.contains('cursor-pointer') ||
-                          (el.style && el.style.cursor === 'pointer') ||
-                          (window.getComputedStyle(el).cursor === 'pointer');
+                          el.style.cursor === 'pointer' ||
+                          window.getComputedStyle(el).cursor === 'pointer';
       
       if (isClickable) {
         const text = (el.textContent || '').trim();
         if (text.length > 0 && text.length <= 50) {
           const rect = el.getBoundingClientRect();
           if (rect.width > 2 && rect.height > 2) {
-            // Check if inside a footer
             let inFooter = false;
             let parent = el.parentElement;
             for (let i = 0; i < 5 && parent; i++) {
@@ -308,29 +289,19 @@ function getInjectionScript(userConfig = {}) {
             if (patterns) {
               for (const pattern of patterns) {
                 if (pattern.test(text)) {
-                  if (typeLabel) log('Found matching ' + typeLabel + ' button: "' + text + '"' + (inFooter ? ' [footer]' : ''));
+                  if (typeLabel) log('Found matching ' + typeLabel + ' button: "' + text + '"');
                   buttons.push({ el, text, rect, inFooter });
                   break;
                 }
               }
             } else {
-              buttons.push({
-                el,
-                text,
-                rect,
-                inFooter,
-                tagName: tag,
-                className: el.className,
-                id: el.id
-              });
+              buttons.push({ el, text, rect, inFooter, tagName: tag, className: el.className, id: el.id });
             }
           }
         }
       }
-      
       if (el.shadowRoot) {
-        const shadowButtons = findButtonsIn(el.shadowRoot, patterns, typeLabel);
-        buttons = buttons.concat(shadowButtons);
+        buttons = buttons.concat(findButtonsIn(el.shadowRoot, patterns, typeLabel));
       }
     }
     return buttons;
@@ -339,7 +310,6 @@ function getInjectionScript(userConfig = {}) {
   function isVisibleAtPoint(el, rect) {
     const x = rect.left + rect.width / 2;
     const y = rect.top + rect.height / 2;
-    
     if (x < 0 || y < 0 || x > window.innerWidth || y > window.innerHeight) return false;
 
     let topEl = document.elementFromPoint(x, y);
@@ -355,150 +325,81 @@ function getInjectionScript(userConfig = {}) {
     while (curr) {
       if (curr === el) return true;
       curr = curr.parentElement || (curr.getRootNode && curr.getRootNode().host);
-      if (curr === document.body || curr === document.documentElement) break;
     }
     return false;
   }
 
   function getSurroundingText(el) {
     try {
-      // Get text from parent or grandparent to get context
       let contextEl = el.parentElement;
-      if (contextEl && contextEl.textContent.length < 50 && contextEl.parentElement) {
-        contextEl = contextEl.parentElement;
+      for (let i = 0; i < 2 && contextEl && contextEl.textContent.length < 50; i++) {
+        if (contextEl.parentElement) contextEl = contextEl.parentElement;
       }
-      if (contextEl && contextEl.textContent.length < 50 && contextEl.parentElement) {
-        contextEl = contextEl.parentElement;
-      }
-      
-      const text = (contextEl ? contextEl.textContent : '').substring(0, 1000);
-      return text.trim();
-    } catch (e) {
-      return '';
-    }
+      return (contextEl ? contextEl.textContent : '').substring(0, 1000).trim();
+    } catch (e) { return ''; }
   }
 
+  // ============================================================
+  // 6. Main Action Logic
+  // ============================================================
   function scanAndAction() {
     if (!canClick()) return;
 
     let containers = findValidContainers();
-    const isStandardContainerFound = containers.length > 0;
-    
-    const useFallback = !isStandardContainerFound && (USER_CONFIG.autoAccept !== false || USER_CONFIG.autoRetry !== false);
-    
-    if (useFallback) {
-      containers = [document.body];
-    }
+    const useFallback = containers.length === 0 && (USER_CONFIG.autoAccept !== false || USER_CONFIG.autoRetry !== false);
+    if (useFallback) containers = [document.body];
 
     for (const container of containers) {
       const containerText = (container.textContent || '').substring(0, 2000);
       const isAgentWindow = container.closest && container.closest('.antigravity-agent-side-panel');
       
-      // Case 1: Error/Retry
-      if (USER_CONFIG.autoRetry !== false) {
-        const errorMatched = CONFIG.errorPatterns.some(p => p.test(containerText));
-        if (errorMatched) {
-          const btns = findButtonsIn(container, CONFIG.retryButtonPatterns, 'RETRY');
-          
-          // Sort buttons: prioritize footer, then lower on screen (larger Y)
-          btns.sort((a, b) => {
-            if (a.inFooter !== b.inFooter) return b.inFooter ? 1 : -1;
-            return b.rect.top - a.rect.top;
-          });
+      // Case 1: Auto-Retry
+      if (USER_CONFIG.autoRetry !== false && CONFIG.errorPatterns.some(p => p.test(containerText))) {
+        const btns = findButtonsIn(container, CONFIG.retryButtonPatterns, 'RETRY');
+        btns.sort((a, b) => (a.inFooter !== b.inFooter ? (b.inFooter ? 1 : -1) : b.rect.top - a.rect.top));
 
-          for (const btnObj of btns) {
-            // Spatial filtering if not in agent window
-            if (!isAgentWindow) {
-              const isRightSide = btnObj.rect.left > window.innerWidth / 2;
-              const isBottomSide = btnObj.rect.top > window.innerHeight / 2;
-              if (!isRightSide || !isBottomSide) continue;
-            }
+        for (const btnObj of btns) {
+          if (!isAgentWindow && (btnObj.rect.left < window.innerWidth / 2 || btnObj.rect.top < window.innerHeight / 2)) continue;
+          if (useFallback && !CONFIG.retryContextPatterns.some(p => p.test(getSurroundingText(btnObj.el)))) continue;
+          if (!isVisibleAtPoint(btnObj.el, btnObj.rect)) continue;
 
-            // Context verification (required for fallback, recommended for others)
-            if (useFallback) {
-              const contextText = getSurroundingText(btnObj.el);
-              const contextMatched = CONFIG.retryContextPatterns.some(p => p.test(contextText));
-              if (!contextMatched) continue;
-            }
-            
-            // Overlap check
-            if (!isVisibleAtPoint(btnObj.el, btnObj.rect)) {
-              log('Skipping overlapping retry button: "' + btnObj.text + '"');
-              continue;
-            }
-
-            log('[STAT] RETRY_DETECTED');
-            performClick(btnObj.el, btnObj.text, '🔄 RETRY');
-            return;
-          }
+          log('[STAT] RETRY_DETECTED');
+          performClick(btnObj.el, btnObj.text, '🔄 RETRY');
+          return;
         }
       }
 
-      // Case 2: Action/Accept (Granular)
+      // Case 2: Auto-Accept
       const autoAcceptConfig = USER_CONFIG.autoAccept;
-      const isAutoAcceptEnabled = autoAcceptConfig === true || (autoAcceptConfig && autoAcceptConfig.enabled !== false);
-      
-      if (isAutoAcceptEnabled) {
+      if (autoAcceptConfig === true || (autoAcceptConfig && autoAcceptConfig.enabled !== false)) {
         const categories = (autoAcceptConfig && typeof autoAcceptConfig === 'object' && autoAcceptConfig.categories) 
                            ? autoAcceptConfig.categories 
                            : { terminal: { enabled: true }, review: { enabled: true }, system: { enabled: true } };
 
         for (const [catName, catConfig] of Object.entries(categories)) {
           if (catConfig.enabled === false) continue;
-
           const catPatterns = CONFIG.actionCategories[catName] || [];
-          let categoryMatched = catPatterns.some(p => p.test(containerText));
-          
+          if (!catPatterns.some(p => p.test(containerText)) && !catPatterns.some(p => p.test(getSurroundingText(container)))) continue;
+
           const btns = findButtonsIn(container, CONFIG.actionButtonPatterns, 'ACTION (' + catName.toUpperCase() + ')');
-          
-          // Sort buttons: prioritize footer, then lower on screen
-          btns.sort((a, b) => {
-            if (a.inFooter !== b.inFooter) return b.inFooter ? 1 : -1;
-            return b.rect.top - a.rect.top;
-          });
+          btns.sort((a, b) => (a.inFooter !== b.inFooter ? (b.inFooter ? 1 : -1) : b.rect.top - a.rect.top));
 
           for (const btnObj of btns) {
-            const btn = btnObj.el;
-            const btnText = btnObj.text;
-
-            // Spatial filtering
-            if (!isAgentWindow) {
-              const isRightSide = btnObj.rect.left > window.innerWidth / 2;
-              const isBottomSide = btnObj.rect.top > window.innerHeight / 2;
-              if (!isRightSide || !isBottomSide) continue;
-            }
-
-            let currentCategoryMatched = categoryMatched;
-            if (!currentCategoryMatched) {
-              const contextText = getSurroundingText(btn);
-              currentCategoryMatched = catPatterns.some(p => p.test(contextText));
-            }
-
-            if (!currentCategoryMatched) continue;
-
-            // Overlap check
-            if (!isVisibleAtPoint(btn, btnObj.rect)) {
-              log('Skipping overlapping action button: "' + btnText + '"');
-              continue;
-            }
+            if (!isAgentWindow && (btnObj.rect.left < window.innerWidth / 2 || btnObj.rect.top < window.innerHeight / 2)) continue;
+            if (!isVisibleAtPoint(btnObj.el, btnObj.rect)) continue;
 
             log('[STAT] ACCEPT_DETECTED (' + catName + ')');
-
-            const cmdText = extractCommandText(btn);
+            const cmdText = extractCommandText(btnObj.el);
             if (isCommandBlocked(cmdText)) {
-              if (!btn.__blockedByFilter) {
-                btn.__blockedByFilter = true;
+              if (!btnObj.el.__blocked) {
+                btnObj.el.__blocked = true;
                 log('[STAT] ACCEPT_BLOCKED');
-                log('🚫 Blocked dangerous command: ' + (cmdText ? cmdText.substring(0, 50) : 'none') + '...');
-                btn.style.cssText += ';border: 2px solid red !important; box-shadow: 0 0 10px red !important;';
-                const oldText = btn.textContent;
-                btn.textContent = '🚫 Blocked';
-                setTimeout(() => { btn.textContent = oldText; btn.__blockedByFilter = false; }, 5000);
+                btnObj.el.style.border = '2px solid red';
+                setTimeout(() => { btnObj.el.__blocked = false; }, 5000);
               }
               continue;
             }
-
-            performClick(btn, btnText, '⚡ ACTION (' + catName.toUpperCase() + ')');
+            performClick(btnObj.el, btnObj.text, '⚡ ACTION (' + catName.toUpperCase() + ')');
             return;
           }
         }
@@ -507,96 +408,42 @@ function getInjectionScript(userConfig = {}) {
   }
 
   function performClick(btn, btnText, typeLabel) {
-    if (btn.__beingClicked) return;
-    btn.__beingClicked = true;
-
+    if (btn.__clicked) return;
+    btn.__clicked = true;
     actionCount++;
     lastClickTime = Date.now();
-    log(typeLabel + ' detected! Clicking "' + btnText + '"');
+    log(typeLabel + '! Clicking "' + btnText + '"');
 
-    const oldStyle = btn.style.cssText;
-    btn.style.cssText += '; outline: 3px solid #3794ff !important; outline-offset: 2px !important;';
-
+    btn.style.outline = '3px solid #3794ff';
     setTimeout(() => {
       try {
         btn.click();
-        log('✅ Clicked successfully.');
-        if (typeLabel.includes('RETRY')) {
-          log('[STAT] RETRY_CLICKED');
-        } else {
-          log('[STAT] ACCEPT_CLICKED');
-        }
+        log('✅ Clicked.');
+        log(typeLabel.includes('RETRY') ? '[STAT] RETRY_CLICKED' : '[STAT] ACCEPT_CLICKED');
       } catch (e) {
-        log('⚠️ Direct click failed, trying MouseEvent...');
         btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
       }
-      btn.__beingClicked = false;
-      setTimeout(() => { btn.style.cssText = oldStyle; }, 1000);
+      btn.__clicked = false;
     }, CONFIG.clickDelay);
   }
 
-  // === Initialization ===
+  // ============================================================
+  // 7. Initialization & Lifecycle
+  // ============================================================
   observerRef = new MutationObserver((mutations) => {
-    let shouldScan = false;
-    for (const m of mutations) {
-      if (m.addedNodes.length > 0) {
-        shouldScan = true;
-        break;
-      }
-    }
-    if (shouldScan) {
-      setTimeout(scanAndAction, 400);
-    }
+    if (mutations.some(m => m.addedNodes.length > 0)) setTimeout(scanAndAction, 400);
   });
-
   observerRef.observe(document.documentElement, { childList: true, subtree: true });
 
-  window.__triggerAutoRetryTest = function() {
-    log('Simulating High Traffic dialog...');
-    const container = document.createElement('div');
-    container.className = 'monaco-dialog-box test-dialog';
-    container.setAttribute('role', 'alertdialog');
-    // Positioned in bottom-right quadrant to pass spatial filtering
-    container.style.cssText = 'position:fixed;top:60%;left:70%;transform:translateX(-50%);background:#252526;color:#ccc;padding:20px;border:1px solid #3794ff;z-index:99999;box-shadow:0 5px 25px rgba(0,0,0,0.8);border-radius:6px;width:400px;font-family:sans-serif;';
-    
-    const title = document.createElement('div');
-    title.style.cssText = 'margin-bottom:10px;font-weight:bold;color:#3794ff;';
-    title.textContent = '[TEST] High Traffic Simulation';
-    
-    const body = document.createElement('div');
-    body.style.cssText = 'margin-bottom:15px;font-size:13px;';
-    body.textContent = 'This is a simulated high traffic dialog to test the Auto-Retry feature.';
-    
-    const footer = document.createElement('footer');
-    footer.className = 'flex justify-between items-center gap-2 pt-4';
-    footer.style.cssText = 'display:flex;justify-content:flex-end;';
-    
-    const btn = document.createElement('button');
-    btn.className = 'monaco-button bg-ide-button-background';
-    btn.textContent = 'Retry';
-    btn.style.cssText = 'background:#0e639c;color:white;border:none;padding:4px 12px;cursor:pointer;border-radius:2px;';
-    
-    btn.onclick = () => {
-      container.remove();
-      log('Test dialog removed via click.');
-    };
+  pollIntervalRef = setInterval(scanAndAction, CONFIG.pollInterval);
 
-    footer.appendChild(btn);
-    container.appendChild(title);
-    container.appendChild(body);
-    container.appendChild(footer);
-    document.body.appendChild(container);
-    
-    setTimeout(() => {
-      if (container.parentElement) {
-        container.remove();
-        log('Test dialog timed out and was removed.');
-      }
-    }, 12000);
-
-    return 'test_dialog_triggered';
+  window.__autoRetryCleanup = function() {
+    if (observerRef) observerRef.disconnect();
+    if (pollIntervalRef) clearInterval(pollIntervalRef);
+    log('Cleaned up.');
   };
 
+  // Helper for manual analysis
   window.__analyzeDialog = function() {
     log('Analyzing current DOM for dialogs...');
     const containers = findValidContainers();
@@ -607,7 +454,6 @@ function getInjectionScript(userConfig = {}) {
     
     for (const container of finalTargets) {
       const buttons = findButtonsIn(container, null, null);
-      
       results.push({
         isBody: container === document.body,
         text: (container.textContent || '').substring(0, 1000).trim(),
@@ -628,20 +474,11 @@ function getInjectionScript(userConfig = {}) {
     };
   };
 
-  pollIntervalRef = setInterval(scanAndAction, CONFIG.pollInterval);
-
-  window.__autoRetryCleanup = function() {
-    if (observerRef) observerRef.disconnect();
-    if (pollIntervalRef) clearInterval(pollIntervalRef);
-    log('Cleaned up.');
-  };
-
   setTimeout(scanAndAction, 1000);
   log('v' + SCRIPT_VERSION + ' active. Retry: ' + (USER_CONFIG.autoRetry !== false ? 'ON' : 'OFF') + ', Accept: ' + (USER_CONFIG.autoAccept !== false ? 'ON' : 'OFF'));
   return 'injection_success';
 })();
 `;
 }
-
 
 module.exports = { getInjectionScript };

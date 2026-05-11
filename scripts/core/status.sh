@@ -2,12 +2,13 @@
 # status.sh - Simplified status view for Antigravity Auto-Click
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 CONFIG_FILE="$PROJECT_ROOT/config.json"
-ACTIVITY_FILE="$PROJECT_ROOT/activity-log.json"
+ACTIVITY_FILE="$PROJECT_ROOT/logs/activity-log.json"
 
 # Check if reset is requested
 if [ "$1" == "--reset" ]; then
+    mkdir -p "$(dirname "$ACTIVITY_FILE")"
     echo '{
   "retry": {
     "detected": 0,
@@ -34,7 +35,7 @@ AUTO_RETRY=$(jq -r '.autoRetry' "$CONFIG_FILE" 2>/dev/null || echo "true")
 AUTO_ACCEPT=$(jq -r '.autoAccept' "$CONFIG_FILE" 2>/dev/null || echo "true")
 
 # Check Node process
-NODE_RUNNING=$(pgrep -f "node.*src/auto-retry.js" > /dev/null && echo "yes" || echo "no")
+NODE_RUNNING=$(pgrep -f "node.*src/core/auto-retry.js" > /dev/null && echo "yes" || echo "no")
 
 # Check Antigravity App
 APP_RUNNING=$(ps aux | grep "Antigravity.app/Contents/MacOS/Electron" | grep -v grep > /dev/null && echo "yes" || echo "no")

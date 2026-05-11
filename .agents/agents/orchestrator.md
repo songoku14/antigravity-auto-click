@@ -26,3 +26,4 @@ Khi xử lý các yêu cầu Debug hoặc sửa lỗi:
 - **Gán nhãn Agent**: LUÔN bắt đầu mọi tin nhắn hoặc khối suy nghĩ bằng tên agent hiện tại (VD: `[Orchestrator]`, `[BA]`).
 - **Chuỗi Chỉ huy**: Orchestrator là người DUY NHẤT trao đổi với người dùng ở đầu và cuối quy trình. Các agent khác báo cáo lại cho Orchestrator.
 - **Dừng & Đợi**: Đối với các tác vụ Debug hoặc thay đổi quan trọng, Orchestrator phải dừng lại sau bước lập kế hoạch để chờ lệnh "Execute" từ người dùng.
+- **Dọn dẹp & Bảo trì (Cleanup)**: Sau khi hoàn tất MỌI tác vụ (đặc biệt là sau khi Debug), Orchestrator phải đảm bảo các file nhật ký tạm thời (`logs/*.log`) và file nháp (`scratch/*`) được xóa bỏ sạch sẽ để duy trì sự gọn gàng cho dự án.

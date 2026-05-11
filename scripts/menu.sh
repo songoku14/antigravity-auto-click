@@ -4,7 +4,7 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 PLIST_NAME="com.antigravity.autoretry"
-ACTIVITY_FILE="$PROJECT_ROOT/activity-log.json"
+ACTIVITY_FILE="$PROJECT_ROOT/logs/activity-log.json"
 
 show_menu() {
     clear
@@ -15,7 +15,7 @@ show_menu() {
     # Check current state for header
     AUTO_RETRY=$(jq -r '.autoRetry // true' "$PROJECT_ROOT/config.json" 2>/dev/null || echo "true")
     AUTO_ACCEPT_ENABLED=$(jq -r 'if .autoAccept | type == "boolean" then .autoAccept else .autoAccept.enabled // true end' "$PROJECT_ROOT/config.json" 2>/dev/null || echo "true")
-    NODE_RUNNING=$(pgrep -f "node.*src/auto-retry.js" > /dev/null && echo "yes" || echo "no")
+    NODE_RUNNING=$(pgrep -f "node.*src/core/auto-retry.js" > /dev/null && echo "yes" || echo "no")
     APP_RUNNING=$(ps aux | grep "Antigravity.app/Contents/MacOS/Electron" | grep -v grep > /dev/null && echo "yes" || echo "no")
     CDP_ENABLED=$(ps aux | grep -i "Antigravity.app/Contents/MacOS/Electron" | grep -v grep | grep -q "\\-\\-remote-debugging-port=" && echo "yes" || echo "no")
 
@@ -94,12 +94,12 @@ show_test_menu() {
         case $test_choice in
             1)
                 echo "🧪 Đang kiểm tra Auto-Retry (LIVE)..."
-                node "$SCRIPT_DIR/trigger-test.js"
+                node "$SCRIPT_DIR/tests/trigger-test.js"
                 read -p "Nhấn Enter để tiếp tục..."
                 ;;
             2)
                 echo "🧪 Đang kiểm tra Auto-Accept (LIVE)..."
-                node "$SCRIPT_DIR/trigger-accept-test.js"
+                node "$SCRIPT_DIR/tests/trigger-accept-test.js"
                 read -p "Nhấn Enter để tiếp tục..."
                 ;;
             3)
@@ -156,13 +156,13 @@ show_test_menu() {
                     elif [[ "$sample_choice" == "a" ]]; then
                         echo "🧪 Đang chạy Regression Test cho toàn bộ danh sách..."
                         for f in "${FILES[@]}"; do
-                            node "$SCRIPT_DIR/verify-dialog-detection-regression.js" "$f"
+                            node "$SCRIPT_DIR/tests/regression.js" "$f"
                         done
                         read -p "Nhấn Enter để quay lại danh sách..."
                     elif [[ "$sample_choice" =~ ^[0-9]+$ ]] && [ "$sample_choice" -gt 0 ] && [ "$sample_choice" -le ${#FILES[@]} ]; then
                         SELECTED_FILE=${FILES[$((sample_choice-1))]}
                         echo "🧪 Đang chạy Regression Test cho mẫu: $SELECTED_FILE"
-                        node "$SCRIPT_DIR/verify-dialog-detection-regression.js" "$SELECTED_FILE"
+                        node "$SCRIPT_DIR/tests/regression.js" "$SELECTED_FILE"
                         read -p "Nhấn Enter để quay lại danh sách..."
                     else
                         echo "❌ Lựa chọn không hợp lệ."
@@ -199,17 +199,17 @@ show_dev_menu() {
         case $dev_choice in
             1)
                 echo "🔍 Đang khởi chạy công cụ phân tích..."
-                node "$SCRIPT_DIR/analyze-dialog.js"
+                node "$SCRIPT_DIR/tools/analyze-dialog.js"
                 read -p "Nhấn Enter để tiếp tục..."
                 ;;
             2)
                 echo "🎭 Đang khởi chạy công cụ giả lập..."
-                node "$SCRIPT_DIR/mock-dialog.js"
+                node "$SCRIPT_DIR/tests/mock-dialog.js"
                 read -p "Nhấn Enter để tiếp tục..."
                 ;;
             3)
                 echo "📦 Đang thực hiện dump toàn bộ DOM..."
-                node "$SCRIPT_DIR/dump-dom.js"
+                node "$SCRIPT_DIR/tools/dump-dom.js"
                 read -p "Nhấn Enter để tiếp tục..."
                 ;;
             0)
@@ -230,7 +230,7 @@ while true; do
     
     case $choice in
         1)
-            bash "$SCRIPT_DIR/status.sh"
+            bash "$SCRIPT_DIR/core/status.sh"
             echo ""
             echo "------------------------------------------------------"
             echo " TÙY CHỌN:"
@@ -252,7 +252,7 @@ while true; do
                     fi
                     ;;
                 2)
-                    bash "$SCRIPT_DIR/status.sh" --reset
+                    bash "$SCRIPT_DIR/core/status.sh" --reset
                     sleep 1
                     ;;
                 0)
@@ -271,13 +271,13 @@ while true; do
             show_dev_menu
             ;;
         4)
-            bash "$SCRIPT_DIR/start.sh"
+            bash "$SCRIPT_DIR/core/start.sh"
             sleep 1
             read -p "Nhấn Enter để quay lại menu..."
             ;;
         5)
             echo "🛑 Đang dừng hệ thống..."
-            bash "$SCRIPT_DIR/stop.sh"
+            bash "$SCRIPT_DIR/core/stop.sh"
             read -p "Nhấn Enter để quay lại menu..."
             ;;
         6)

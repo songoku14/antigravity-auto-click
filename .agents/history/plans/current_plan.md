@@ -1,46 +1,245 @@
-# Tối ưu hóa Phát hiện Button trong Agent Window
+# Ke hoach toi uu cau truc du an Antigravity Auto-Click
 
-Kế hoạch này nhằm mục đích tăng độ chính xác khi tự động click các nút "Retry" và "Accept" bằng cách tập trung vào "Agent Window" (bảng bên phải) và xử lý các trường hợp các nút bị chồng lấp hoặc nằm ngoài vùng tương tác mong muốn.
+## Muc tieu
 
-## User Review Required
+- Chuan hoa cau truc du an.
+- Giam nham lan giua Auto-Retry va Auto-Click.
+- Tach runtime state khoi source/config.
+- Lam extension manifest khop voi code.
+- Chuan bi nen de refactor daemon/payload sau nay voi rui ro thap.
 
-> [!IMPORTANT]
-> Việc giới hạn phạm vi quét vào `.antigravity-agent-side-panel` sẽ giúp giảm thiểu rủi ro click nhầm trong Editor, nhưng cần đảm bảo class này là duy nhất và ổn định trong các phiên bản Antigravity.
+## Pham vi
 
-## Proposed Changes
+- Khong thay doi logic click/retry/accept o buoc dau.
+- Khong doi behavior runtime neu khong can.
+- Uu tien chinh cau truc, naming, tai lieu, command wiring.
+- Refactor daemon chi lam o muc tach module an toan, co test hoi quy.
 
-### Core Logic (src)
+## Pha 1: Audit va chot baseline
 
-#### [MODIFY] [injection-payload.js](file:///Users/lehoangthang/Documents/antigravity-auto-click/src/injection-payload.js)
+- Kiem tra trang thai git hien tai.
+- Liet ke file tracked/untracked lien quan.
+- Chay test hien co:
+  - `npm test`
+  - regression theo tung sample trong `samples/` neu can.
+- Ghi nhan baseline:
+  - test pass/fail hien tai.
+  - daemon entry hien tai.
+  - log path hien tai.
+  - LaunchAgent/script path dang dung.
 
-1. **Cập nhật `CONFIG.dialogContainerSelectors`**:
-   - Thêm `.antigravity-agent-side-panel` vào đầu danh sách các container hợp lệ.
-   - Thêm `#antigravity.agentSidePanelInputBox` để quét sâu hơn vào vùng input.
+Ket qua mong muon:
 
-2. **Cải tiến `findButtonsIn`**:
-   - Trả về thông tin tọa độ (`getBoundingClientRect`) cho mỗi button.
-   - Gắn nhãn cho các button nằm trong thẻ `<footer>` để ưu tiên (vì dialog thường đặt button ở footer).
+- Co trang thai truoc khi sua.
+- Biet chac thay doi nao la cua minh.
 
-3. **Thêm Logic Lọc Tọa độ (Spatial Filtering)**:
-   - Một button được coi là "Agent Button" hợp lệ nếu:
-     - Nó nằm bên trong `.antigravity-agent-side-panel`.
-     - HOẶC (nếu quét fallback) nó nằm ở nửa phải màn hình (`rect.left > window.innerWidth / 2`) và nửa dưới màn hình (`rect.top > window.innerHeight / 2`).
+## Pha 2: Chuan hoa naming
 
-4. **Xử lý Chồng lấp (Overlap Handling)**:
-   - Trước khi click, sử dụng `document.elementFromPoint(x, y)` tại tâm của button.
-   - Nếu phần tử trả về không phải là chính button đó (hoặc con của nó), nghĩa là button đang bị che khuất bởi một dialog khác đè lên trên. Trong trường hợp này, ta sẽ bỏ qua button bị che và tìm button ở lớp trên cùng.
+- Chon ten canonical: `Antigravity Auto-Click`.
+- Cap nhat metadata:
+  - `package.json.name`: can nhac doi tu `antigravity-auto-retry` sang `antigravity-auto-click`.
+  - `package.json.displayName`: `Antigravity Auto-Click`.
+  - `package.json.description`: mo ta ca Auto-Retry va Auto-Accept.
+- Giu command id cu `antigravity-auto-retry.*` tam thoi neu extension/LaunchAgent dang phu thuoc.
+- Khong doi ten file `auto-retry.js` ngay o pha nay de tranh pha script.
 
-5. **Cập nhật `scanAndAction`**:
-   - Ưu tiên container `.antigravity-agent-side-panel` trước các container khác.
+Ket qua mong muon:
 
-## Verification Plan
+- Ten hien thi thong nhat.
+- Khong lam gay script dang goi path cu.
 
-### Automated Tests
-- Sử dụng `trigger-test.js` để tạo dialog giả lập.
-- Chạy `scripts/trigger-accept-test.js` để kiểm tra các dialog "Accept".
-- **Test mới**: Tạo 2 dialog giả lập chồng lên nhau để xác nhận script click đúng vào dialog ở trên cùng.
+## Pha 3: Sua extension manifest
 
-### Manual Verification
-- Mở Antigravity, kích hoạt chế độ Auto-Click.
-- Ép lỗi "High Traffic" hoặc "Agent Terminated" (thường xuất hiện ở bảng bên phải).
-- Quan sát xem script có target đúng vào nút trong Agent Window hay không.
+- Doi chieu command trong `package.json` voi command dang ky trong `src/extension/extension.js`.
+- Them command con thieu vao `contributes.commands`:
+  - `antigravity-auto-retry.restartIDE`
+  - `antigravity-auto-retry.editConfig`
+  - `antigravity-auto-retry.testRetry`
+  - `antigravity-auto-retry.testAccept`
+- Xu ly command dang lech:
+  - `antigravity-auto-retry.test` hien co trong manifest nhung code khong dang ky.
+  - Chon mot trong hai:
+    - them handler `test` goi menu test hoac `testRetry`;
+    - hoac xoa khoi manifest neu khong dung.
+- Kiem tra menu QuickPick van goi dung command.
+
+Ket qua mong muon:
+
+- Command Palette khong co command chet.
+- Extension UI va manifest dong bo.
+
+## Pha 4: Runtime state va logs
+
+- Chon lai vi tri state:
+  - de xuat: `logs/activity-log.json`.
+- Cap nhat code doc/ghi activity:
+  - tu root `activity-log.json`.
+  - sang `logs/activity-log.json`.
+- Dam bao tu tao `logs/` neu chua ton tai.
+- Cap nhat `scripts/menu.sh` neu dang doc root activity file.
+- Giu fallback doc file cu root trong mot thoi gian de khong mat thong ke cu:
+  - neu `logs/activity-log.json` chua co;
+  - neu root `activity-log.json` ton tai;
+  - migrate/copy noi dung sang path moi.
+- Cap nhat `.gitignore` neu can:
+  - `logs/`
+  - `activity-log.json` root van ignore de tuong thich.
+
+Ket qua mong muon:
+
+- Runtime output gom vao `logs/`.
+- Root project sach hon.
+
+## Pha 5: README va tai lieu
+
+- Cap nhat README:
+  - cau truc thu muc thuc te.
+  - log path dung.
+  - phan biet CLI / daemon / extension / LaunchAgent.
+  - sua cau "an toan tuyet doi" thanh mo ta thuc te hon, vi du "co lop bao ve blacklist/rate-limit".
+- Cap nhat `.agents/context/project-context.md`:
+  - bo sung Auto-Accept.
+  - bo sung `logs/activity-log.json`.
+  - cap nhat cau truc daemon/payload hien tai.
+- Neu co `tutorial.md`, kiem tra cac lenh:
+  - `npm start`
+  - `npm run menu`
+  - `npm run test`
+  - `scripts/install.sh`
+  - log path.
+
+Ket qua mong muon:
+
+- Tai lieu khop code.
+- Nguoi dung moi khong bi huong dan sai file log/path.
+
+## Pha 6: Refactor nhe daemon
+
+Chi lam sau khi cac pha tren pass test.
+
+Tach `src/core/auto-retry.js` thanh module nho:
+
+- `src/core/auto-retry.js`
+  - chi giu entry point.
+  - khoi tao daemon.
+- `src/core/daemon.js`
+  - class `AutoRetryDaemon`.
+  - main loop.
+  - target lifecycle.
+- `src/core/cdp-connection.js`
+  - class `CDPConnection`.
+  - connect/send/inject/reinject/disconnect.
+- `src/core/config-store.js`
+  - load config.
+  - watch config.
+  - default config.
+- `src/core/activity-store.js`
+  - load/save activity.
+  - migrate root activity file neu can.
+  - update counters.
+
+Nguyen tac:
+
+- Khong doi public behavior.
+- Khong doi payload.
+- Khong doi script command.
+- Sau moi file tach, chay test nhanh.
+
+Ket qua mong muon:
+
+- Daemon de doc hon.
+- Moi module co trach nhiem ro.
+
+## Pha 7: Config schema
+
+- Them `config.schema.json`.
+- Mo ta:
+  - `blacklist`
+  - `autoRetry`
+  - `autoAccept.enabled`
+  - `autoAccept.categories.terminal/review/system.enabled`
+  - `patterns`
+  - `customRetryPatterns`
+  - `customAcceptPatterns`
+- Cap nhat README hoac tutorial tro toi schema.
+- Khong bat buoc validate runtime ngay o pha dau.
+- Neu them validate runtime:
+  - chi warning;
+  - khong crash daemon.
+
+Ket qua mong muon:
+
+- Nguoi dung sua config it sai hon.
+- Developer hieu shape config ro hon.
+
+## Pha 8: Payload maintainability
+
+Day la pha rui ro cao hon, nen lam sau.
+
+- Khong can tach payload string ngay neu chua co bundler.
+- Truoc mat chi sap xep lai trong `src/payload/injection-payload.js`:
+  - default config block.
+  - pattern conversion.
+  - container detection.
+  - command extraction.
+  - accept/retry decision.
+  - click execution.
+  - cleanup/versioning.
+- Dam bao regression samples van pass.
+- Neu muon di xa hon:
+  - tach source payload thanh file browser-native rieng.
+  - build thanh injectable string.
+  - nhung buoc nay chua nen lam ngay neu project van nho.
+
+Ket qua mong muon:
+
+- Payload de review hon.
+- Khong pha co che inject hien tai.
+
+## Pha 9: Verification
+
+Sau tung pha chinh:
+
+- `npm test`
+- kiem tra `npm run menu` khong loi syntax.
+- kiem tra scripts shell con dung path.
+- neu Antigravity dang chay debug:
+  - chay status.
+  - thu trigger Auto-Retry.
+  - thu trigger Auto-Accept.
+- kiem tra log/activity duoc ghi vao path moi.
+
+Ket qua cuoi:
+
+- Test regression pass.
+- CLI menu doc dung activity count.
+- Extension command khong lech manifest.
+- README khop cau truc thuc te.
+
+## Thu tu implement de xuat
+
+1. Pha 1: Audit baseline.
+2. Pha 3: Sua extension manifest.
+3. Pha 4: Chuyen activity log vao `logs/`.
+4. Pha 2: Chuan hoa naming metadata.
+5. Pha 5: Cap nhat README/context/tutorial.
+6. Pha 6: Refactor daemon nhe.
+7. Pha 7: Them config schema.
+8. Pha 8: Don payload.
+9. Pha 9: Verification cuoi.
+
+## Rui ro chinh
+
+- LaunchAgent co the hardcode path cu.
+- Extension command id doi qua manh co the lam mat command binding.
+- Activity log chuyen path co the lam mat count neu khong migrate.
+- Refactor daemon de gay loi lifecycle WebSocket neu lam qua rong.
+- Payload refactor de lam regression dialog detection.
+
+## Nguyen tac chot
+
+- Khong doi command id/runtime path quan trong trong cung luc.
+- Moi pha co test rieng.
+- README cap nhat sau khi code thuc te da on.
+- Refactor daemon truoc payload.
+- Payload chi dong vao sau khi regression du chac.

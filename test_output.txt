@@ -1,0 +1,87 @@
+
+> antigravity-auto-click@1.0.0 test
+> node scripts/tests/regression.js
+
+[36m======================================================[0m
+[36m🧪 BẮT ĐẦU KIỂM TRA HỒI QUY (REGRESSION TEST)[0m
+[36m======================================================[0m
+
+📄 Đang kiểm tra: [34mfull_dom_antigravity_auto_click___Accept_all_1778440227855.html[0m
+Could not parse CSS stylesheet
+Could not parse CSS stylesheet
+Could not parse CSS stylesheet
+Could not parse CSS stylesheet
+Could not parse CSS stylesheet
+Could not parse CSS stylesheet
+[AutoRetry] v32 active. Retry: ON, Accept: ON
+[AutoRetry] Analyzing current DOM for dialogs...
+   ⚠️ [33mWARN[0m: Không xác định được nút bấm quan trọng. (Found: undo, undo, undo, Worked for 29s, content_copy, thumb_up, thumb_down, undo, Worked for 22s, Proceed, Open, content_copy, thumb_up, thumb_down, Gemini 3 Flash, Gemini 3 Flash, Sendmic, Gemini 3.1 Pro (High)New, Gemini 3.1 Pro (Low)New, Gemini 3 Flash, Claude Sonnet 4.6 (Thinking), Claude Opus 4.6 (Thinking), GPT-OSS 120B (Medium), Submit, Gemini 3.1 Pro (High)New, Gemini 3.1 Pro (Low)New, Gemini 3 Flash, Claude Sonnet 4.6 (Thinking), Claude Opus 4.6 (Thinking), GPT-OSS 120B (Medium), antigravity-auto-click, Outline, Timeline, Submit, Reviewkeyboard_arrow_down, Problems, Output, Terminal, bash, Terminal, Agent, main*, Launchpad, 0  0, Antigravity - Settings, G3PL: 20%   Gemini 3 Flash: 20%, Auto-Click (R/A), undo, Worked for 29s, content_copy, thumb_up, thumb_down, undo, Worked for 22s, Proceed, Open, content_copy, thumb_up, thumb_down, Gemini 3 Flash, Gemini 3 Flash, Sendmic, Gemini 3.1 Pro (High)New, Gemini 3.1 Pro (Low)New, Gemini 3 Flash, Claude Sonnet 4.6 (Thinking), Claude Opus 4.6 (Thinking), GPT-OSS 120B (Medium), OK)
+
+📄 Đang kiểm tra: [34mfull_dom_antigravity_auto_click___Proceed(whenReview)_1778457728527.html[0m
+Could not parse CSS stylesheet
+Could not parse CSS stylesheet
+Could not parse CSS stylesheet
+Could not parse CSS stylesheet
+Could not parse CSS stylesheet
+Could not parse CSS stylesheet
+[AutoRetry] v32 active. Retry: ON, Accept: ON
+[AutoRetry] Analyzing current DOM for dialogs...
+   ⚠️ [33mWARN[0m: Không xác định được nút bấm quan trọng. (Found: undo, undo, Worked for 32s, Proceed, Open, content_copy, thumb_up, thumb_down, Gemini 3 Flash, Gemini 3 Flash, Sendmic, Gemini 3.1 Pro (High)New, Gemini 3.1 Pro (Low)New, Gemini 3 Flash, Claude Sonnet 4.6 (Thinking), Claude Opus 4.6 (Thinking), GPT-OSS 120B (Medium), Submit, Gemini 3.1 Pro (High)New, Gemini 3.1 Pro (Low)New, Gemini 3 Flash, Claude Sonnet 4.6 (Thinking), Claude Opus 4.6 (Thinking), GPT-OSS 120B (Medium), antigravity-auto-click, Outline, Timeline, Submit, Reviewkeyboard_arrow_down, Problems, Terminal, bash, Terminal, Agent, main*, Launchpad, 0  0, -- NORMAL --, Antigravity - Settings, G3PL: 20%   Gemini 3 Flash: 100%, Auto-Click, undo, Worked for 32s, Proceed, Open, content_copy, thumb_up, thumb_down, Gemini 3 Flash, Gemini 3 Flash, Sendmic, Gemini 3.1 Pro (High)New, Gemini 3.1 Pro (Low)New, Gemini 3 Flash, Claude Sonnet 4.6 (Thinking), Claude Opus 4.6 (Thinking), GPT-OSS 120B (Medium))
+
+📄 Đang kiểm tra: [34mfull_dom_antigravity_auto_click___retry(Agent-terminal-due-to-error)_1778481788872.html[0m
+Could not parse CSS stylesheet
+Could not parse CSS stylesheet
+Could not parse CSS stylesheet
+Could not parse CSS stylesheet
+Could not parse CSS stylesheet
+Could not parse CSS stylesheet
+[AutoRetry] v32 active. Retry: ON, Accept: ON
+[AutoRetry] Analyzing current DOM for dialogs...
+   ✅ [32mPASS[0m: Tìm thấy nút [1m"Retry"[0m (Retry)
+      [90mDialog Content: "Agent terminated due to errorYou can prompt the model to try again or start a new conversation if the error persists. See our troubleshooting guide for more hel..."[0m
+
+📄 Đang kiểm tra: [34mfull_dom_antigravity_auto_click___retry(high_traffic)_1778433360183.html[0m
+Could not parse CSS stylesheet
+Could not parse CSS stylesheet
+Could not parse CSS stylesheet
+Could not parse CSS stylesheet
+Could not parse CSS stylesheet
+Could not parse CSS stylesheet
+[AutoRetry] v32 active. Retry: ON, Accept: ON
+[AutoRetry] Analyzing current DOM for dialogs...
+   ✅ [32mPASS[0m: Tìm thấy nút [1m"Retry"[0m (Retry)
+      [90mDialog Content: "Agent terminated due to errorYou can prompt the model to try again or start a new conversation if the error persists. See our troubleshooting guide for more hel..."[0m
+
+📄 Đang kiểm tra: [34mfull_dom_antigravity_auto_click___run(run normal command in terminal))_1778457969594.html[0m
+Could not parse CSS stylesheet
+Could not parse CSS stylesheet
+Could not parse CSS stylesheet
+Could not parse CSS stylesheet
+Could not parse CSS stylesheet
+Could not parse CSS stylesheet
+[AutoRetry] v32 active. Retry: ON, Accept: ON
+[AutoRetry] Analyzing current DOM for dialogs...
+   ✅ [32mPASS[0m: Tìm thấy nút [1m"Run⌥Enter"[0m (Accept)
+      [90mDialog Content: "CustomizationMCP ServersExportSelecting Offline Regression SamplesTrong chức năng test Chạy REgression Test mẫu Offline, giờ tao có nhiều mẫu offline trong samp..."[0m
+
+📄 Đang kiểm tra: [34mfull_dom_antigravity_auto_click___run(when_black_list_with_rm_command)_1778458672661.html[0m
+Could not parse CSS stylesheet
+Could not parse CSS stylesheet
+Could not parse CSS stylesheet
+Could not parse CSS stylesheet
+Could not parse CSS stylesheet
+Could not parse CSS stylesheet
+[AutoRetry] v32 active. Retry: ON, Accept: ON
+[AutoRetry] Analyzing current DOM for dialogs...
+   ✅ [32mPASS[0m: Tìm thấy nút [1m"Run⌥Enter"[0m (Accept)
+      [90mDialog Content: "CustomizationMCP ServersExportRefining Regression Sample Selection- Nếu thấy 1 hay nhiều thì cứ hiển thị ra cho chọn để thống nhất - Nếu ko thấy mẫu nào thì tìm..."[0m
+
+📄 Đang kiểm tra: [34msample_002_accept.html[0m
+[AutoRetry] v32 active. Retry: ON, Accept: ON
+[AutoRetry] Analyzing current DOM for dialogs...
+   ✅ [32mPASS[0m: Tìm thấy nút [1m"Run⌥Enter"[0m (Accept)
+      [90mDialog Content: "CustomizationMCP ServersExportRefining Regression Sample Selection- Nếu thấy 1 hay nhiều thì cứ hiển thị ra cho chọn để thống nhất - Nếu ko thấy mẫu nào thì tìm..."[0m
+
+[36m======================================================[0m
+🏁 KẾT QUẢ: [1m5/7[0m trường hợp vượt qua.
+[36m======================================================[0m

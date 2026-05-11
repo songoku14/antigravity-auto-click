@@ -38,7 +38,7 @@ cat > "$PLIST_DST" << EOF
     <key>ProgramArguments</key>
     <array>
         <string>$NODE_PATH</string>
-        <string>$SCRIPT_DIR/src/auto-retry.js</string>
+        <string>$SCRIPT_DIR/src/core/auto-retry.js</string>
     </array>
     <key>RunAtLoad</key>
     <true/>

@@ -8,8 +8,8 @@ const WebSocket = require('ws');
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
-const { findCDPPort, getTargets, filterPageTargets } = require('../src/discovery');
-const { getInjectionScript } = require('../src/injection-payload');
+const { findCDPPort, getTargets, filterPageTargets } = require('../../src/core/discovery');
+const { getInjectionScript } = require('../../src/payload/injection-payload');
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -105,7 +105,7 @@ async function analyzeDialog() {
 }
 
 async function applyConfig(pattern, category) {
-  const configPath = path.join(__dirname, '..', 'config.json');
+  const configPath = path.join(__dirname, '..', '..', 'config.json');
   let config = { blacklist: [], autoAccept: true, autoRetry: true };
 
   if (fs.existsSync(configPath)) {
@@ -231,7 +231,7 @@ async function getNextSampleId(samplesDir) {
 }
 
 async function saveSample(targetTitle, container, expectedBtn, category) {
-  const samplesDir = path.join(__dirname, '..', 'samples');
+  const samplesDir = path.join(__dirname, '..', '..', 'samples');
   if (!fs.existsSync(samplesDir)) {
     fs.mkdirSync(samplesDir);
   }

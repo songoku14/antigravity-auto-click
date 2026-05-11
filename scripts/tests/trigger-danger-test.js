@@ -3,7 +3,7 @@
  */
 
 const WebSocket = require('ws');
-const { findCDPPort, getTargets, filterPageTargets } = require('../src/discovery');
+const { findCDPPort, getTargets, filterPageTargets } = require('../../src/core/discovery');
 
 async function triggerDangerTest() {
   console.log('🔍 Locating Antigravity CDP port...');

@@ -70,7 +70,7 @@ function updateStatusBar(running) {
 }
 
 function readConfig() {
-    const configPath = path.join(__dirname, '..', 'config.json');
+    const configPath = path.join(__dirname, '..', '..', 'config.json');
     if (fs.existsSync(configPath)) {
         return JSON.parse(fs.readFileSync(configPath, 'utf8'));
     }
@@ -78,7 +78,7 @@ function readConfig() {
 }
 
 function writeConfig(config) {
-    const configPath = path.join(__dirname, '..', 'config.json');
+    const configPath = path.join(__dirname, '..', '..', 'config.json');
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
 }
 
@@ -225,7 +225,7 @@ function startDaemon() {
         return;
     }
 
-    const scriptPath = path.join(__dirname, 'auto-retry.js');
+    const scriptPath = path.join(__dirname, '..', 'core', 'auto-retry.js');
     outputChannel.appendLine(`[Extension] Starting: node ${scriptPath}`);
 
     daemonProcess = cp.spawn('node', [scriptPath], {
@@ -263,7 +263,7 @@ function stopDaemon() {
 }
 
 function testRetry() {
-    const scriptPath = path.join(__dirname, '..', 'scripts', 'trigger-test.js');
+    const scriptPath = path.join(__dirname, '..', '..', 'scripts', 'tests', 'trigger-test.js');
     cp.exec(`node "${scriptPath}"`, (error, stdout, stderr) => {
         if (error) {
             vscode.window.showErrorMessage(`Test Retry failed: ${error.message}`);
@@ -274,7 +274,7 @@ function testRetry() {
 }
 
 function testAccept() {
-    const scriptPath = path.join(__dirname, '..', 'scripts', 'trigger-accept-test.js');
+    const scriptPath = path.join(__dirname, '..', '..', 'scripts', 'tests', 'trigger-accept-test.js');
     cp.exec(`node "${scriptPath}"`, (error, stdout, stderr) => {
         if (error) {
             vscode.window.showErrorMessage(`Test Accept failed: ${error.message}`);
@@ -297,7 +297,7 @@ function restartIDE() {
 }
 
 async function editConfig() {
-    const configPath = path.join(__dirname, '..', 'config.json');
+    const configPath = path.join(__dirname, '..', '..', 'config.json');
     const uri = vscode.Uri.file(configPath);
     try {
         await vscode.window.showTextDocument(uri);

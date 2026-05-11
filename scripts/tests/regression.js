@@ -9,7 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const { JSDOM } = require('jsdom');
 const readline = require('readline');
-const { getInjectionScript } = require('../src/injection-payload');
+const { getInjectionScript } = require('../../src/payload/injection-payload');
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -18,7 +18,7 @@ const rl = readline.createInterface({
 
 const question = (query) => new Promise((resolve) => rl.question(query, resolve));
 
-const SAMPLES_DIR = path.join(__dirname, '..', 'samples');
+const SAMPLES_DIR = path.join(__dirname, '..', '..', 'samples');
 
 async function runRegressionTests() {
   const pattern = process.argv[2];
@@ -198,6 +198,28 @@ async function verifySample(htmlPath, metadata) {
   window.requestAnimationFrame = (cb) => setTimeout(cb, 0);
   window.cancelAnimationFrame = (id) => clearTimeout(id);
   
+  // Mock getBoundingClientRect and elementFromPoint to support visibility checks
+  const rectMap = new Map();
+  let nextCoord = 10;
+  window.Element.prototype.getBoundingClientRect = function() {
+    const coord = nextCoord++;
+    const rect = {
+      width: 100, height: 40, 
+      top: coord, left: coord, 
+      bottom: coord + 40, right: coord + 100,
+      x: coord, y: coord
+    };
+    // Map the center point to this element
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    rectMap.set(`${centerX},${centerY}`, this);
+    return rect;
+  };
+
+  window.document.elementFromPoint = function(x, y) {
+    return rectMap.get(`${x},${y}`) || window.document.body;
+  };
+  
   // Suppress jsdom navigation errors or external resource errors
   dom.virtualConsole.on('error', () => {});
   dom.virtualConsole.on('jsdomError', () => {});
@@ -207,7 +229,14 @@ async function verifySample(htmlPath, metadata) {
     const scriptText = getInjectionScript();
     
     // Run it directly in the window context
-    window.eval(scriptText);
+    try {
+      window.eval(scriptText);
+    } catch (e) {
+      console.error('   ❌ ERROR at eval: ', e.message);
+      fs.writeFileSync(path.join(__dirname, '..', '..', 'scratch', 'failing-script.js'), scriptText);
+      console.log('      Script saved to scratch/failing-script.js for inspection.');
+      throw e;
+    }
 
     // 2. Give it a moment to initialize and scan
     await new Promise(resolve => setTimeout(resolve, 800));
@@ -248,7 +277,7 @@ async function verifySample(htmlPath, metadata) {
           }
         } else {
           // Heuristic check
-          if (/retry|thử lại/i.test(btnText) || /accept|run|execute|allow|approve|yes/i.test(btnText)) {
+          if (/retry|thử lại/i.test(btnText) || /accept|run|execute|allow|approve|yes|proceed|ok|confirm|continue/i.test(btnText)) {
             matchedButton = btn;
             matchedContainer = container;
             break;

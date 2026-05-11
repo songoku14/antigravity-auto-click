@@ -7,7 +7,7 @@
 const WebSocket = require('ws');
 const fs = require('fs');
 const path = require('path');
-const { findCDPPort, getTargets, filterPageTargets } = require('../src/discovery');
+const { findCDPPort, getTargets, filterPageTargets } = require('../../src/core/discovery');
 
 async function dumpDom() {
   const port = findCDPPort();

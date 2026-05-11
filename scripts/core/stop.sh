@@ -14,4 +14,4 @@ else
 fi
 
 # Also kill any running instances
-pkill -f "auto-retry.js" 2>/dev/null && echo "✅ Process killed." || echo "ℹ️  No running process found."
+pkill -f "src/core/auto-retry.js" 2>/dev/null && echo "✅ Process killed." || echo "ℹ️  No running process found."

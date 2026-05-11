@@ -1,10 +1,10 @@
 {
-  "name": "antigravity-auto-retry",
+  "name": "antigravity-auto-click",
   "version": "1.0.0",
-  "description": "Auto-click Retry button when High Traffic error appears in Antigravity",
-  "main": "src/extension.js",
+  "description": "Auto-click Retry and Accept buttons in Antigravity (Auto-Retry & Auto-Accept)",
+  "main": "src/extension/extension.js",
   "publisher": "antigravity",
-  "displayName": "Antigravity Auto-Retry",
+  "displayName": "Antigravity Auto-Click",
   "categories": [
     "Other"
   ],
@@ -15,28 +15,42 @@
     "commands": [
       {
         "command": "antigravity-auto-retry.showMenu",
-        "title": "Antigravity: Show Auto-Retry Menu"
+        "title": "Antigravity: Show Menu"
       },
       {
         "command": "antigravity-auto-retry.start",
-        "title": "Antigravity: Start Auto-Retry"
+        "title": "Antigravity: Start Auto-Click"
       },
       {
         "command": "antigravity-auto-retry.stop",
-        "title": "Antigravity: Stop Auto-Retry"
+        "title": "Antigravity: Stop Auto-Click"
       },
       {
-        "command": "antigravity-auto-retry.test",
-        "title": "Antigravity: Run Auto-Retry Test"
+        "command": "antigravity-auto-retry.restartIDE",
+        "title": "Antigravity: Restart IDE (Debug Mode)"
+      },
+      {
+        "command": "antigravity-auto-retry.editConfig",
+        "title": "Antigravity: Edit Config"
+      },
+      {
+        "command": "antigravity-auto-retry.testRetry",
+        "title": "Antigravity: Test Auto-Retry"
+      },
+      {
+        "command": "antigravity-auto-retry.testAccept",
+        "title": "Antigravity: Test Auto-Accept"
       }
     ]
   },
   "scripts": {
-    "start": "node src/auto-retry.js",
-    "start:debug": "DEBUG=1 node src/auto-retry.js",
-    "stop": "bash scripts/stop.sh",
+    "start": "node src/core/auto-retry.js",
+    "start:debug": "DEBUG=1 node src/core/auto-retry.js",
+    "stop": "bash scripts/core/stop.sh",
     "install-agent": "bash scripts/install.sh",
-    "uninstall-agent": "bash scripts/uninstall.sh"
+    "uninstall-agent": "bash scripts/uninstall.sh",
+    "menu": "bash scripts/menu.sh",
+    "test": "node scripts/tests/regression.js"
   },
   "dependencies": {
     "jsdom": "^29.1.1",
