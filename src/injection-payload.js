@@ -5,7 +5,7 @@
  * It uses MutationObserver to watch for error dialogs and auto-click Retry/Accept.
  */
 
-const INJECTION_VERSION = 28;
+const INJECTION_VERSION = 31;
 
 /**
  * Trả về string JavaScript sẽ được inject vào DOM qua CDP Runtime.evaluate
@@ -15,7 +15,7 @@ function getInjectionScript(userConfig = {}) {
 
   return `
 (function() {
-  const SCRIPT_VERSION = 28;
+  const SCRIPT_VERSION = 31;
   const USER_CONFIG = ${configJson};
   
   // Kill old versions
@@ -48,6 +48,8 @@ function getInjectionScript(userConfig = {}) {
       '.test-dialog',
       '.test-accept-dialog',
       '.bg-agent-convo-background',
+      '.antigravity-agent-side-panel',
+      '#antigravity\\.agentSidePanelInputBox',
       '[role="dialog"]',
       '[role="alertdialog"]'
     ],
@@ -290,23 +292,38 @@ function getInjectionScript(userConfig = {}) {
       if (isClickable) {
         const text = (el.textContent || '').trim();
         if (text.length > 0 && text.length <= 50) {
-          if (patterns) {
-            for (const pattern of patterns) {
-              if (pattern.test(text)) {
-                if (typeLabel) log('Found matching ' + typeLabel + ' button: "' + text + '"');
-                buttons.push({ el, text });
+          const rect = el.getBoundingClientRect();
+          if (rect.width > 2 && rect.height > 2) {
+            // Check if inside a footer
+            let inFooter = false;
+            let parent = el.parentElement;
+            for (let i = 0; i < 5 && parent; i++) {
+              if (parent.tagName.toLowerCase() === 'footer' || parent.classList.contains('footer')) {
+                inFooter = true;
                 break;
               }
+              parent = parent.parentElement;
             }
-          } else {
-            // No patterns provided, just collecting all buttons (for analysis)
-            buttons.push({
-              el,
-              text,
-              tagName: tag,
-              className: el.className,
-              id: el.id
-            });
+
+            if (patterns) {
+              for (const pattern of patterns) {
+                if (pattern.test(text)) {
+                  if (typeLabel) log('Found matching ' + typeLabel + ' button: "' + text + '"' + (inFooter ? ' [footer]' : ''));
+                  buttons.push({ el, text, rect, inFooter });
+                  break;
+                }
+              }
+            } else {
+              buttons.push({
+                el,
+                text,
+                rect,
+                inFooter,
+                tagName: tag,
+                className: el.className,
+                id: el.id
+              });
+            }
           }
         }
       }
@@ -317,6 +334,30 @@ function getInjectionScript(userConfig = {}) {
       }
     }
     return buttons;
+  }
+
+  function isVisibleAtPoint(el, rect) {
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    
+    if (x < 0 || y < 0 || x > window.innerWidth || y > window.innerHeight) return false;
+
+    let topEl = document.elementFromPoint(x, y);
+    if (!topEl) return false;
+
+    while (topEl && topEl.shadowRoot) {
+      const shadowTopEl = topEl.shadowRoot.elementFromPoint(x, y);
+      if (!shadowTopEl || shadowTopEl === topEl) break;
+      topEl = shadowTopEl;
+    }
+    
+    let curr = topEl;
+    while (curr) {
+      if (curr === el) return true;
+      curr = curr.parentElement || (curr.getRootNode && curr.getRootNode().host);
+      if (curr === document.body || curr === document.documentElement) break;
+    }
+    return false;
   }
 
   function getSurroundingText(el) {
@@ -351,20 +392,41 @@ function getInjectionScript(userConfig = {}) {
 
     for (const container of containers) {
       const containerText = (container.textContent || '').substring(0, 2000);
+      const isAgentWindow = container.closest && container.closest('.antigravity-agent-side-panel');
       
       // Case 1: Error/Retry
       if (USER_CONFIG.autoRetry !== false) {
         const errorMatched = CONFIG.errorPatterns.some(p => p.test(containerText));
         if (errorMatched) {
           const btns = findButtonsIn(container, CONFIG.retryButtonPatterns, 'RETRY');
+          
+          // Sort buttons: prioritize footer, then lower on screen (larger Y)
+          btns.sort((a, b) => {
+            if (a.inFooter !== b.inFooter) return b.inFooter ? 1 : -1;
+            return b.rect.top - a.rect.top;
+          });
+
           for (const btnObj of btns) {
-            // If in fallback mode (body), we MUST verify context
+            // Spatial filtering if not in agent window
+            if (!isAgentWindow) {
+              const isRightSide = btnObj.rect.left > window.innerWidth / 2;
+              const isBottomSide = btnObj.rect.top > window.innerHeight / 2;
+              if (!isRightSide || !isBottomSide) continue;
+            }
+
+            // Context verification (required for fallback, recommended for others)
             if (useFallback) {
               const contextText = getSurroundingText(btnObj.el);
               const contextMatched = CONFIG.retryContextPatterns.some(p => p.test(contextText));
               if (!contextMatched) continue;
             }
             
+            // Overlap check
+            if (!isVisibleAtPoint(btnObj.el, btnObj.rect)) {
+              log('Skipping overlapping retry button: "' + btnObj.text + '"');
+              continue;
+            }
+
             log('[STAT] RETRY_DETECTED');
             performClick(btnObj.el, btnObj.text, '🔄 RETRY');
             return;
@@ -377,7 +439,6 @@ function getInjectionScript(userConfig = {}) {
       const isAutoAcceptEnabled = autoAcceptConfig === true || (autoAcceptConfig && autoAcceptConfig.enabled !== false);
       
       if (isAutoAcceptEnabled) {
-        // Iterate through categories
         const categories = (autoAcceptConfig && typeof autoAcceptConfig === 'object' && autoAcceptConfig.categories) 
                            ? autoAcceptConfig.categories 
                            : { terminal: { enabled: true }, review: { enabled: true }, system: { enabled: true } };
@@ -386,24 +447,40 @@ function getInjectionScript(userConfig = {}) {
           if (catConfig.enabled === false) continue;
 
           const catPatterns = CONFIG.actionCategories[catName] || [];
-          
-          // Check if this category matches the container/context
           let categoryMatched = catPatterns.some(p => p.test(containerText));
           
-          // Find buttons in this container
           const btns = findButtonsIn(container, CONFIG.actionButtonPatterns, 'ACTION (' + catName.toUpperCase() + ')');
           
+          // Sort buttons: prioritize footer, then lower on screen
+          btns.sort((a, b) => {
+            if (a.inFooter !== b.inFooter) return b.inFooter ? 1 : -1;
+            return b.rect.top - a.rect.top;
+          });
+
           for (const btnObj of btns) {
             const btn = btnObj.el;
             const btnText = btnObj.text;
 
-            // Verify context for the specific category if not already matched by container
-            if (!categoryMatched) {
-              const contextText = getSurroundingText(btn);
-              categoryMatched = catPatterns.some(p => p.test(contextText));
+            // Spatial filtering
+            if (!isAgentWindow) {
+              const isRightSide = btnObj.rect.left > window.innerWidth / 2;
+              const isBottomSide = btnObj.rect.top > window.innerHeight / 2;
+              if (!isRightSide || !isBottomSide) continue;
             }
 
-            if (!categoryMatched) continue;
+            let currentCategoryMatched = categoryMatched;
+            if (!currentCategoryMatched) {
+              const contextText = getSurroundingText(btn);
+              currentCategoryMatched = catPatterns.some(p => p.test(contextText));
+            }
+
+            if (!currentCategoryMatched) continue;
+
+            // Overlap check
+            if (!isVisibleAtPoint(btn, btnObj.rect)) {
+              log('Skipping overlapping action button: "' + btnText + '"');
+              continue;
+            }
 
             log('[STAT] ACCEPT_DETECTED (' + catName + ')');
 
@@ -422,7 +499,7 @@ function getInjectionScript(userConfig = {}) {
             }
 
             performClick(btn, btnText, '⚡ ACTION (' + catName.toUpperCase() + ')');
-            return; // Only one action per scan
+            return;
           }
         }
       }
@@ -479,7 +556,8 @@ function getInjectionScript(userConfig = {}) {
     const container = document.createElement('div');
     container.className = 'monaco-dialog-box test-dialog';
     container.setAttribute('role', 'alertdialog');
-    container.style.cssText = 'position:fixed;top:40%;left:50%;transform:translateX(-50%);background:#252526;color:#ccc;padding:20px;border:1px solid #3794ff;z-index:99999;box-shadow:0 5px 25px rgba(0,0,0,0.8);border-radius:6px;width:400px;font-family:sans-serif;';
+    // Positioned in bottom-right quadrant to pass spatial filtering
+    container.style.cssText = 'position:fixed;top:60%;left:70%;transform:translateX(-50%);background:#252526;color:#ccc;padding:20px;border:1px solid #3794ff;z-index:99999;box-shadow:0 5px 25px rgba(0,0,0,0.8);border-radius:6px;width:400px;font-family:sans-serif;';
     
     const title = document.createElement('div');
     title.style.cssText = 'margin-bottom:10px;font-weight:bold;color:#3794ff;';
@@ -489,11 +567,12 @@ function getInjectionScript(userConfig = {}) {
     body.style.cssText = 'margin-bottom:15px;font-size:13px;';
     body.textContent = 'This is a simulated high traffic dialog to test the Auto-Retry feature.';
     
-    const btnContainer = document.createElement('div');
-    btnContainer.style.cssText = 'display:flex;justify-content:flex-end;';
+    const footer = document.createElement('footer');
+    footer.className = 'flex justify-between items-center gap-2 pt-4';
+    footer.style.cssText = 'display:flex;justify-content:flex-end;';
     
     const btn = document.createElement('button');
-    btn.className = 'monaco-button';
+    btn.className = 'monaco-button bg-ide-button-background';
     btn.textContent = 'Retry';
     btn.style.cssText = 'background:#0e639c;color:white;border:none;padding:4px 12px;cursor:pointer;border-radius:2px;';
     
@@ -502,10 +581,10 @@ function getInjectionScript(userConfig = {}) {
       log('Test dialog removed via click.');
     };
 
-    btnContainer.appendChild(btn);
+    footer.appendChild(btn);
     container.appendChild(title);
     container.appendChild(body);
-    container.appendChild(btnContainer);
+    container.appendChild(footer);
     document.body.appendChild(container);
     
     setTimeout(() => {
@@ -532,7 +611,7 @@ function getInjectionScript(userConfig = {}) {
       results.push({
         isBody: container === document.body,
         text: (container.textContent || '').substring(0, 1000).trim(),
-        html: container.outerHTML.substring(0, 5000),
+        html: container.outerHTML,
         buttons: buttons.map(b => ({
           text: b.text,
           tagName: b.tagName,

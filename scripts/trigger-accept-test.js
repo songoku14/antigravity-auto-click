@@ -70,7 +70,7 @@ function sendTestCommand(target) {
           
           const container = document.createElement('div');
           container.className = 'monaco-workbench monaco-dialog-box test-accept-dialog';
-          container.style.cssText = 'position:fixed;top:30%;left:50%;transform:translateX(-50%);background:#252526;color:#ccc;padding:25px;border:1px solid #3794ff;z-index:999999;box-shadow:0 10px 40px rgba(0,0,0,0.9);border-radius:8px;width:480px;font-family:sans-serif;border-left: 5px solid #3794ff;';
+          container.style.cssText = 'position:fixed;top:60%;left:70%;transform:translateX(-50%);background:#252526;color:#ccc;padding:25px;border:1px solid #3794ff;z-index:999999;box-shadow:0 10px 40px rgba(0,0,0,0.9);border-radius:8px;width:480px;font-family:sans-serif;border-left: 5px solid #3794ff;';
           
           const title = document.createElement('div');
           title.style.cssText = 'margin-bottom:15px;font-weight:bold;color:#3794ff;font-size:16px;';
