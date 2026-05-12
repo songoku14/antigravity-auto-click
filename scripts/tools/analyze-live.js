@@ -83,10 +83,20 @@ function runAnalysis(target) {
            return;
         }
         
-        console.log(`   🔍 Phân tích DOM trực tiếp:`);
+        console.log(`   🔍 Phân tích DOM trực tiếp (cùng pipeline với daemon):`);
+        console.log(`      - Payload version: ${analysis.scriptVersion || 'unknown'}`);
         console.log(`      - Tìm thấy Agent Panel: ${analysis.foundAgentPanel ? '✅ CÓ' : '❌ KHÔNG'}`);
         console.log(`      - Số lượng Actionable Cards: \x1b[1m${analysis.containerCount}\x1b[0m`);
         console.log(`      - Tổng số nút bấm phát hiện: \x1b[1m${analysis.totalButtons || 0}\x1b[0m`);
+        if (analysis.clickGate) {
+          const gateStatus = analysis.clickGate.ok ? '✅ PASS' : `❌ BLOCKED (${analysis.clickGate.reason})`;
+          console.log(`      - Click gate: ${gateStatus}`);
+        }
+        if (analysis.wouldClick && analysis.action) {
+          console.log(`      - Kết luận daemon: \x1b[32mSẼ CLICK\x1b[0m ${analysis.action.kind.toUpperCase()} "${analysis.action.text}"`);
+        } else {
+          console.log(`      - Kết luận daemon: \x1b[31mKHÔNG CLICK\x1b[0m`);
+        }
         
         analysis.containers.forEach((c, idx) => {
           const location = c.isAgentWindow ? ' [Agent Panel]' : ' [Main Window]';
@@ -94,13 +104,19 @@ function runAnalysis(target) {
           
           if (c.buttons.retry && c.buttons.retry.length > 0) {
             c.buttons.retry.forEach(b => {
-              console.log(`         🔄 Btn: \x1b[32m${b.text}\x1b[0m | Cạnh đó: \x1b[2m${b.context || 'N/A'}\x1b[0m`);
+              const decision = b.decision === 'wouldClick' ? '\x1b[32mWOULD_CLICK\x1b[0m' : `\x1b[31mSKIP\x1b[0m ${b.reason || ''}`;
+              const rect = b.rect ? `x=${b.rect.left},y=${b.rect.top},w=${b.rect.width},h=${b.rect.height}` : 'rect=N/A';
+              const visibility = b.visibility ? `${b.visibility.ok ? 'visible' : 'hidden'}:${b.visibility.reason}` : 'visibility=N/A';
+              console.log(`         🔄 Btn: \x1b[32m${b.text}\x1b[0m | ${decision} | ${rect} | ${visibility} | Cạnh đó: \x1b[2m${b.context || 'N/A'}\x1b[0m`);
             });
           }
           
           if (c.buttons.accept && c.buttons.accept.length > 0) {
             c.buttons.accept.forEach(b => {
-              console.log(`         ⚡ Btn: \x1b[36m${b.text}\x1b[0m | Cạnh đó: \x1b[2m${b.context || 'N/A'}\x1b[0m`);
+              const decision = b.decision === 'wouldClick' ? '\x1b[32mWOULD_CLICK\x1b[0m' : `\x1b[31mSKIP\x1b[0m ${b.reason || ''}`;
+              const rect = b.rect ? `x=${b.rect.left},y=${b.rect.top},w=${b.rect.width},h=${b.rect.height}` : 'rect=N/A';
+              const visibility = b.visibility ? `${b.visibility.ok ? 'visible' : 'hidden'}:${b.visibility.reason}` : 'visibility=N/A';
+              console.log(`         ⚡ Btn: \x1b[36m${b.text}\x1b[0m | ${decision} | ${rect} | ${visibility} | Cạnh đó: \x1b[2m${b.context || 'N/A'}\x1b[0m`);
             });
           }
 

@@ -117,18 +117,19 @@ async function verifySample(htmlPath, metadata) {
   };
   
   try {
-    // Run injection script with testMode
-    const scriptText = getInjectionScript({ testMode: true });
+    // Run injection script with explicit feature flags. Analyze immediately so
+    // the dry-run observes the same DOM before the scheduled auto-scan clicks.
+    const scriptText = getInjectionScript({ testMode: true, autoRetry: true, autoAccept: true });
     window.eval(scriptText);
-    
-    // Give it a moment to initialize and scan
-    await new Promise(resolve => setTimeout(resolve, 1000));
 
     if (typeof window.__analyzeDialog !== 'function') {
       return { success: false };
     }
 
     const analysis = window.__analyzeDialog();
+
+    // Give the real daemon-equivalent scan a moment to execute for click checks.
+    await new Promise(resolve => setTimeout(resolve, 1000));
     
     console.log(`   🔍 Phân tích DOM:`);
     console.log(`      - Tìm thấy Agent Panel: ${analysis.foundAgentPanel ? '✅ CÓ' : '❌ KHÔNG'}`);

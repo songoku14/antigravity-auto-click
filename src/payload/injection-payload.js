@@ -5,7 +5,7 @@
  * It uses MutationObserver to watch for error dialogs and auto-click Retry/Accept.
  */
 
-const INJECTION_VERSION = 37;
+const INJECTION_VERSION = 38;
 
 /**
  * Trả về string JavaScript sẽ được inject vào DOM qua CDP Runtime.evaluate
@@ -85,7 +85,7 @@ function getInjectionScript(userConfig = {}) {
 
     actionButtonPatterns: [
       /^accept$/i,
-      /^run\b/i,
+      /^run\\b/i,
       /^execute$/i,
       /^allow$/i,
       /^approve$/i,
@@ -94,8 +94,8 @@ function getInjectionScript(userConfig = {}) {
       /^confirm$/i,
       /^continue$/i,
       /^proceed$/i,
-      /\baccept\s*all\b/i,
-      /\balways\s*allow\b/i
+      /\\baccept\\s*all\\b/i,
+      /\\balways\\s*allow\\b/i
     ],
 
     retryContextPatterns: [
@@ -257,6 +257,46 @@ function getInjectionScript(userConfig = {}) {
     return true;
   }
 
+  function getClickGateStatus() {
+    const now = Date.now();
+    const wouldReset = now - lastResetTime > 60000;
+    const effectiveActionCount = wouldReset ? 0 : actionCount;
+    const effectiveCooldown = wouldReset ? false : isInCooldown;
+    const sinceLastClick = now - lastClickTime;
+
+    if (effectiveCooldown) {
+      return {
+        ok: false,
+        reason: 'cooldown',
+        actionCount: effectiveActionCount,
+        sinceLastClick
+      };
+    }
+    if (sinceLastClick < CONFIG.minClickInterval) {
+      return {
+        ok: false,
+        reason: 'minClickInterval',
+        actionCount: effectiveActionCount,
+        sinceLastClick,
+        minClickInterval: CONFIG.minClickInterval
+      };
+    }
+    if (effectiveActionCount >= CONFIG.maxRetriesPerMinute) {
+      return {
+        ok: false,
+        reason: 'maxRetriesPerMinute',
+        actionCount: effectiveActionCount,
+        maxRetriesPerMinute: CONFIG.maxRetriesPerMinute
+      };
+    }
+    return {
+      ok: true,
+      reason: 'ok',
+      actionCount: effectiveActionCount,
+      sinceLastClick
+    };
+  }
+
   function isCommandBlocked(cmdText) {
     if (!cmdText) return false;
     const lowerCmd = cmdText.toLowerCase();
@@ -371,25 +411,30 @@ function getInjectionScript(userConfig = {}) {
     return buttons;
   }
 
-  function isVisibleAtPoint(el, rect) {
+  function getVisibilityStatus(el, rect) {
     if (USER_CONFIG.testMode) {
-      debug('[STEP 4] Test mode enabled, bypassing visibility check');
-      return true;
+      return { ok: true, reason: 'testMode' };
     }
 
     const x = rect.left + rect.width / 2;
     const y = rect.top + rect.height / 2;
-    debug(\`[STEP 4] Checking visibility at (\${Math.round(x)}, \${Math.round(y)})\`);
     
     if (x < 0 || y < 0 || x > window.innerWidth || y > window.innerHeight) {
-      debug('[STEP 4.1] Point out of viewport bounds');
-      return false;
+      return {
+        ok: false,
+        reason: 'outOfViewport',
+        point: { x: Math.round(x), y: Math.round(y) },
+        viewport: { width: window.innerWidth, height: window.innerHeight }
+      };
     }
 
     let topEl = document.elementFromPoint(x, y);
     if (!topEl) {
-      debug('[STEP 4.2] No element found at point');
-      return false;
+      return {
+        ok: false,
+        reason: 'noElementAtPoint',
+        point: { x: Math.round(x), y: Math.round(y) }
+      };
     }
 
     while (topEl && topEl.shadowRoot) {
@@ -401,14 +446,46 @@ function getInjectionScript(userConfig = {}) {
     let curr = topEl;
     while (curr) {
       if (curr === el) {
-        debug('[STEP 4.3] Visibility confirmed: target button is on top');
-        return true;
+        return {
+          ok: true,
+          reason: 'targetOnTop',
+          point: { x: Math.round(x), y: Math.round(y) },
+          topElement: summarizeElement(topEl)
+        };
       }
       curr = curr.parentElement || (curr.getRootNode && curr.getRootNode().host);
     }
+    return {
+      ok: false,
+      reason: 'coveredByElement',
+      point: { x: Math.round(x), y: Math.round(y) },
+      topElement: summarizeElement(topEl),
+      topElementPath: elementPath(topEl, 4)
+    };
+  }
+
+  function isVisibleAtPoint(el, rect) {
+    const status = getVisibilityStatus(el, rect);
+    if (USER_CONFIG.testMode) {
+      debug('[STEP 4] Test mode enabled, bypassing visibility check');
+    } else if (status.point) {
+      debug('[STEP 4] Checking visibility at (' + status.point.x + ', ' + status.point.y + ')');
+    }
+    if (status.ok) {
+      debug('[STEP 4.3] Visibility confirmed: ' + status.reason);
+      return true;
+    }
+    if (status.reason === 'outOfViewport') {
+      debug('[STEP 4.1] Point out of viewport bounds');
+      return false;
+    }
+    if (status.reason === 'noElementAtPoint') {
+      debug('[STEP 4.2] No element found at point');
+      return false;
+    }
     debug(
       '[STEP 4.4] Visibility failed for ' + summarizeElement(el) + ' rect=' + formatRect(rect) + '. ' +
-      'Top element: ' + summarizeElement(topEl) + ' path=' + elementPath(topEl, 4)
+      'Top element: ' + status.topElement + ' path=' + status.topElementPath
     );
     return false;
   }
@@ -423,21 +500,88 @@ function getInjectionScript(userConfig = {}) {
     } catch (e) { return ''; }
   }
 
+  function buttonDiagnostic(btnObj, container, kind, category) {
+    const surroundingText = getSurroundingText(btnObj.el);
+    const isAgentWindow = !!(container.closest && container.closest('.antigravity-agent-side-panel'));
+    const isRightSide = btnObj.rect.left > window.innerWidth * 0.4;
+    return {
+      kind,
+      category: category || null,
+      text: btnObj.text,
+      element: summarizeElement(btnObj.el),
+      path: elementPath(btnObj.el, 4),
+      rect: {
+        left: Math.round(btnObj.rect.left),
+        top: Math.round(btnObj.rect.top),
+        width: Math.round(btnObj.rect.width),
+        height: Math.round(btnObj.rect.height)
+      },
+      inFooter: !!btnObj.inFooter,
+      isAgentWindow,
+      isRightSide,
+      clickedFlag: !!btnObj.el.__clicked,
+      disabled: !!(btnObj.el.disabled || btnObj.el.getAttribute('disabled') !== null),
+      context: surroundingText.replace(/\s+/g, ' ').substring(0, 160),
+      visibility: getVisibilityStatus(btnObj.el, btnObj.rect)
+    };
+  }
+
+  function createScanReport(clickGate) {
+    return {
+      timestamp: new Date().toISOString(),
+      scriptVersion: SCRIPT_VERSION,
+      config: {
+        autoRetry: USER_CONFIG.autoRetry !== false,
+        autoAccept: USER_CONFIG.autoAccept,
+        testMode: !!USER_CONFIG.testMode
+      },
+      clickGate,
+      foundAgentPanel: findInShadows(document, '.antigravity-agent-side-panel').length > 0,
+      containerCount: 0,
+      totalButtons: 0,
+      wouldClick: false,
+      action: null,
+      containers: []
+    };
+  }
+
   // ============================================================
   // 6. Main Action Logic
   // ============================================================
-  function scanAndAction() {
-    if (!canClick()) return;
+  function scanAndAction(options = {}) {
+    const dryRun = !!options.dryRun;
+    const clickGate = getClickGateStatus();
+    const report = dryRun ? createScanReport(clickGate) : null;
+
+    if (dryRun && !clickGate.ok) {
+      return report;
+    }
+    if (!dryRun && !canClick()) return;
 
     let containers = findValidContainers();
     const useFallback = containers.length === 0 && (USER_CONFIG.autoAccept !== false || USER_CONFIG.autoRetry !== false);
     if (useFallback) containers = [document.body];
+    if (dryRun) report.containerCount = containers.length;
     debug('[SCAN] Starting pass. containers=' + containers.length + ', fallback=' + useFallback + ', autoRetry=' + (USER_CONFIG.autoRetry !== false) + ', autoAccept=' + (USER_CONFIG.autoAccept !== false));
 
     for (const container of containers) {
       const isAgentWindow = container.closest && container.closest('.antigravity-agent-side-panel');
       const containerRect = container.getBoundingClientRect();
       const snippet = (container.textContent || '').replace(/\s+/g, ' ').trim().substring(0, 120);
+      const containerReport = dryRun ? {
+        element: summarizeElement(container),
+        rect: {
+          left: Math.round(containerRect.left),
+          top: Math.round(containerRect.top),
+          width: Math.round(containerRect.width),
+          height: Math.round(containerRect.height)
+        },
+        isAgentWindow: !!isAgentWindow,
+        fallback: useFallback,
+        textSnippet: snippet,
+        buttons: { retry: [], accept: [] }
+      } : null;
+      if (dryRun) report.containers.push(containerReport);
       debug(
         '[SCAN] Inspecting container ' + summarizeElement(container) + ' rect=' + formatRect(containerRect) +
         ' isAgentWindow=' + !!isAgentWindow + ' snippet="' + snippet + '"'
@@ -446,25 +590,51 @@ function getInjectionScript(userConfig = {}) {
       // Case 1: Auto-Retry
       if (USER_CONFIG.autoRetry !== false) {
         debug(\`[STEP 1] Found matching RETRY container: <\${container.tagName.toLowerCase()}> (ID: \${container.id})\`);
-        const btns = findButtonsIn(container, CONFIG.retryButtonPatterns, 'RETRY');
+        const btns = findButtonsIn(container, CONFIG.retryButtonPatterns, dryRun ? null : 'RETRY');
         btns.sort((a, b) => (a.inFooter !== b.inFooter ? (b.inFooter ? 1 : -1) : b.rect.top - a.rect.top));
+        if (dryRun) report.totalButtons += btns.length;
         debug('[SCAN] RETRY candidates in container: ' + btns.length);
 
         for (const btnObj of btns) {
+          const diag = dryRun ? buttonDiagnostic(btnObj, container, 'retry') : null;
           debug('[STEP 2] Found matching RETRY button: "' + btnObj.text + '" rect=' + formatRect(btnObj.rect) + ' inFooter=' + btnObj.inFooter);
           const isRightSide = btnObj.rect.left > window.innerWidth * 0.4;
           if (!USER_CONFIG.testMode && !isAgentWindow && !isRightSide) {
+            if (dryRun) {
+              diag.decision = 'skip';
+              diag.reason = 'notRightSide';
+              containerReport.buttons.retry.push(diag);
+            }
             debug('[STEP 3] Skipping RETRY button: not on right side (' + Math.round(btnObj.rect.left) + ' < ' + Math.round(window.innerWidth * 0.4) + ')');
             continue;
           }
           if (useFallback && !CONFIG.retryContextPatterns.some(p => p.test(getSurroundingText(btnObj.el)))) {
+            if (dryRun) {
+              diag.decision = 'skip';
+              diag.reason = 'contextMismatch';
+              containerReport.buttons.retry.push(diag);
+            }
             debug(\`[STEP 3.1] Skipping RETRY button: context mismatch\`);
             continue;
           }
-          if (!isVisibleAtPoint(btnObj.el, btnObj.rect)) {
+          if (dryRun && !diag.visibility.ok) {
+            diag.decision = 'skip';
+            diag.reason = 'visibility:' + diag.visibility.reason;
+            containerReport.buttons.retry.push(diag);
+            continue;
+          }
+          if (!dryRun && !isVisibleAtPoint(btnObj.el, btnObj.rect)) {
             continue;
           }
 
+          if (dryRun) {
+            diag.decision = 'wouldClick';
+            diag.reason = 'passedAllGates';
+            containerReport.buttons.retry.push(diag);
+            report.wouldClick = true;
+            report.action = diag;
+            return report;
+          }
           log('[STAT] RETRY_DETECTED');
           performClick(btnObj.el, btnObj.text, '🔄 RETRY');
           return;
@@ -485,23 +655,51 @@ function getInjectionScript(userConfig = {}) {
           if (catConfig.enabled === false) continue;
           
           debug(\`[STEP 1] Found matching ACCEPT container for category "\${catName}": <\${container.tagName.toLowerCase()}>\`);
-          const btns = findButtonsIn(container, CONFIG.actionButtonPatterns, 'ACTION (' + catName.toUpperCase() + ')');
+          const btns = findButtonsIn(container, CONFIG.actionButtonPatterns, dryRun ? null : 'ACTION (' + catName.toUpperCase() + ')');
           btns.sort((a, b) => (a.inFooter !== b.inFooter ? (b.inFooter ? 1 : -1) : b.rect.top - a.rect.top));
+          if (dryRun) report.totalButtons += btns.length;
           debug('[SCAN] ACCEPT candidates for category "' + catName + '": ' + btns.length);
 
           for (const btnObj of btns) {
+            const diag = dryRun ? buttonDiagnostic(btnObj, container, 'accept', catName) : null;
             debug('[STEP 2] Found matching ACCEPT button: "' + btnObj.text + '" rect=' + formatRect(btnObj.rect) + ' inFooter=' + btnObj.inFooter);
             const isRightSide = btnObj.rect.left > window.innerWidth * 0.4;
             if (!USER_CONFIG.testMode && !isAgentWindow && !isRightSide) {
+              if (dryRun) {
+                diag.decision = 'skip';
+                diag.reason = 'notRightSide';
+                containerReport.buttons.accept.push(diag);
+              }
               debug('[STEP 3] Skipping ACCEPT button: not on right side (' + Math.round(btnObj.rect.left) + ' < ' + Math.round(window.innerWidth * 0.4) + ')');
               continue;
             }
-            if (!isVisibleAtPoint(btnObj.el, btnObj.rect)) {
+            if (dryRun && !diag.visibility.ok) {
+              diag.decision = 'skip';
+              diag.reason = 'visibility:' + diag.visibility.reason;
+              containerReport.buttons.accept.push(diag);
+              continue;
+            }
+            if (!dryRun && !isVisibleAtPoint(btnObj.el, btnObj.rect)) {
               continue;
             }
 
-            log('[STAT] ACCEPT_DETECTED (' + catName + ')');
             const cmdText = extractCommandText(btnObj.el);
+            if (dryRun) {
+              diag.commandText = (cmdText || '').substring(0, 200);
+              if (isCommandBlocked(cmdText)) {
+                diag.decision = 'skip';
+                diag.reason = 'blacklist';
+                containerReport.buttons.accept.push(diag);
+                continue;
+              }
+              diag.decision = 'wouldClick';
+              diag.reason = 'passedAllGates';
+              containerReport.buttons.accept.push(diag);
+              report.wouldClick = true;
+              report.action = diag;
+              return report;
+            }
+            log('[STAT] ACCEPT_DETECTED (' + catName + ')');
             debug('[ACTION] ACCEPT command context for "' + btnObj.text + '": "' + (cmdText || '').substring(0, 200) + '"');
             if (isCommandBlocked(cmdText)) {
               if (!btnObj.el.__blocked) {
@@ -523,6 +721,7 @@ function getInjectionScript(userConfig = {}) {
     }
 
     debug('[SCAN] Pass completed without any actionable button');
+    if (dryRun) return report;
   }
 
   function performClick(btn, btnText, typeLabel) {
@@ -627,77 +826,8 @@ function getInjectionScript(userConfig = {}) {
 
   // Helper for manual analysis
   window.__analyzeDialog = function() {
-    log('Analyzing current DOM for dialogs...');
-    const containers = findValidContainers();
-    const results = [];
-    let totalProcessedButtons = 0;
-    const seenButtons = new Set();
-    
-    // Check for agent panel specifically
-    const agentPanels = findInShadows(document, '.antigravity-agent-side-panel');
-    const hasAgentPanel = agentPanels.length > 0;
-
-    const getContext = (el) => {
-      try {
-        // Try to find text before the button in the same parent
-        let context = '';
-        let prev = el.previousSibling;
-        while (prev) {
-          const text = (prev.textContent || '').trim();
-          if (text) {
-            context = text + ' ' + context;
-            if (context.length > 40) break;
-          }
-          prev = prev.previousSibling;
-        }
-        
-        if (!context.trim()) {
-          // Fallback to parent's text (excluding the button itself)
-          const parentText = (el.parentElement.textContent || '').replace(el.textContent, '').trim();
-          context = parentText.substring(0, 60);
-        }
-        return context.trim().replace(/\s+/g, ' ').substring(0, 100);
-      } catch (e) { return ''; }
-    };
-
-    for (const container of containers) {
-      const isAgentWindow = !!(container.closest && container.closest('.antigravity-agent-side-panel'));
-      
-      // Find buttons by category
-      const retryBtns = findButtonsIn(container, CONFIG.retryButtonPatterns, null);
-      const actionBtns = findButtonsIn(container, CONFIG.actionButtonPatterns, null);
-      
-      // Deduplicate buttons to avoid double counting in nested containers
-      const uniqueRetry = retryBtns.filter(b => {
-        if (seenButtons.has(b.el)) return false;
-        seenButtons.add(b.el);
-        return true;
-      });
-      const uniqueAccept = actionBtns.filter(b => {
-        if (seenButtons.has(b.el)) return false;
-        seenButtons.add(b.el);
-        return true;
-      });
-
-      totalProcessedButtons += uniqueRetry.length + uniqueAccept.length;
-
-      results.push({
-        isAgentWindow,
-        textSnippet: (container.textContent || '').replace(/\s+/g, ' ').substring(0, 160).trim(),
-        buttons: {
-          retry: uniqueRetry.map(b => ({ text: b.text, context: getContext(b.el) })),
-          accept: uniqueAccept.map(b => ({ text: b.text, context: getContext(b.el) }))
-        }
-      });
-    }
-    
-    return {
-      timestamp: new Date().toISOString(),
-      foundAgentPanel: hasAgentPanel,
-      containerCount: containers.length,
-      totalButtons: totalProcessedButtons,
-      containers: results
-    };
+    log('Analyzing current DOM with daemon-equivalent dry-run...');
+    return scanAndAction({ dryRun: true });
   };
 
   setTimeout(scanAndAction, 1000);
