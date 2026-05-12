@@ -83,20 +83,10 @@ function getInjectionScript(userConfig = {}) {
       /^reconnect$/i
     ],
 
-    actionButtonPatterns: [
-      /^accept$/i,
-      /^run\\b/i,
-      /^execute$/i,
-      /^allow$/i,
-      /^approve$/i,
-      /^yes$/i,
-      /^ok$/i,
-      /^confirm$/i,
-      /^continue$/i,
-      /^proceed$/i,
-      /\\baccept\\s*all\\b/i,
-      /\\balways\\s*allow\\b/i
-    ],
+    // actionButtonPatterns (Search Filter): Sẽ được tự động tổng hợp từ actionCategories bên dưới.
+    // Đây là bộ lọc "Phễu" để tìm tất cả các nút có thể click cho việc Auto Accept.
+    // ActionButtonPatterns = 3 loại Category cộng lại.
+    actionButtonPatterns: [], 
 
     retryContextPatterns: [
       /high\\s*traffic/i,
@@ -112,24 +102,49 @@ function getInjectionScript(userConfig = {}) {
       /connection\\s*lost/i
     ],
 
+    // actionCategories (Labeling Filter): Quy định chi tiết các mẫu cho từng danh mục.
+    // Tách biệt giữa nhãn nút bấm (buttons - khớp nghiêm ngặt) và ngữ cảnh xung quanh (context).
     actionCategories: {
-      terminal: [
-        /allow\\s*the\\s*following\\s*command/i,
-        /run\\s*this\\s*command/i,
-        /execute\\s*the\\s*following/i,
-        /do\\s*you\\s*want\\s*to\\s*run/i
-      ],
-      review: [
-        /review\\s*the\\s*changes/i,
-        /agent\\s*prompt/i,
-        /approve\\s*request/i,
-        /click\\s*run\\s*to\\s*continue/i
-      ],
-      system: [
-        /security\\s*confirmation/i,
-        /allow\\s*this\\s*action/i,
-        /accept\\s*terms/i
-      ]
+      terminal: {
+        buttons: [ /^run$/i, /^run⌥enter$/i, /^execute$/i ],
+        context: [
+          /allow\\s*the\\s*following\\s*command/i,
+          /run\\s*this\\s*command/i,
+          /run\\s*the\\s*command/i,
+          /execute\\s*the\\s*following/i,
+          /do\\s*you\\s*want\\s*to\\s*run/i,
+          /terminal\\s*action/i,
+          /thực\\s*thi\\s*lệnh/i,
+          /chạy\\s*lệnh/i
+        ]
+      },
+      review: {
+        buttons: [ /^approve$/i, /^review$/i ],
+        context: [
+          /review\\s*the\\s*changes/i,
+          /agent\\s*prompt/i,
+          /approve\\s*request/i,
+          /review\\s*required/i,
+          /proceed\\s*with\\s*changes/i,
+          /xem\\s*lại/i,
+          /duyệt\\s*kế\\s*hoạch/i,
+          /plan/i,
+          /review/i
+        ]
+      },
+      system: {
+        buttons: [
+          /^accept$/i, /^allow$/i, /^yes$/i, /^ok$/i, /^confirm$/i, /^continue$/i, /^proceed$/i,
+          /\\baccept\\s*all\\b/i, /\\balways\\s*allow\\b/i
+        ],
+        context: [
+          /security\\s*confirmation/i,
+          /allow\\s*this\\s*action/i,
+          /accept\\s*terms/i,
+          /permission\\s*request/i,
+          /xác\\s*nhận\\s*bảo\\s*mật/i
+        ]
+      }
     },
 
     blacklist: USER_CONFIG.blacklist || [
@@ -150,6 +165,10 @@ function getInjectionScript(userConfig = {}) {
       return new RegExp(p, 'i');
     } catch(e) { return null; }
   };
+
+  // Tổng hợp actionButtonPatterns từ các category buttons
+  // Chỉ những nút được định nghĩa rõ ràng trong phần 'buttons' mới được tìm kiếm.
+  CONFIG.actionButtonPatterns = Object.values(CONFIG.actionCategories).flatMap(cat => cat.buttons);
 
   // Merge custom patterns
   if (Array.isArray(USER_CONFIG.customRetryPatterns)) {
@@ -222,6 +241,24 @@ function getInjectionScript(userConfig = {}) {
       review: { enabled: true },
       system: { enabled: true }
     };
+  }
+
+  function getCategoryForButton(btnText) {
+    if (!btnText) return null;
+    const normalized = btnText.trim();
+    for (const [catName, catObj] of Object.entries(CONFIG.actionCategories)) {
+      if (catObj.buttons.some(p => p.test(normalized))) return catName;
+    }
+    return null;
+  }
+
+  function getCategoryForContainer(container) {
+    const text = (container.textContent || '') + ' ' + getSurroundingText(container);
+    for (const [catName, catObj] of Object.entries(CONFIG.actionCategories)) {
+      // Chỉ kiểm tra các mẫu ngữ cảnh (Context)
+      if (catObj.context.some(p => p.test(text))) return catName;
+    }
+    return 'system';
   }
 
   function debug(msg) {
@@ -856,108 +893,106 @@ function getInjectionScript(userConfig = {}) {
           performClick(btnObj, container, '🔄 RETRY', 'retry');
           return;
         }
-        if (btns.length === 0) {
-          // debug('[SCAN] No RETRY candidate survived pattern match in this container');
-        }
       }
 
       // Case 2: Auto-Accept
       if (isAutoAcceptEnabled()) {
-        const categories = getAutoAcceptCategories();
-
-        for (const [catName, catConfig] of Object.entries(categories)) {
-          if (catConfig.enabled === false) continue;
-          
-          // debug(\`[STEP 1] Found matching ACCEPT container for category "\${catName}": <\${container.tagName.toLowerCase()}>\`);
-          const btns = findButtonsIn(container, CONFIG.actionButtonPatterns, dryRun ? null : 'ACTION (' + catName.toUpperCase() + ')');
+        const btns = findButtonsIn(container, CONFIG.actionButtonPatterns, null);
+        if (btns.length > 0) {
+          const categories = getAutoAcceptCategories();
           btns.sort((a, b) => (a.inFooter !== b.inFooter ? (b.inFooter ? 1 : -1) : b.rect.top - a.rect.top));
-          // debug('[SCAN] ACCEPT candidates for category "' + catName + '": ' + btns.length);
 
           for (const btnObj of btns) {
-            if (dryRun && !rememberUniqueButton(reportSeenButtons, btnObj)) continue;
-            if (dryRun) report.totalButtons++;
-            const diag = dryRun ? buttonDiagnostic(btnObj, container, 'accept', catName) : null;
-            // debug('[STEP 2] Found matching ACCEPT button: "' + btnObj.text + '"...');
-            const isRightSide = btnObj.rect.left > window.innerWidth * 0.4;
-            if (!USER_CONFIG.testMode && !isAgentWindow && !isRightSide) {
-              if (dryRun) {
-                diag.decision = 'skip';
-                diag.reason = 'notRightSide';
-                containerReport.buttons.accept.push(diag);
-              }
-              if (!dryRun && logStat('ACCEPT', 'not_right_side')) {
-                debug('[STEP 3] Skipping ACCEPT button: not on right side (' + Math.round(btnObj.rect.left) + ' < ' + Math.round(window.innerWidth * 0.4) + ')');
-              }
-              continue;
-            }
-            if (dryRun && !diag.visibility.ok) {
-              diag.decision = 'skip';
-              diag.reason = 'visibility:' + diag.visibility.reason;
-              containerReport.buttons.accept.push(diag);
-              continue;
-            }
-            if (!dryRun) {
-              const visibility = getVisibilityStatus(btnObj.el, btnObj.rect);
-              if (!visibility.ok) {
-                if (!dryRun && logStat('ACCEPT', 'visibility_' + visibility.reason)) {
-                  if (visibility.reason === 'outOfViewport') {
-                    debug('[STEP 4.5] Visibility check bypassed: point out of viewport bounds');
-                  } else if (visibility.reason === 'noElementAtPoint') {
-                    debug('[STEP 4.5] Visibility check bypassed: no element found at point');
-                    debug(
-                      '[STEP 4.5] Visibility check bypassed for ' + summarizeElement(btnObj.el) + ' rect=' + formatRect(btnObj.rect) + '. ' +
-                      'Top element: ' + visibility.topElement + ' path=' + visibility.topElementPath
-                    );
-                  }
-                }
-              } else {
-                debug('[STEP 4.3] Visibility confirmed: ' + visibility.reason);
-              }
-            }
+            // Logic phân loại ưu tiên: Nút bấm -> Ngữ cảnh -> Mặc định
+            const buttonCat = getCategoryForButton(btnObj.text);
+            const matchedCat = buttonCat || getCategoryForContainer(container);
+            const catConfig = categories[matchedCat];
 
-            const cmdText = extractCommandText(btnObj.el);
-            if (dryRun) {
-              diag.commandText = (cmdText || '').substring(0, 200);
-              if (isCommandBlocked(cmdText)) {
+            if (catConfig && catConfig.enabled !== false) {
+              if (dryRun && !rememberUniqueButton(reportSeenButtons, btnObj)) continue;
+              if (dryRun) report.totalButtons++;
+              const diag = dryRun ? buttonDiagnostic(btnObj, container, 'accept', matchedCat) : null;
+              
+              const isRightSide = btnObj.rect.left > window.innerWidth * 0.4;
+              if (!USER_CONFIG.testMode && !isAgentWindow && !isRightSide) {
+                if (dryRun) {
+                  diag.decision = 'skip';
+                  diag.reason = 'notRightSide';
+                  containerReport.buttons.accept.push(diag);
+                }
+                if (!dryRun && logStat('ACCEPT', 'not_right_side')) {
+                  debug('[STEP 3] Skipping ACCEPT button: not on right side (' + Math.round(btnObj.rect.left) + ' < ' + Math.round(window.innerWidth * 0.4) + ')');
+                }
+                continue;
+              }
+              if (dryRun && !diag.visibility.ok) {
                 diag.decision = 'skip';
-                diag.reason = 'blacklist';
+                diag.reason = 'visibility:' + diag.visibility.reason;
                 containerReport.buttons.accept.push(diag);
                 continue;
               }
-              diag.decision = 'wouldClick';
-              diag.reason = 'passedAllGates';
-              containerReport.buttons.accept.push(diag);
-              if (hasContainerButtons(containerReport)) report.containers.push(containerReport);
-              report.wouldClick = true;
-              report.action = diag;
-              report.containerCount = report.containers.length;
-              return report;
-            }
-            if (logStat('ACCEPT', 'DETECTED:' + catName)) {
-              // Log only once per throttle period
-            }
-            debug('[ACTION] ACCEPT command context for "' + btnObj.text + '": "' + (cmdText || '').substring(0, 200) + '"');
-            if (isCommandBlocked(cmdText)) {
-              if (USER_CONFIG.performClickAutoAccept === true) {
-                if (!btnObj.el.__blocked) {
-                  btnObj.el.__blocked = true;
-                  logStat('ACCEPT', 'blacklist');
-                  logStat('ACCEPT', 'blocked');
-                  btnObj.el.style.border = '2px solid red';
-                  setTimeout(() => { btnObj.el.__blocked = false; }, 5000);
+              if (!dryRun) {
+                const visibility = getVisibilityStatus(btnObj.el, btnObj.rect);
+                if (!visibility.ok) {
+                  if (!dryRun && logStat('ACCEPT', 'visibility_' + visibility.reason)) {
+                    if (visibility.reason === 'outOfViewport') {
+                      debug('[STEP 4.5] Visibility check bypassed: point out of viewport bounds');
+                    } else if (visibility.reason === 'noElementAtPoint') {
+                      debug('[STEP 4.5] Visibility check bypassed: no element found at point');
+                      debug(
+                        '[STEP 4.5] Visibility check bypassed for ' + summarizeElement(btnObj.el) + ' rect=' + formatRect(btnObj.rect) + '. ' +
+                        'Top element: ' + visibility.topElement + ' path=' + visibility.topElementPath
+                      );
+                    }
+                  }
+                } else {
+                  debug('[STEP 4.3] Visibility confirmed: ' + visibility.reason);
                 }
-              } else {
-                // log('[STAT] ACCEPT_DETECTED (Blacklisted command detected, but no UI mutation in read-only mode)');
               }
-              continue;
+
+              const cmdText = extractCommandText(btnObj.el);
+              if (dryRun) {
+                diag.commandText = (cmdText || '').substring(0, 200);
+                if (isCommandBlocked(cmdText)) {
+                  diag.decision = 'skip';
+                  diag.reason = 'blacklist';
+                  containerReport.buttons.accept.push(diag);
+                  continue;
+                }
+                diag.decision = 'wouldClick';
+                diag.reason = 'passedAllGates';
+                containerReport.buttons.accept.push(diag);
+                if (hasContainerButtons(containerReport)) report.containers.push(containerReport);
+                report.wouldClick = true;
+                report.action = diag;
+                report.containerCount = report.containers.length;
+                return report;
+              }
+
+              if (logStat('ACCEPT', 'DETECTED:' + matchedCat)) {
+                // Log only một lần mỗi chu kỳ throttle
+              }
+              debug('[ACTION] ACCEPT command context for "' + btnObj.text + '": "' + (cmdText || '').substring(0, 200) + '"');
+              if (isCommandBlocked(cmdText)) {
+                if (USER_CONFIG.performClickAutoAccept === true) {
+                  if (!btnObj.el.__blocked) {
+                    btnObj.el.__blocked = true;
+                    logStat('ACCEPT', 'blacklist');
+                    logStat('ACCEPT', 'blocked');
+                    btnObj.el.style.border = '2px solid red';
+                    setTimeout(() => { btnObj.el.__blocked = false; }, 5000);
+                  }
+                }
+                continue;
+              }
+              if (USER_CONFIG.performClickAutoAccept === true) {
+                if (!canClick('ACCEPT')) return;
+                performClick(btnObj, container, '⚡ ACTION (' + matchedCat.toUpperCase() + ')', matchedCat);
+              } else {
+                debug('[ACTION] performClickAutoAccept is false, skipping click but logged to statistics.');
+              }
+              return;
             }
-            if (USER_CONFIG.performClickAutoAccept === true) {
-              if (!canClick('ACCEPT')) return;
-              performClick(btnObj, container, '⚡ ACTION (' + catName.toUpperCase() + ')', catName);
-            } else {
-              debug('[ACTION] performClickAutoAccept is false, skipping click but logged to statistics.');
-            }
-            return;
           }
         }
       }
