@@ -42,5 +42,6 @@
   },
   "autoRetry": true,
   "debug": true,
-  "clickDelay": 800
+  "clickDelay": 800,
+  "minClickInterval": 4000
 }

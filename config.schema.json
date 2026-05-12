@@ -108,6 +108,11 @@
       "type": "integer",
       "description": "Khoảng thời gian chờ (ms) trước khi thực hiện cú click.",
       "default": 800
+    },
+    "minClickInterval": {
+      "type": "integer",
+      "description": "Khoảng cách tối thiểu (ms) giữa 2 lần click tự động.",
+      "default": 5000
     }
   }
 }

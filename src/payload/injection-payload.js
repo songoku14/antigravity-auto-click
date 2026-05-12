@@ -5,7 +5,7 @@
  * It uses MutationObserver to watch for error dialogs and auto-click Retry/Accept.
  */
 
-const INJECTION_VERSION = 45;
+const INJECTION_VERSION = 46;
 
 /**
  * Trả về string JavaScript sẽ được inject vào DOM qua CDP Runtime.evaluate
@@ -141,7 +141,7 @@ function getInjectionScript(userConfig = {}) {
     clickDelay: USER_CONFIG.clickDelay || 800,
     maxRetriesPerMinute: 15,
     cooldownMs: 60000,
-    minClickInterval: 2000
+    minClickInterval: USER_CONFIG.minClickInterval || 5000
   };
 
   const toRegex = (p) => {
