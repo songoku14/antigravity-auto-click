@@ -10,6 +10,14 @@ const path = require('path');
 const { JSDOM } = require('jsdom');
 const { getInjectionScript } = require('../../src/payload/injection-payload');
 
+function formatKindAndCategory(button) {
+  if (!button) return 'UNKNOWN';
+  const kind = (button.kind || 'unknown').toUpperCase();
+  if (kind !== 'ACCEPT') return kind;
+  const category = button.category ? String(button.category).toUpperCase() : 'UNKNOWN';
+  return `${kind}/${category}`;
+}
+
 const SAMPLES_DIR = path.join(__dirname, '..', '..', 'samples');
 
 async function runRegressionTests() {
@@ -172,7 +180,7 @@ async function verifySample(htmlPath, metadata) {
         c.buttons.retry.forEach(b => {
           const decision = b.decision === 'wouldClick' ? '\x1b[32mWOULD_CLICK\x1b[0m' : `\x1b[31mSKIP\x1b[0m ${b.reason || ''}`;
           const clickMark = b.clickedFlag ? ' [CLICKED ✅]' : '';
-          console.log(`         🔄 Btn: \x1b[32m${b.text}\x1b[0m | ${decision}${clickMark} | Cạnh đó: \x1b[2m${b.context || 'N/A'}\x1b[0m`);
+          console.log(`         🔄 ${formatKindAndCategory(b)}: \x1b[32m${b.text}\x1b[0m | ${decision}${clickMark} | Cạnh đó: \x1b[2m${b.context || 'N/A'}\x1b[0m`);
         });
       }
       
@@ -180,7 +188,7 @@ async function verifySample(htmlPath, metadata) {
         c.buttons.accept.forEach(b => {
           const decision = b.decision === 'wouldClick' ? '\x1b[32mWOULD_CLICK\x1b[0m' : `\x1b[31mSKIP\x1b[0m ${b.reason || ''}`;
           const clickMark = b.clickedFlag ? ' [CLICKED ✅]' : '';
-          console.log(`         ⚡ Btn: \x1b[36m${b.text}\x1b[0m | ${decision}${clickMark} | Cạnh đó: \x1b[2m${b.context || 'N/A'}\x1b[0m`);
+          console.log(`         ⚡ ${formatKindAndCategory(b)}: \x1b[36m${b.text}\x1b[0m | ${decision}${clickMark} | Cạnh đó: \x1b[2m${b.context || 'N/A'}\x1b[0m`);
         });
       }
 

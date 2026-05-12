@@ -412,6 +412,54 @@ function getInjectionScript(userConfig = {}) {
     return Array.from(containers);
   }
 
+  function isPrimaryClickable(el, tag, role) {
+    return tag === 'button' ||
+      role === 'button' ||
+      el.classList.contains('monaco-button') ||
+      el.classList.contains('action-label');
+  }
+
+  function hasLooseClickability(el) {
+    return el.classList.contains('button') ||
+      el.classList.contains('btn') ||
+      el.classList.contains('cursor-pointer') ||
+      el.style.cursor === 'pointer' ||
+      window.getComputedStyle(el).cursor === 'pointer';
+  }
+
+  function matchesButtonPatterns(text, patterns, isRetryScan) {
+    if (!text || !patterns) return false;
+    for (const pattern of patterns) {
+      if (!pattern.test(text)) continue;
+      if (isRetryScan && !isSafeRetryButtonText(text)) return false;
+      return true;
+    }
+    return false;
+  }
+
+  function hasNestedMatchingClickable(el, patterns, isRetryScan) {
+    try {
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_ELEMENT);
+      let child;
+      while (child = walker.nextNode()) {
+        if (child === el) continue;
+        const tag = child.tagName.toLowerCase();
+        const role = child.getAttribute('role');
+        const isClickable = isRetryScan
+          ? isPrimaryClickable(child, tag, role)
+          : (isPrimaryClickable(child, tag, role) || hasLooseClickability(child));
+        if (!isClickable || isUnsafeClickableContext(child)) continue;
+        if (child.disabled || child.getAttribute('disabled') !== null) continue;
+        const text = (child.textContent || '').trim();
+        if (text.length === 0 || text.length > 50) continue;
+        const rect = child.getBoundingClientRect();
+        if (rect.width <= 2 || rect.height <= 2) continue;
+        if (matchesButtonPatterns(text, patterns, isRetryScan)) return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+
   function findButtonsIn(root, patterns, typeLabel) {
     let buttons = [];
     const isRetryScan = patterns === CONFIG.retryButtonPatterns;
@@ -420,15 +468,8 @@ function getInjectionScript(userConfig = {}) {
     while (el = walker.nextNode()) {
       const tag = el.tagName.toLowerCase();
       const role = el.getAttribute('role');
-      const isPrimaryButton = tag === 'button' ||
-                              role === 'button' ||
-                              el.classList.contains('monaco-button') ||
-                              el.classList.contains('action-label');
-      const isLooseClickable = el.classList.contains('button') ||
-                               el.classList.contains('btn') ||
-                               el.classList.contains('cursor-pointer') ||
-                               el.style.cursor === 'pointer' ||
-                               window.getComputedStyle(el).cursor === 'pointer';
+      const isPrimaryButton = isPrimaryClickable(el, tag, role);
+      const isLooseClickable = hasLooseClickability(el);
       const isClickable = isRetryScan ? isPrimaryButton : (isPrimaryButton || isLooseClickable);
       
       if (isClickable) {
@@ -455,18 +496,15 @@ function getInjectionScript(userConfig = {}) {
             }
 
             if (patterns) {
-              for (const pattern of patterns) {
-                if (pattern.test(text)) {
-                  if (isRetryScan && !isSafeRetryButtonText(text)) {
-                    debug('[SCAN] Skipping retry-shaped text that is not a safe button label: "' + text + '"');
-                    continue;
-                  }
-                  if (typeLabel) {
-                    debug('[SCAN] Found matching ' + typeLabel + ' button: "' + text + '" ' + summarizeElement(el) + ' rect=' + formatRect(rect) + ' inFooter=' + inFooter + ' path=' + elementPath(el, 4));
-                  }
-                  buttons.push({ el, text, rect, inFooter });
-                  break;
+              if (matchesButtonPatterns(text, patterns, isRetryScan)) {
+                if (hasNestedMatchingClickable(el, patterns, isRetryScan)) {
+                  debug('[SCAN] Skipping wrapper candidate in favor of nested actionable element ' + summarizeElement(el) + ' text="' + text + '"');
+                  continue;
                 }
+                if (typeLabel) {
+                  debug('[SCAN] Found matching ' + typeLabel + ' button: "' + text + '" ' + summarizeElement(el) + ' rect=' + formatRect(rect) + ' inFooter=' + inFooter + ' path=' + elementPath(el, 4));
+                }
+                buttons.push({ el, text, rect, inFooter });
               }
             } else {
               buttons.push({ el, text, rect, inFooter, tagName: tag, className: el.className, id: el.id });
@@ -678,6 +716,22 @@ function getInjectionScript(userConfig = {}) {
     };
   }
 
+  function rememberUniqueButton(seenButtons, btnObj) {
+    if (!seenButtons || !btnObj || !btnObj.el) return true;
+    if (seenButtons.has(btnObj.el)) return false;
+    seenButtons.add(btnObj.el);
+    return true;
+  }
+
+  function hasContainerButtons(containerReport) {
+    return !!(
+      containerReport &&
+      containerReport.buttons &&
+      ((containerReport.buttons.retry && containerReport.buttons.retry.length > 0) ||
+       (containerReport.buttons.accept && containerReport.buttons.accept.length > 0))
+    );
+  }
+
   // ============================================================
   // 6. Main Action Logic
   // ============================================================
@@ -686,11 +740,11 @@ function getInjectionScript(userConfig = {}) {
     const dryRun = !!options.dryRun;
     const clickGate = getClickGateStatus();
     const report = dryRun ? createScanReport(clickGate) : null;
+    const reportSeenButtons = dryRun ? new Set() : null;
 
     let containers = findValidContainers();
     const useFallback = containers.length === 0 && (isAutoAcceptEnabled() || USER_CONFIG.autoRetry !== false);
     if (useFallback) containers = [document.body];
-    if (dryRun) report.containerCount = containers.length;
 
     for (const container of containers) {
       const isAgentWindow = container.closest && container.closest('.antigravity-agent-side-panel');
@@ -709,7 +763,6 @@ function getInjectionScript(userConfig = {}) {
         textSnippet: snippet,
         buttons: { retry: [], accept: [] }
       } : null;
-      if (dryRun) report.containers.push(containerReport);
       // Silent inspection in loops
       
       // Case 1: Auto-Retry
@@ -717,10 +770,11 @@ function getInjectionScript(userConfig = {}) {
         // debug(\`[STEP 1] Found matching RETRY container: <\${container.tagName.toLowerCase()}> (ID: \${container.id})\`);
         const btns = findButtonsIn(container, CONFIG.retryButtonPatterns, dryRun ? null : 'RETRY');
         btns.sort((a, b) => (a.inFooter !== b.inFooter ? (b.inFooter ? 1 : -1) : b.rect.top - a.rect.top));
-        if (dryRun) report.totalButtons += btns.length;
         // debug('[SCAN] RETRY candidates in container: ' + btns.length);
 
         for (const btnObj of btns) {
+          if (dryRun && !rememberUniqueButton(reportSeenButtons, btnObj)) continue;
+          if (dryRun) report.totalButtons++;
           const diag = dryRun ? buttonDiagnostic(btnObj, container, 'retry') : null;
           // debug('[STEP 2] Found matching RETRY button: "' + btnObj.text + '"...');
           const isRightSide = btnObj.rect.left > window.innerWidth * 0.4;
@@ -789,8 +843,10 @@ function getInjectionScript(userConfig = {}) {
             diag.decision = 'wouldClick';
             diag.reason = 'passedAllGates';
             containerReport.buttons.retry.push(diag);
+            if (hasContainerButtons(containerReport)) report.containers.push(containerReport);
             report.wouldClick = true;
             report.action = diag;
+            report.containerCount = report.containers.length;
             return report;
           }
           if (logStat('RETRY', 'DETECTED')) {
@@ -815,10 +871,11 @@ function getInjectionScript(userConfig = {}) {
           // debug(\`[STEP 1] Found matching ACCEPT container for category "\${catName}": <\${container.tagName.toLowerCase()}>\`);
           const btns = findButtonsIn(container, CONFIG.actionButtonPatterns, dryRun ? null : 'ACTION (' + catName.toUpperCase() + ')');
           btns.sort((a, b) => (a.inFooter !== b.inFooter ? (b.inFooter ? 1 : -1) : b.rect.top - a.rect.top));
-          if (dryRun) report.totalButtons += btns.length;
           // debug('[SCAN] ACCEPT candidates for category "' + catName + '": ' + btns.length);
 
           for (const btnObj of btns) {
+            if (dryRun && !rememberUniqueButton(reportSeenButtons, btnObj)) continue;
+            if (dryRun) report.totalButtons++;
             const diag = dryRun ? buttonDiagnostic(btnObj, container, 'accept', catName) : null;
             // debug('[STEP 2] Found matching ACCEPT button: "' + btnObj.text + '"...');
             const isRightSide = btnObj.rect.left > window.innerWidth * 0.4;
@@ -870,8 +927,10 @@ function getInjectionScript(userConfig = {}) {
               diag.decision = 'wouldClick';
               diag.reason = 'passedAllGates';
               containerReport.buttons.accept.push(diag);
+              if (hasContainerButtons(containerReport)) report.containers.push(containerReport);
               report.wouldClick = true;
               report.action = diag;
+              report.containerCount = report.containers.length;
               return report;
             }
             if (logStat('ACCEPT', 'DETECTED:' + catName)) {
@@ -902,10 +961,17 @@ function getInjectionScript(userConfig = {}) {
           }
         }
       }
+
+      if (dryRun && hasContainerButtons(containerReport)) {
+        report.containers.push(containerReport);
+      }
     }
 
     // debug('[SCAN] Pass completed without any actionable button');
-    if (dryRun) return report;
+    if (dryRun) {
+      report.containerCount = report.containers.length;
+      return report;
+    }
   }
 
   function performClick(btnObj, container, typeLabel, category = '') {

@@ -9,6 +9,14 @@ const WebSocket = require('ws');
 const { findCDPPort, getTargets, filterPageTargets } = require('../../src/core/discovery');
 const { getInjectionScript } = require('../../src/payload/injection-payload');
 
+function formatKindAndCategory(button) {
+  if (!button) return 'UNKNOWN';
+  const kind = (button.kind || 'unknown').toUpperCase();
+  if (kind !== 'ACCEPT') return kind;
+  const category = button.category ? String(button.category).toUpperCase() : 'UNKNOWN';
+  return `${kind}/${category}`;
+}
+
 async function analyzeLive() {
   const port = findCDPPort();
   if (!port) {
@@ -93,7 +101,7 @@ function runAnalysis(target) {
           console.log(`      - Click gate: ${gateStatus}`);
         }
         if (analysis.wouldClick && analysis.action) {
-          console.log(`      - Kết luận daemon: \x1b[32mSẼ CLICK\x1b[0m ${analysis.action.kind.toUpperCase()} "${analysis.action.text}"`);
+          console.log(`      - Kết luận daemon: \x1b[32mSẼ CLICK\x1b[0m ${formatKindAndCategory(analysis.action)} "${analysis.action.text}"`);
         } else {
           console.log(`      - Kết luận daemon: \x1b[31mKHÔNG CLICK\x1b[0m`);
         }
@@ -107,7 +115,7 @@ function runAnalysis(target) {
               const decision = b.decision === 'wouldClick' ? '\x1b[32mWOULD_CLICK\x1b[0m' : `\x1b[31mSKIP\x1b[0m ${b.reason || ''}`;
               const rect = b.rect ? `x=${b.rect.left},y=${b.rect.top},w=${b.rect.width},h=${b.rect.height}` : 'rect=N/A';
               const visibility = b.visibility ? `${b.visibility.ok ? 'visible' : 'hidden'}:${b.visibility.reason}` : 'visibility=N/A';
-              console.log(`         🔄 Btn: \x1b[32m${b.text}\x1b[0m | ${decision} | ${rect} | ${visibility} | Cạnh đó: \x1b[2m${b.context || 'N/A'}\x1b[0m`);
+              console.log(`         🔄 ${formatKindAndCategory(b)}: \x1b[32m${b.text}\x1b[0m | ${decision} | ${rect} | ${visibility} | Cạnh đó: \x1b[2m${b.context || 'N/A'}\x1b[0m`);
             });
           }
           
@@ -116,7 +124,7 @@ function runAnalysis(target) {
               const decision = b.decision === 'wouldClick' ? '\x1b[32mWOULD_CLICK\x1b[0m' : `\x1b[31mSKIP\x1b[0m ${b.reason || ''}`;
               const rect = b.rect ? `x=${b.rect.left},y=${b.rect.top},w=${b.rect.width},h=${b.rect.height}` : 'rect=N/A';
               const visibility = b.visibility ? `${b.visibility.ok ? 'visible' : 'hidden'}:${b.visibility.reason}` : 'visibility=N/A';
-              console.log(`         ⚡ Btn: \x1b[36m${b.text}\x1b[0m | ${decision} | ${rect} | ${visibility} | Cạnh đó: \x1b[2m${b.context || 'N/A'}\x1b[0m`);
+              console.log(`         ⚡ ${formatKindAndCategory(b)}: \x1b[36m${b.text}\x1b[0m | ${decision} | ${rect} | ${visibility} | Cạnh đó: \x1b[2m${b.context || 'N/A'}\x1b[0m`);
             });
           }
 
