@@ -82,8 +82,10 @@ Hệ thống cung cấp bộ công cụ mạnh mẽ để đảm bảo tính ổ
 Dùng để kiểm tra độ tin cậy của logic nhận diện dựa trên dữ liệu thực tế.
 - **Test DOM samples (Regression)**: `node scripts/tests/regression.js` - Chạy logic nhận diện trên các mẫu **Full-DOM Snapshot** (SAMPLES) đã lưu sẵn. Hệ thống sẽ giả lập môi trường và xác nhận xem nút bấm có được click hay không.
 
-### 🛠️ Developer Tools (Option 3 trong CLI)
+### 🛠️ Developer Tools (Option 2 trong CLI)
 - **Dump DOM Snapshot**: `node scripts/tools/dump-dom.js` - Chụp lại toàn bộ cấu trúc HTML của IDE và lưu vào thư mục `samples/`. Đây là bước duy nhất để tạo một ca kiểm thử mới (Test Case).
+- **Phân tích DOM trực tiếp (Live Analysis)**: `node scripts/tools/analyze-live.js` - Phân tích thời gian thực trạng thái DOM và lý do daemon sẽ click hoặc không click.
+- **Thống kê lý do bỏ qua (Skip Reasons)**: `node scripts/tools/list-skip-reasons.js` - Hiển thị bảng tổng hợp các lý do hệ thống đã bỏ qua không click (Rate limit, Visibility, UI Filters...).
 
 ## 5. Hệ Thống AI Agents
 

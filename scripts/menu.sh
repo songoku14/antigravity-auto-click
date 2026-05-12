@@ -148,6 +148,7 @@ show_dev_menu() {
         echo " 2) 📋 Xem log daemon thời gian thực (tail -f)"
         echo " 3) 🧪 Test DOM samples (Regression)"
         echo " 4) 🔍 Phân tích DOM trực tiếp (Live Analysis)"
+        echo " 5) 📊 Thống kê lý do bỏ qua (Skip Reasons)"
         echo " 0) 🔙 Quay lại Menu chính"
         echo "======================================================"
         echo ""
@@ -176,6 +177,11 @@ show_dev_menu() {
             4)
                 echo "🔍 Đang phân tích trạng thái Antigravity..."
                 node "$SCRIPT_DIR/tools/analyze-live.js"
+                read -p "Nhấn Enter để tiếp tục..."
+                ;;
+            5)
+                echo "📊 Đang hiển thị thống kê lý do skip..."
+                node "$SCRIPT_DIR/tools/list-skip-reasons.js"
                 read -p "Nhấn Enter để tiếp tục..."
                 ;;
             0)

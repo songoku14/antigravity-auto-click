@@ -5,7 +5,7 @@
  * It uses MutationObserver to watch for error dialogs and auto-click Retry/Accept.
  */
 
-const INJECTION_VERSION = 40;
+const INJECTION_VERSION = 41;
 
 /**
  * Trả về string JavaScript sẽ được inject vào DOM qua CDP Runtime.evaluate
@@ -249,19 +249,22 @@ function getInjectionScript(userConfig = {}) {
     }
   }
 
-  function canClick() {
+  function canClick(type = 'RETRY') {
     resetCounterIfNeeded();
     const now = Date.now();
     if (isInCooldown) {
+      log('[STAT] ' + type + '_SKIPPED: rate_limit_cooldown');
       debug('[RATE] Blocked by cooldown. actionCount=' + actionCount + ', sinceLastClick=' + (now - lastClickTime) + 'ms');
       return false;
     }
     if (now - lastClickTime < CONFIG.minClickInterval) {
+      log('[STAT] ' + type + '_SKIPPED: rate_limit_min_interval');
       debug('[RATE] Blocked by minClickInterval. sinceLastClick=' + (now - lastClickTime) + 'ms < ' + CONFIG.minClickInterval + 'ms');
       return false;
     }
     if (actionCount >= CONFIG.maxRetriesPerMinute) {
       isInCooldown = true;
+      log('[STAT] ' + type + '_SKIPPED: rate_limit_max_per_minute');
       log('Rate limit reached. Cooling down.');
       debug('[RATE] Entering cooldown. actionCount=' + actionCount + ', cooldownMs=' + CONFIG.cooldownMs);
       schedule(() => { isInCooldown = false; actionCount = 0; }, CONFIG.cooldownMs);
@@ -628,7 +631,8 @@ function getInjectionScript(userConfig = {}) {
     const clickGate = getClickGateStatus();
     const report = dryRun ? createScanReport(clickGate) : null;
 
-    if (!dryRun && !canClick()) return;
+    // Check rate limit first (assuming RETRY as default for the global gate)
+    if (!dryRun && !canClick('RETRY')) return;
 
     let containers = findValidContainers();
     const useFallback = containers.length === 0 && (USER_CONFIG.autoAccept !== false || USER_CONFIG.autoRetry !== false);
@@ -677,6 +681,7 @@ function getInjectionScript(userConfig = {}) {
               diag.reason = 'notRightSide';
               containerReport.buttons.retry.push(diag);
             }
+            if (!dryRun) log('[STAT] RETRY_SKIPPED: not_right_side');
             debug('[STEP 3] Skipping RETRY button: not on right side (' + Math.round(btnObj.rect.left) + ' < ' + Math.round(window.innerWidth * 0.4) + ')');
             continue;
           }
@@ -686,7 +691,8 @@ function getInjectionScript(userConfig = {}) {
               diag.reason = 'contextMismatch';
               containerReport.buttons.retry.push(diag);
             }
-            debug(\`[STEP 3.1] Skipping RETRY button: context mismatch\`);
+            if (!dryRun) log('[STAT] RETRY_SKIPPED: context_mismatch');
+            debug(`[STEP 3.1] Skipping RETRY button: context mismatch`);
             continue;
           }
           if (!useFallback) {
@@ -697,6 +703,7 @@ function getInjectionScript(userConfig = {}) {
                 diag.reason = 'retryContextMismatch';
                 containerReport.buttons.retry.push(diag);
               }
+              if (!dryRun) log('[STAT] RETRY_SKIPPED: retry_context_mismatch');
               debug('[STEP 3.2] Skipping RETRY button: no retry/error context in container');
               continue;
             }
@@ -710,11 +717,11 @@ function getInjectionScript(userConfig = {}) {
           if (!dryRun) {
             const visibility = getVisibilityStatus(btnObj.el, btnObj.rect);
             if (!visibility.ok) {
+              if (!dryRun) log('[STAT] RETRY_SKIPPED: visibility_' + visibility.reason);
               if (visibility.reason === 'outOfViewport') {
                 debug('[STEP 4.5] Visibility check bypassed: point out of viewport bounds');
               } else if (visibility.reason === 'noElementAtPoint') {
                 debug('[STEP 4.5] Visibility check bypassed: no element found at point');
-              } else {
                 debug(
                   '[STEP 4.5] Visibility check bypassed for ' + summarizeElement(btnObj.el) + ' rect=' + formatRect(btnObj.rect) + '. ' +
                   'Top element: ' + visibility.topElement + ' path=' + visibility.topElementPath
@@ -768,6 +775,7 @@ function getInjectionScript(userConfig = {}) {
                 diag.reason = 'notRightSide';
                 containerReport.buttons.accept.push(diag);
               }
+              if (!dryRun) log('[STAT] ACCEPT_SKIPPED: not_right_side');
               debug('[STEP 3] Skipping ACCEPT button: not on right side (' + Math.round(btnObj.rect.left) + ' < ' + Math.round(window.innerWidth * 0.4) + ')');
               continue;
             }
@@ -780,11 +788,11 @@ function getInjectionScript(userConfig = {}) {
             if (!dryRun) {
               const visibility = getVisibilityStatus(btnObj.el, btnObj.rect);
               if (!visibility.ok) {
+                if (!dryRun) log('[STAT] ACCEPT_SKIPPED: visibility_' + visibility.reason);
                 if (visibility.reason === 'outOfViewport') {
                   debug('[STEP 4.5] Visibility check bypassed: point out of viewport bounds');
                 } else if (visibility.reason === 'noElementAtPoint') {
                   debug('[STEP 4.5] Visibility check bypassed: no element found at point');
-                } else {
                   debug(
                     '[STEP 4.5] Visibility check bypassed for ' + summarizeElement(btnObj.el) + ' rect=' + formatRect(btnObj.rect) + '. ' +
                     'Top element: ' + visibility.topElement + ' path=' + visibility.topElementPath
@@ -816,6 +824,7 @@ function getInjectionScript(userConfig = {}) {
             if (isCommandBlocked(cmdText)) {
               if (!btnObj.el.__blocked) {
                 btnObj.el.__blocked = true;
+                log('[STAT] ACCEPT_SKIPPED: blacklist');
                 log('[STAT] ACCEPT_BLOCKED');
                 btnObj.el.style.border = '2px solid red';
                 setTimeout(() => { btnObj.el.__blocked = false; }, 5000);

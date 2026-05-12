@@ -30,18 +30,31 @@ class ActivityStore {
     }
   }
 
-  load() {
+    const activity = this._getInitialActivity();
     try {
       if (fs.existsSync(this.activityFile)) {
         const data = fs.readFileSync(this.activityFile, 'utf8');
-        return JSON.parse(data);
+        const parsed = JSON.parse(data);
+        // Merge with initial to ensure all fields exist
+        return {
+          ...activity,
+          ...parsed,
+          retry: { ...activity.retry, ...(parsed.retry || {}) },
+          accept: { ...activity.accept, ...(parsed.accept || {}) },
+          skipReasons: parsed.skipReasons || {}
+        };
       }
     } catch (e) {
       console.error(`[ActivityStore] Failed to load: ${e.message}`);
     }
+    return activity;
+  }
+
+  _getInitialActivity() {
     return {
       retry: { detected: 0, clicked: 0 },
-      accept: { detected: 0, clicked: 0, blocked: 0 }
+      accept: { detected: 0, clicked: 0, blocked: 0 },
+      skipReasons: {}
     };
   }
 
@@ -71,6 +84,18 @@ class ActivityStore {
       changed = true;
     } else if (text.includes('ACCEPT_BLOCKED')) {
       activity.accept.blocked++;
+      changed = true;
+    }
+
+    // Handle skip reasons: "[STAT] RETRY_SKIPPED: reason"
+    const skipMatch = text.match(/\[STAT\] (RETRY|ACCEPT)_SKIPPED: ([\w_:]+)/);
+    if (skipMatch) {
+      const type = skipMatch[1].toLowerCase(); // retry or accept
+      const reason = skipMatch[2];
+      const key = `${type}:${reason}`;
+      
+      if (!activity.skipReasons) activity.skipReasons = {};
+      activity.skipReasons[key] = (activity.skipReasons[key] || 0) + 1;
       changed = true;
     }
 
