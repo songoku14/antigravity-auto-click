@@ -56,7 +56,8 @@ class ActivityStore {
             ...activity.accept,
             ...(parsed.accept || {}),
             skipped: parsed.accept?.skipped ?? acceptSkipped,
-            candidates: parsed.accept?.candidates ?? ((parsed.accept?.detected || 0) + acceptSkipped)
+            candidates: parsed.accept?.candidates ?? ((parsed.accept?.detected || 0) + acceptSkipped),
+            detectedByCategory: parsed.accept?.detectedByCategory || {}
           },
           skipReasons
         };
@@ -70,7 +71,7 @@ class ActivityStore {
   _getInitialActivity() {
     return {
       retry: { candidates: 0, skipped: 0, detected: 0, clicked: 0 },
-      accept: { candidates: 0, skipped: 0, detected: 0, clicked: 0, blocked: 0, clickedByCategory: {} },
+      accept: { candidates: 0, skipped: 0, detected: 0, clicked: 0, blocked: 0, clickedByCategory: {}, detectedByCategory: {} },
       skipReasons: {}
     };
   }
@@ -110,6 +111,12 @@ class ActivityStore {
     } else if (text.includes('ACCEPT_DETECTED')) {
       activity.accept.candidates++;
       activity.accept.detected++;
+      const catMatch = text.match(/ACCEPT_DETECTED:([^\s!]+)/);
+      if (catMatch) {
+        const cat = catMatch[1];
+        if (!activity.accept.detectedByCategory) activity.accept.detectedByCategory = {};
+        activity.accept.detectedByCategory[cat] = (activity.accept.detectedByCategory[cat] || 0) + 1;
+      }
       changed = true;
     } else if (text.includes('ACCEPT_CLICKED')) {
       activity.accept.clicked++;

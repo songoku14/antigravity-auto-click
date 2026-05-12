@@ -191,7 +191,7 @@ function getInjectionScript(userConfig = {}) {
         if (type === 'RETRY') log('[STAT] RETRY_DETECTED');
         else {
           const cat = reason.includes(':') ? reason.split(':')[1] : 'unknown';
-          log('[STAT] ACCEPT_DETECTED (' + cat + ')');
+          log('[STAT] ACCEPT_DETECTED:' + cat);
         }
       } else {
         log('[STAT] ' + type + '_SKIPPED: ' + reason);
