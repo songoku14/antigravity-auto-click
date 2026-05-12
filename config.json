@@ -13,7 +13,7 @@
   ],
   "performClickAutoAccept": false,
   "autoAccept": {
-    "enabled": true,
+    "enabled": false,
     "categories": {
       "terminal": {
         "enabled": true,

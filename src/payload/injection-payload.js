@@ -5,7 +5,7 @@
  * It uses passive polling to scan for error dialogs and auto-click Retry/Accept.
  */
 
-const INJECTION_VERSION = 47;
+const INJECTION_VERSION = 48;
 
 /**
  * Trả về string JavaScript sẽ được inject vào DOM qua CDP Runtime.evaluate
@@ -80,8 +80,7 @@ function getInjectionScript(userConfig = {}) {
       /^retry$/i,
       /^try\\s*again$/i,
       /^thử\\s*lại$/i,
-      /^reconnect$/i,
-      /\\bretry\\b/i
+      /^reconnect$/i
     ],
 
     actionButtonPatterns: [
@@ -434,6 +433,10 @@ function getInjectionScript(userConfig = {}) {
             if (patterns) {
               for (const pattern of patterns) {
                 if (pattern.test(text)) {
+                  if (isRetryScan && !isSafeRetryButtonText(text)) {
+                    debug('[SCAN] Skipping retry-shaped text that is not a safe button label: "' + text + '"');
+                    continue;
+                  }
                   if (typeLabel) {
                     log('Found matching ' + typeLabel + ' button: "' + text + '"');
                     debug('[SCAN] ' + typeLabel + ' candidate ' + summarizeElement(el) + ' rect=' + formatRect(rect) + ' inFooter=' + inFooter + ' path=' + elementPath(el, 4));
@@ -568,6 +571,15 @@ function getInjectionScript(userConfig = {}) {
 
   function normalizeText(text) {
     return String(text || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  }
+
+  function isSafeRetryButtonText(text) {
+    const normalized = normalizeText(text);
+    if (!normalized) return false;
+    return normalized === 'retry' ||
+      normalized === 'try again' ||
+      normalized === 'thử lại' ||
+      normalized === 'reconnect';
   }
 
   function resolveLiveButton(btnObj, container) {

@@ -76,6 +76,11 @@ async function runRegressionTests() {
   if (filenameFalsePositiveResult.success) passed++;
 
   total++;
+  console.log(`\n📄 Đang kiểm tra: \x1b[34mhistory_title_retry_false_positive\x1b[0m`);
+  const historyTitleFalsePositiveResult = await verifyHistoryTitleRetryFalsePositive();
+  if (historyTitleFalsePositiveResult.success) passed++;
+
+  total++;
   console.log(`\n📄 Đang kiểm tra: \x1b[34mcleanup_cancels_pending_click\x1b[0m`);
   const cleanupPendingClickResult = await verifyCleanupCancelsPendingClick();
   if (cleanupPendingClickResult.success) passed++;
@@ -345,6 +350,97 @@ async function verifyFilenameRetryFalsePositive() {
     return { success: false };
   } catch (e) {
     console.error('   ❌ Error in filename false-positive scenario:', e.message);
+    return { success: false };
+  } finally {
+    window.close();
+  }
+}
+
+async function verifyHistoryTitleRetryFalsePositive() {
+  const html = `
+    <html>
+      <body>
+        <div class="antigravity-agent-side-panel">
+          <div class="history-list">
+            <button id="history-btn" title="Analyzing Retry Statistics Discrepancy" class="group cursor-pointer">
+              <span>Analyzing Retry Statistics Discrepancy</span>
+              <span>38m</span>
+              <span>delete</span>
+            </button>
+          </div>
+          <div class="bg-agent-convo-background">
+            <div>Agent terminated due to error. Try again.</div>
+            <footer><button id="retry-btn">Retry</button></footer>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  const dom = new JSDOM(html, {
+    runScripts: "dangerously",
+    pretendToBeVisual: true,
+    url: "http://localhost/workbench.html"
+  });
+
+  const { window } = dom;
+  window.innerWidth = 1440;
+  window.innerHeight = 900;
+
+  const historyButton = window.document.getElementById('history-btn');
+  const retryButton = window.document.getElementById('retry-btn');
+  let historyClickCount = 0;
+  let retryClickCount = 0;
+
+  window.HTMLElement.prototype.click = function() {
+    this.__clicked = true;
+    if (this === historyButton) historyClickCount++;
+    if (this === retryButton) retryClickCount++;
+  };
+
+  window.Element.prototype.getBoundingClientRect = function() {
+    if (this === historyButton) {
+      return { left: 988, top: 811, width: 435, height: 26, right: 1423, bottom: 837, x: 988, y: 811 };
+    }
+    if (this === retryButton) {
+      return { left: 1350, top: 700, width: 70, height: 30, right: 1420, bottom: 730, x: 1350, y: 700 };
+    }
+    if (this.classList && this.classList.contains('bg-agent-convo-background')) {
+      return { left: 990, top: 610, width: 440, height: 150, right: 1430, bottom: 760, x: 990, y: 610 };
+    }
+    return { left: 980, top: 560, width: 460, height: 280, right: 1440, bottom: 840, x: 980, y: 560 };
+  };
+
+  window.document.elementFromPoint = function(x, y) {
+    const retryRect = retryButton.getBoundingClientRect();
+    const historyRect = historyButton.getBoundingClientRect();
+    const inRetry = x >= retryRect.left && x <= retryRect.right && y >= retryRect.top && y <= retryRect.bottom;
+    if (inRetry) return retryButton;
+    const inHistory = x >= historyRect.left && x <= historyRect.right && y >= historyRect.top && y <= historyRect.bottom;
+    if (inHistory) return historyButton;
+    return window.document.body;
+  };
+
+  try {
+    const scriptText = getInjectionScript({ autoRetry: true, autoAccept: false, pollInterval: 1000, clickDelay: 100 });
+    window.eval(scriptText);
+    const analysis = window.__analyzeDialog();
+
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
+    const historyCandidate = analysis.containers
+      .flatMap(container => container.buttons.retry || [])
+      .find(button => button.text.includes('Analyzing Retry Statistics Discrepancy'));
+
+    if (retryClickCount === 1 && historyClickCount === 0 && (!historyCandidate || historyCandidate.decision !== 'wouldClick')) {
+      console.log(`   ✅ \x1b[32mPASS\x1b[0m: History item chứa chữ "Retry" không bị click nhầm; nút dialog thật vẫn được click.`);
+      return { success: true };
+    }
+
+    console.log(`   ❌ \x1b[31mFAIL\x1b[0m: Vẫn có false positive từ history item. retryClickCount=${retryClickCount}, historyClickCount=${historyClickCount}, historyDecision=${historyCandidate && historyCandidate.decision}`);
+    return { success: false };
+  } catch (e) {
+    console.error('   ❌ Error in history-title false-positive scenario:', e.message);
     return { success: false };
   } finally {
     window.close();
