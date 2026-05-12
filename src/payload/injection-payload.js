@@ -653,9 +653,6 @@ function getInjectionScript(userConfig = {}) {
     const clickGate = getClickGateStatus();
     const report = dryRun ? createScanReport(clickGate) : null;
 
-    // Check rate limit first (assuming RETRY as default for the global gate)
-    if (!dryRun && !canClick('RETRY')) return;
-
     let containers = findValidContainers();
     const useFallback = containers.length === 0 && (isAutoAcceptEnabled() || USER_CONFIG.autoRetry !== false);
     if (useFallback) containers = [document.body];
@@ -763,6 +760,7 @@ function getInjectionScript(userConfig = {}) {
             return report;
           }
           log('[STAT] RETRY_DETECTED');
+          if (!canClick('RETRY')) return;
           performClick(btnObj, container, '🔄 RETRY');
           return;
         }
@@ -855,6 +853,7 @@ function getInjectionScript(userConfig = {}) {
               continue;
             }
             if (USER_CONFIG.performClickAutoAccept === true) {
+              if (!canClick('ACCEPT')) return;
               performClick(btnObj, container, '⚡ ACTION (' + catName.toUpperCase() + ')');
             } else {
               debug('[ACTION] performClickAutoAccept is false, skipping click but logged to statistics.');
