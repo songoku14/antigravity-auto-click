@@ -1,8 +1,8 @@
 /**
  * scripts/tests/regression.js
  * 
- * Realistic Full-DOM Regression Testing Tool.
- * Verifies detection logic against captured HTML snapshots using JSDOM.
+ * Bộ test hồi quy (Regression Testing) chạy trên toàn bộ samples DOM.
+ * Đảm bảo logic nhận diện không bị lỗi sau khi cập nhật mã nguồn.
  */
 
 const fs = require('fs');
@@ -10,9 +10,7 @@ const path = require('path');
 const { JSDOM } = require('jsdom');
 const { getInjectionScript } = require('../../src/payload/injection-payload');
 
-const SAMPLES_DIR = fs.existsSync(path.join(__dirname, '..', '..', 'samples')) 
-  ? path.join(__dirname, '..', '..', 'samples')
-  : path.join(__dirname, '..', 'samples');
+const SAMPLES_DIR = path.join(__dirname, '..', '..', 'samples');
 
 async function runRegressionTests() {
   const args = process.argv.slice(2);

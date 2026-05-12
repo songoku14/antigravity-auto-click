@@ -1,5 +1,8 @@
 /**
- * scripts/debug-buttons.js
+ * scripts/tools/debug-buttons.js
+ * 
+ * Tìm kiếm và phân tích các phần tử có khả năng là nút bấm (clickable)
+ * dựa trên text và style (cursor: pointer).
  */
 
 const WebSocket = require('ws');

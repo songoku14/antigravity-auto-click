@@ -1,8 +1,8 @@
 /**
  * scripts/tools/analyze-live.js
  * 
- * Utility to connect to the active Antigravity page via CDP and
- * analyze the current DOM for actionable cards and buttons.
+ * Công cụ phân tích DOM trực tiếp từ Antigravity qua CDP.
+ * Giúp kiểm tra xem Daemon đang nhìn thấy gì và có định click hay không.
  */
 
 const WebSocket = require('ws');

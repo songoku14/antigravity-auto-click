@@ -1,7 +1,8 @@
 /**
- * scripts/find-text.js
+ * scripts/tools/find-text.js
  * 
- * Utility to find specific text in Antigravity's DOM, including Shadow DOMs.
+ * Tìm kiếm văn bản cụ thể trong toàn bộ các frame/shadow DOM của Antigravity.
+ * Hữu ích để tìm selector cho các nút bấm ẩn sâu trong shadow DOM.
  */
 
 const WebSocket = require('ws');

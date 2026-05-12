@@ -1,7 +1,8 @@
 /**
- * scripts/dump-dom.js
+ * scripts/tools/dump-dom.js
  * 
- * Utility to dump the entire DOM of the active page into a file.
+ * Chụp ảnh (snapshot) toàn bộ cấu trúc DOM của Antigravity và lưu
+ * vào thư mục samples/ để làm dữ liệu kiểm thử regression.
  */
 
 const WebSocket = require('ws');
@@ -24,7 +25,7 @@ async function dumpDom() {
     return;
   }
 
-  const samplesDir = path.join(__dirname, '..', 'samples');
+  const samplesDir = path.join(__dirname, '..', '..', 'samples');
   if (!fs.existsSync(samplesDir)) fs.mkdirSync(samplesDir);
 
   for (const target of pageTargets) {

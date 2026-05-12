@@ -1,7 +1,8 @@
 /**
  * scripts/tools/list-skip-reasons.js
  * 
- * Display statistics of detection skip reasons from activity-log.json
+ * Phân tích lý do tại sao Daemon phát hiện ra nút bấm nhưng lại bỏ qua
+ * không click (vd: do nằm sai vị trí, do bị che khuất, do rate limit).
  */
 
 const fs = require('fs');

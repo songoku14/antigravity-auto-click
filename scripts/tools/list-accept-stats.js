@@ -1,7 +1,8 @@
 /**
  * scripts/tools/list-accept-stats.js
  * 
- * Display statistics of Auto-Accept clicks by category from activity-log.json
+ * Thống kê chi tiết số lượng click tự động (Auto-Accept) theo từng
+ * phân loại (Terminal, Review, System) từ file activity-log.json.
  */
 
 const fs = require('fs');

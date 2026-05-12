@@ -1,7 +1,8 @@
 /**
- * scripts/validate-dump.js
+ * scripts/tools/validate-dump.js
  * 
- * Script to validate detection logic against a saved DOM dump.
+ * Kiểm tra logic nhận diện nút bấm offline trên một file DOM dump cụ thể.
+ * Giúp xác minh nhanh độ chính xác của regex trước khi đưa vào regression suite.
  */
 
 const fs = require('fs');
@@ -49,7 +50,7 @@ function validate(filePath) {
 }
 
 // Find latest implementation plan dump
-const samplesDir = path.join(__dirname, '..', 'samples');
+const samplesDir = path.join(__dirname, '..', '..', 'samples');
 const files = fs.readdirSync(samplesDir)
   .filter(f => f.startsWith('full_dom_antigravity_auto_click') && f.endsWith('.html'))
   .sort()
