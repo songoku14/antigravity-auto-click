@@ -34,8 +34,6 @@ function activate(context) {
     context.subscriptions.push(vscode.commands.registerCommand('antigravity-auto-retry.stop', stopDaemon));
     context.subscriptions.push(vscode.commands.registerCommand('antigravity-auto-retry.restartIDE', restartIDE));
     context.subscriptions.push(vscode.commands.registerCommand('antigravity-auto-retry.editConfig', editConfig));
-    context.subscriptions.push(vscode.commands.registerCommand('antigravity-auto-retry.testRetry', testRetry));
-    context.subscriptions.push(vscode.commands.registerCommand('antigravity-auto-retry.testAccept', testAccept));
 
     // Auto-start (Optional: could be a setting)
     startDaemon();
@@ -266,28 +264,6 @@ function stopDaemon() {
         daemonProcess = null;
         updateStatusBar(false);
         vscode.window.showInformationMessage('Antigravity Auto-Click stopped.');
-    });
-}
-
-function testRetry() {
-    const scriptPath = path.join(__dirname, '..', '..', 'scripts', 'tests', 'trigger-test.js');
-    cp.exec(`node "${scriptPath}"`, (error, stdout, stderr) => {
-        if (error) {
-            vscode.window.showErrorMessage(`Test Retry failed: ${error.message}`);
-            return;
-        }
-        vscode.window.showInformationMessage('Simulated High Traffic dialog triggered.');
-    });
-}
-
-function testAccept() {
-    const scriptPath = path.join(__dirname, '..', '..', 'scripts', 'tests', 'trigger-accept-test.js');
-    cp.exec(`node "${scriptPath}"`, (error, stdout, stderr) => {
-        if (error) {
-            vscode.window.showErrorMessage(`Test Accept failed: ${error.message}`);
-            return;
-        }
-        vscode.window.showInformationMessage('Simulated Agent Prompt triggered.');
     });
 }
 

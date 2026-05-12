@@ -1,7 +1,9 @@
 # Project Context: Antigravity Auto-Click
 
 ## Overview
-This project provides a daemon that runs in the background on macOS, connects to the local Antigravity instance (an Electron-based AI editor) via the Chrome DevTools Protocol (CDP), and injects a script. The injected script monitors the DOM for "High Traffic" error dialogs and automatically clicks the "Retry" button.
+This project provides a background daemon for macOS that connects to a local Antigravity instance (Electron-based IDE) via the Chrome DevTools Protocol (CDP) and injects a DOM automation payload. The payload currently supports two flows:
+- **Auto-Retry**: detect error dialogs such as "High Traffic" / overloaded / rate-limited states and click retry-style actions.
+- **Auto-Accept**: detect selected Agent confirmation dialogs and optionally click action buttons such as `Run`, `Accept`, or `Proceed`, with category-based controls and a terminal-command blacklist.
 
 ## Tech Stack
 - **Node.js**: The daemon that orchestrates the CDP connection and payload injection.
@@ -11,6 +13,9 @@ This project provides a daemon that runs in the background on macOS, connects to
 
 
 ## Key Design Decisions
-- **Target Filtering**: We only inject into `page` targets that resemble the main UI (Workbench or Launchpad).
-- **Container Scoping**: The injected script specifically scopes its search to `.monaco-dialog-box`, `.notification-toast`, and similar containers. This prevents false positives where the script might click a word like "retry" that happens to be inside a file currently being edited.
-- **Versioning (v3)**: The injected script handles versioning to ensure that if a new version is injected during development, it disables the `MutationObserver` and `setInterval` of older versions to avoid memory leaks and duplicate clicks.
+- **Target Filtering**: Only inject into `page` targets that look like the main Antigravity UI (`workbench`, `Launchpad`, `Antigravity`), not arbitrary webviews.
+- **Dynamic CDP Port Detection**: The daemon reads the active `--remote-debugging-port=...` from the running Electron process instead of assuming a single fixed port.
+- **Container Scoping**: DOM scanning is limited to dialog / notification / agent-panel style containers such as `.monaco-dialog-box`, `.notification-toast`, `.bg-agent-convo-background`, and `.antigravity-agent-side-panel` to reduce false positives.
+- **Shadow DOM Traversal**: The payload walks into shadow roots because Antigravity UI elements are not always exposed in the light DOM.
+- **Safety Gates**: Auto-Accept is protected by category matching, visibility checks, rate limiting, and a blacklist for dangerous terminal commands. By default, `performClickAutoAccept` can be kept `false` to collect detection stats without performing real clicks.
+- **Versioned Injection**: The injected script uses a version marker and cleanup hook so newer payloads can disable old observers/timers and avoid duplicate clicks or leaks during reinjection.

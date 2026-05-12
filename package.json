@@ -32,14 +32,6 @@
       {
         "command": "antigravity-auto-retry.editConfig",
         "title": "Antigravity: Edit Config"
-      },
-      {
-        "command": "antigravity-auto-retry.testRetry",
-        "title": "Antigravity: Test Auto-Retry"
-      },
-      {
-        "command": "antigravity-auto-retry.testAccept",
-        "title": "Antigravity: Test Auto-Accept"
       }
     ]
   },
