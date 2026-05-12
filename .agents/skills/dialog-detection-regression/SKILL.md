@@ -13,23 +13,19 @@ This skill is used to verify that the Antigravity injection payload correctly id
 ## Usage
 
 ### Run All Tests
-To run the full regression suite against all samples in the `samples/` directory:
+To run the full regression suite against all samples in the `samples/` directory, select **Option 2 (Test DOM samples)** from the main menu, then select **Option a (Run ALL)**.
 ```bash
-node scripts/verify-dialog-detection-regression.js
-```
+### Realistic Full-DOM Testing
+The regression tool focuses on **Realistic Full-DOM Testing**. It runs the actual detection logic against full HTML snapshots captured from the real IDE using JSDOM.
+
+- **Headless execution**: Automatically simulates the environment, mocks layout/visibility, and verifies that the logic would trigger the correct `click()` action.
 
 ### Adding a New Test Case
-1.  **Capture the DOM**: Use Option 11 in the CLI menu or run `node scripts/dump-dom.js` while the dialog is visible in Antigravity.
-2.  **Analyze & Save**: Use Option 9 in the CLI menu (`node scripts/analyze-dialog.js`) to analyze the live dialog. 
-    - When prompted to save, choose **Yes**.
-    - This creates a paired `sample_XXX.json` and `sample_XXX.html` in the `samples/` directory.
-3.  **Verify**: The new sample will automatically be included in the next regression run.
+1.  **Capture the DOM**: Run `node scripts/tools/dump-dom.js` (Option 1 in Developer Tools) while the desired state is visible in Antigravity.
+2.  **Verify**: The new snapshot (`full_dom_*.html`) will automatically be included in the next run of **Test DOM samples** (Option 2 in main menu).
 
 ## Test Data Structure
 - **HTML file**: Contains the captured DOM structure.
-- **JSON file (Optional)**: Contains metadata and the `expectedButton`. If present, the test will verify that the detection logic finds this specific button text.
-
-## Troubleshooting Failures
 If a test fails:
 1.  Check the "Found buttons" list in the terminal output.
 2.  Open the failing `.html` sample in a browser to inspect its structure.

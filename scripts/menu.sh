@@ -62,7 +62,7 @@ show_menu() {
     echo -e "   Auto Retry: $RETRY_STATUS ($RETRY_COUNT)    |    Auto Accept: $ACCEPT_STATUS ($ACCEPT_COUNT)"
     echo "======================================================"
     echo " 1) 📊 Xem Trạng thái & Logs chi tiết"
-    echo " 2) 🧪 Testing Lab (Live & Regression)"
+    echo " 2) 🧪 Test DOM samples (Regression)"
     echo " 3) 🛠️ Developer Tools (Debug & Analysis)"
     echo "------------------------------------------------------"
     echo " 4) 🚀 Start All Features (Bắt đầu chạy)"
@@ -77,48 +77,9 @@ show_menu() {
     echo ""
 }
 
-show_test_menu() {
-    while true; do
-        clear
-        echo "======================================================"
-        echo "           🧪 ANTIGRAVITY TESTING LAB               "
-        echo "======================================================"
-        echo " 1) 🔄 Test Auto-Retry (Giả lập High Traffic - LIVE)"
-        echo " 2) ✅ Test Auto-Accept (Giả lập Agent Prompt - LIVE)"
-        echo " 3) 🧪 Chạy Regression Test (Mẫu Offline - SAMPLES)"
-        echo " 0) 🔙 Quay lại Menu chính"
-        echo "======================================================"
-        echo ""
-        read -p "Lựa chọn của bạn: " test_choice
-        echo ""
-        
-        case $test_choice in
-            1)
-                echo "🧪 Đang kiểm tra Auto-Retry (LIVE)..."
-                node "$SCRIPT_DIR/tests/trigger-test.js"
-                read -p "Nhấn Enter để tiếp tục..."
-                ;;
-            2)
-                echo "🧪 Đang kiểm tra Auto-Accept (LIVE)..."
-                node "$SCRIPT_DIR/tests/trigger-accept-test.js"
-                read -p "Nhấn Enter để tiếp tục..."
-                ;;
-            3)
-                run_regression_suite
-                ;;
-            0)
-                return
-                ;;
-            *)
-                echo "❌ Lựa chọn không hợp lệ."
-                sleep 1
-                ;;
-        esac
-    done
-}
 
 run_regression_suite() {
-    echo "🧪 Đang chuẩn bị bộ kiểm tra hồi quy (SAMPLES)..."
+    echo "🧪 Đang chuẩn bị Test DOM Samples..."
     SAMPLES_DIR="$PROJECT_ROOT/samples"
     if [ ! -d "$SAMPLES_DIR" ]; then
         echo "❌ Thư mục samples/ không tồn tại."
@@ -128,43 +89,28 @@ run_regression_suite() {
 
     read -p "🔍 Nhập từ khóa tìm kiếm (bỏ trống để xem tất cả): " search_term
     
-    # Tìm kiếm file khớp từ khóa
+    # Tìm kiếm file khớp từ khóa (chấp nhận cả full_dom_ và sample_)
     FILES=()
     while IFS= read -r -d $'\0' file; do
         FILES+=("$(basename "$file")")
-    done < <(find "$SAMPLES_DIR" -maxdepth 1 -iname "*${search_term}*.html" -print0 2>/dev/null)
+    done < <(find "$SAMPLES_DIR" -maxdepth 1 -iname "*${search_term}*.html" \( -name "full_dom_*" -o -name "sample_*" \) -print0 2>/dev/null)
 
     # Fallback nếu không thấy mẫu nào
     if [ ${#FILES[@]} -eq 0 ]; then
         echo "⚠️ Không tìm thấy mẫu khớp với: '$search_term'"
-        echo "🔍 Tự động hiển thị 10 mẫu 'full_dom' mới nhất..."
-        while IFS= read -r file; do
-            [ -n "$file" ] && FILES+=("$(basename "$file")")
-        done < <(ls -t "$SAMPLES_DIR"/*full_dom*.html 2>/dev/null | head -n 10)
-    fi
-
-    if [ ${#FILES[@]} -eq 0 ]; then
-        echo "ℹ️ Không tìm thấy mẫu nào khả dụng trong thư mục samples/."
         read -p "Nhấn Enter để tiếp tục..."
         return
-    fi
-
-    # Hỏi xem có muốn verify execution không
-    read -p "⚡ Bạn có muốn xác minh thực thi (Verify Auto-Click) không? (y/N): " verify_choice
-    VERIFY_FLAG=""
-    if [[ "$verify_choice" =~ ^[Yy]$ ]]; then
-        VERIFY_FLAG="--verify"
     fi
 
     while true; do
         clear
         echo "======================================================"
-        echo "         🧪 REGRESSION TEST - KẾT QUẢ TÌM KIẾM        "
+        echo "         🧪 TEST DOM SAMPLES - KẾT QUẢ TÌM KIẾM        "
         echo "======================================================"
         echo " Từ khóa: '$search_term' (Tìm thấy: ${#FILES[@]} mẫu)"
         echo "------------------------------------------------------"
         echo " a) 🏃 Chạy TẤT CẢ các mẫu trong danh sách này"
-        echo " 0) 🔙 Quay lại Menu Test Lab"
+        echo " 0) 🔙 Quay lại Menu chính"
         echo "------------------------------------------------------"
         for i in "${!FILES[@]}"; do
             echo " $((i+1))) ${FILES[$i]}"
@@ -175,15 +121,15 @@ run_regression_suite() {
         if [[ "$sample_choice" == "0" ]]; then
             break
         elif [[ "$sample_choice" == "a" ]]; then
-            echo "🧪 Đang chạy Regression Test cho toàn bộ danh sách..."
+            echo "🧪 Đang chạy Test DOM Samples cho toàn bộ danh sách..."
             for f in "${FILES[@]}"; do
-                node "$SCRIPT_DIR/tests/regression.js" "$f" $VERIFY_FLAG
+                node "$SCRIPT_DIR/tests/regression.js" "$f"
             done
             read -p "Nhấn Enter để quay lại danh sách..."
         elif [[ "$sample_choice" =~ ^[0-9]+$ ]] && [ "$sample_choice" -gt 0 ] && [ "$sample_choice" -le ${#FILES[@]} ]; then
             SELECTED_FILE=${FILES[$((sample_choice-1))]}
-            echo "🧪 Đang chạy Regression Test cho mẫu: $SELECTED_FILE"
-            node "$SCRIPT_DIR/tests/regression.js" "$SELECTED_FILE" $VERIFY_FLAG
+            echo "🧪 Đang chạy Test cho mẫu: $SELECTED_FILE"
+            node "$SCRIPT_DIR/tests/regression.js" "$SELECTED_FILE"
             read -p "Nhấn Enter để quay lại danh sách..."
         else
             echo "❌ Lựa chọn không hợp lệ."
@@ -198,9 +144,7 @@ show_dev_menu() {
         echo "======================================================"
         echo "           🛠️ ANTIGRAVITY DEVELOPER TOOLS            "
         echo "======================================================"
-        echo " 1) 🔍 Phân tích Dialog hiện tại"
-        echo " 2) 🎭 Giả lập Dialog từ Sample"
-        echo " 3) 📦 Chụp toàn bộ IDE (Dump DOM)"
+        echo " 1) 📦 Chụp toàn bộ IDE (Dump DOM Snapshot)"
         echo " 0) 🔙 Quay lại Menu chính"
         echo "======================================================"
         echo ""
@@ -209,16 +153,6 @@ show_dev_menu() {
         
         case $dev_choice in
             1)
-                echo "🔍 Đang khởi chạy công cụ phân tích..."
-                node "$SCRIPT_DIR/tools/analyze-dialog.js"
-                read -p "Nhấn Enter để tiếp tục..."
-                ;;
-            2)
-                echo "🎭 Đang khởi chạy công cụ giả lập..."
-                node "$SCRIPT_DIR/tests/mock-dialog.js"
-                read -p "Nhấn Enter để tiếp tục..."
-                ;;
-            3)
                 echo "📦 Đang thực hiện dump toàn bộ DOM..."
                 node "$SCRIPT_DIR/tools/dump-dom.js"
                 read -p "Nhấn Enter để tiếp tục..."
@@ -301,7 +235,7 @@ while true; do
             done
             ;;
         2)
-            show_test_menu
+            run_regression_suite
             ;;
         3)
             show_dev_menu

@@ -328,18 +328,23 @@ function getInjectionScript(userConfig = {}) {
   }
 
   function isVisibleAtPoint(el, rect) {
+    if (USER_CONFIG.testMode) {
+      debug('[STEP 4] Test mode enabled, bypassing visibility check');
+      return true;
+    }
+
     const x = rect.left + rect.width / 2;
     const y = rect.top + rect.height / 2;
     debug(\`[STEP 4] Checking visibility at (\${Math.round(x)}, \${Math.round(y)})\`);
     
     if (x < 0 || y < 0 || x > window.innerWidth || y > window.innerHeight) {
-      debug(\`[STEP 4.1] Point out of viewport bounds\`);
+      debug('[STEP 4.1] Point out of viewport bounds');
       return false;
     }
 
     let topEl = document.elementFromPoint(x, y);
     if (!topEl) {
-      debug(\`[STEP 4.2] No element found at point\`);
+      debug('[STEP 4.2] No element found at point');
       return false;
     }
 
@@ -352,7 +357,7 @@ function getInjectionScript(userConfig = {}) {
     let curr = topEl;
     while (curr) {
       if (curr === el) {
-        debug(\`[STEP 4.3] Visibility confirmed: target button is on top\`);
+        debug('[STEP 4.3] Visibility confirmed: target button is on top');
         return true;
       }
       curr = curr.parentElement || (curr.getRootNode && curr.getRootNode().host);
@@ -391,10 +396,10 @@ function getInjectionScript(userConfig = {}) {
         btns.sort((a, b) => (a.inFooter !== b.inFooter ? (b.inFooter ? 1 : -1) : b.rect.top - a.rect.top));
 
         for (const btnObj of btns) {
-          debug(\`[STEP 2] Found matching RETRY button: "\${btnObj.text}"\`);
+          debug('[STEP 2] Found matching RETRY button: "' + btnObj.text + '"');
           const isRightSide = btnObj.rect.left > window.innerWidth * 0.4;
-          if (!isAgentWindow && !isRightSide) {
-            debug(\`[STEP 3] Skipping RETRY button: not on right side (\${Math.round(btnObj.rect.left)} < \${Math.round(window.innerWidth * 0.4)})\`);
+          if (!USER_CONFIG.testMode && !isAgentWindow && !isRightSide) {
+            debug('[STEP 3] Skipping RETRY button: not on right side (' + Math.round(btnObj.rect.left) + ' < ' + Math.round(window.innerWidth * 0.4) + ')');
             continue;
           }
           if (useFallback && !CONFIG.retryContextPatterns.some(p => p.test(getSurroundingText(btnObj.el)))) {
@@ -426,10 +431,10 @@ function getInjectionScript(userConfig = {}) {
           btns.sort((a, b) => (a.inFooter !== b.inFooter ? (b.inFooter ? 1 : -1) : b.rect.top - a.rect.top));
 
           for (const btnObj of btns) {
-            debug(\`[STEP 2] Found matching ACCEPT button: "\${btnObj.text}"\`);
+            debug('[STEP 2] Found matching ACCEPT button: "' + btnObj.text + '"');
             const isRightSide = btnObj.rect.left > window.innerWidth * 0.4;
-            if (!isAgentWindow && !isRightSide) {
-              debug(\`[STEP 3] Skipping ACCEPT button: not on right side (\${Math.round(btnObj.rect.left)} < \${Math.round(window.innerWidth * 0.4)})\`);
+            if (!USER_CONFIG.testMode && !isAgentWindow && !isRightSide) {
+              debug('[STEP 3] Skipping ACCEPT button: not on right side (' + Math.round(btnObj.rect.left) + ' < ' + Math.round(window.innerWidth * 0.4) + ')');
               continue;
             }
             if (!isVisibleAtPoint(btnObj.el, btnObj.rect)) {
@@ -541,28 +546,72 @@ function getInjectionScript(userConfig = {}) {
     log('Analyzing current DOM for dialogs...');
     const containers = findValidContainers();
     const results = [];
-    const targets = new Set(containers);
-    targets.add(document.body);
-    const finalTargets = Array.from(targets);
+    let totalProcessedButtons = 0;
+    const seenButtons = new Set();
     
-    for (const container of finalTargets) {
-      const buttons = findButtonsIn(container, null, null);
+    // Check for agent panel specifically
+    const agentPanel = document.querySelector('.antigravity-agent-side-panel');
+    const hasAgentPanel = !!agentPanel;
+
+    const getContext = (el) => {
+      try {
+        // Try to find text before the button in the same parent
+        let context = '';
+        let prev = el.previousSibling;
+        while (prev) {
+          const text = (prev.textContent || '').trim();
+          if (text) {
+            context = text + ' ' + context;
+            if (context.length > 40) break;
+          }
+          prev = prev.previousSibling;
+        }
+        
+        if (!context.trim()) {
+          // Fallback to parent's text (excluding the button itself)
+          const parentText = (el.parentElement.textContent || '').replace(el.textContent, '').trim();
+          context = parentText.substring(0, 60);
+        }
+        return context.trim().replace(/\s+/g, ' ').substring(0, 100);
+      } catch (e) { return ''; }
+    };
+
+    for (const container of containers) {
+      const isAgentWindow = !!(container.closest && container.closest('.antigravity-agent-side-panel'));
+      
+      // Find buttons by category
+      const retryBtns = findButtonsIn(container, CONFIG.retryButtonPatterns, null);
+      const actionBtns = findButtonsIn(container, CONFIG.actionButtonPatterns, null);
+      
+      // Deduplicate buttons to avoid double counting in nested containers
+      const uniqueRetry = retryBtns.filter(b => {
+        if (seenButtons.has(b.el)) return false;
+        seenButtons.add(b.el);
+        return true;
+      });
+      const uniqueAccept = actionBtns.filter(b => {
+        if (seenButtons.has(b.el)) return false;
+        seenButtons.add(b.el);
+        return true;
+      });
+
+      totalProcessedButtons += uniqueRetry.length + uniqueAccept.length;
+
       results.push({
-        isBody: container === document.body,
-        text: (container.textContent || '').substring(0, 1000).trim(),
-        html: container.outerHTML,
-        buttons: buttons.map(b => ({
-          text: b.text,
-          tagName: b.tagName,
-          className: b.className,
-          id: b.id
-        }))
+        isAgentWindow,
+        textSnippet: (container.textContent || '').replace(/\s+/g, ' ').substring(0, 160).trim(),
+        buttons: {
+          retry: uniqueRetry.map(b => ({ text: b.text, context: getContext(b.el) })),
+          accept: uniqueAccept.map(b => ({ text: b.text, context: getContext(b.el) }))
+        }
       });
     }
     
     return {
       timestamp: new Date().toISOString(),
-      found: containers.length > 0,
+      foundAgentPanel: hasAgentPanel,
+      containerCount: containers.length,
+      totalButtons: totalProcessedButtons,
       containers: results
     };
   };
