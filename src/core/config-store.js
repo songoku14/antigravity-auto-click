@@ -4,7 +4,8 @@ const path = require('path');
 const DEFAULT_CONFIG = {
   blacklist: [],
   autoAccept: false,
-  autoRetry: false
+  autoRetry: false,
+  performClickAutoAccept: false
 };
 
 class ConfigStore {

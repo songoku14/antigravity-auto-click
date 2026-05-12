@@ -5,7 +5,7 @@
  * It uses MutationObserver to watch for error dialogs and auto-click Retry/Accept.
  */
 
-const INJECTION_VERSION = 41;
+const INJECTION_VERSION = 43;
 
 /**
  * Trả về string JavaScript sẽ được inject vào DOM qua CDP Runtime.evaluate
@@ -841,16 +841,24 @@ function getInjectionScript(userConfig = {}) {
             log('[STAT] ACCEPT_DETECTED (' + catName + ')');
             debug('[ACTION] ACCEPT command context for "' + btnObj.text + '": "' + (cmdText || '').substring(0, 200) + '"');
             if (isCommandBlocked(cmdText)) {
-              if (!btnObj.el.__blocked) {
-                btnObj.el.__blocked = true;
-                log('[STAT] ACCEPT_SKIPPED: blacklist');
-                log('[STAT] ACCEPT_BLOCKED');
-                btnObj.el.style.border = '2px solid red';
-                setTimeout(() => { btnObj.el.__blocked = false; }, 5000);
+              if (USER_CONFIG.performClickAutoAccept === true) {
+                if (!btnObj.el.__blocked) {
+                  btnObj.el.__blocked = true;
+                  log('[STAT] ACCEPT_SKIPPED: blacklist');
+                  log('[STAT] ACCEPT_BLOCKED');
+                  btnObj.el.style.border = '2px solid red';
+                  setTimeout(() => { btnObj.el.__blocked = false; }, 5000);
+                }
+              } else {
+                log('[STAT] ACCEPT_DETECTED (Blacklisted command detected, but no UI mutation in read-only mode)');
               }
               continue;
             }
-            performClick(btnObj, container, '⚡ ACTION (' + catName.toUpperCase() + ')');
+            if (USER_CONFIG.performClickAutoAccept === true) {
+              performClick(btnObj, container, '⚡ ACTION (' + catName.toUpperCase() + ')');
+            } else {
+              debug('[ACTION] performClickAutoAccept is false, skipping click but logged to statistics.');
+            }
             return;
           }
           if (btns.length === 0) {

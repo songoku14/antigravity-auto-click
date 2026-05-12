@@ -11,8 +11,9 @@
     "mkfs",
     "format "
   ],
+  "performClickAutoAccept": false,
   "autoAccept": {
-    "enabled": false,
+    "enabled": true,
     "categories": {
       "terminal": {
         "enabled": true,
