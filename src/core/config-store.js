@@ -1,24 +1,30 @@
 const fs = require('fs');
 const path = require('path');
 
+const DEFAULT_CONFIG = {
+  blacklist: [],
+  autoAccept: false,
+  autoRetry: false
+};
+
 class ConfigStore {
   constructor(configPath) {
     this.configPath = configPath;
-    this.config = this.load();
+    this.config = this.load(DEFAULT_CONFIG);
     this.watchCallbacks = [];
     this.setupWatcher();
   }
 
-  load() {
+  load(fallbackConfig = this.config || DEFAULT_CONFIG) {
     try {
       if (fs.existsSync(this.configPath)) {
         const data = fs.readFileSync(this.configPath, 'utf8');
-        return JSON.parse(data);
+        return { ...DEFAULT_CONFIG, ...JSON.parse(data) };
       }
     } catch (e) {
       console.error(`[ConfigStore] Failed to load: ${e.message}`);
     }
-    return { blacklist: [], autoAccept: true, autoRetry: true };
+    return fallbackConfig;
   }
 
   setupWatcher() {
@@ -28,7 +34,7 @@ class ConfigStore {
       if (event === 'change') {
         // Small delay to ensure file is written
         setTimeout(() => {
-          this.config = this.load();
+          this.config = this.load(this.config);
           this.watchCallbacks.forEach(cb => cb(this.config));
         }, 500);
       }

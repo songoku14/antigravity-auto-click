@@ -7,6 +7,11 @@ let daemonProcess = null;
 let statusBarItem = null;
 let outputChannel = null;
 
+function isAutoAcceptEnabled(config) {
+    const autoAccept = config && config.autoAccept;
+    return autoAccept === true || (!!autoAccept && typeof autoAccept === 'object' && autoAccept.enabled !== false);
+}
+
 /**
  * @param {vscode.ExtensionContext} context
  */
@@ -48,7 +53,7 @@ function updateStatusBar(running) {
         const autoAccept = config.autoAccept;
         if (autoAccept === true) {
             activeFeatures.push('A');
-        } else if (autoAccept && autoAccept.enabled !== false) {
+        } else if (isAutoAcceptEnabled(config)) {
             let activeCats = [];
             const cats = autoAccept.categories || {};
             if (cats.terminal && cats.terminal.enabled !== false) activeCats.push('t');
@@ -74,7 +79,7 @@ function readConfig() {
     if (fs.existsSync(configPath)) {
         return JSON.parse(fs.readFileSync(configPath, 'utf8'));
     }
-    return { autoRetry: true, autoAccept: true };
+    return { autoRetry: false, autoAccept: false };
 }
 
 function writeConfig(config) {
@@ -98,15 +103,15 @@ async function showMenu() {
     // --- Auto-Accept ---
     items.push({ label: '--- Auto-Accept ---', kind: vscode.QuickPickItemKind.Separator });
     
-    const isAutoAcceptEnabled = config.autoAccept === true || (config.autoAccept && config.autoAccept.enabled !== false);
+    const autoAcceptEnabled = isAutoAcceptEnabled(config);
     
     items.push({
-        label: `${isAutoAcceptEnabled ? '$(check)' : '$(circle-slash)'} Enable Auto-Accept (Master)`,
-        description: isAutoAcceptEnabled ? 'Currently Enabled' : 'Currently Disabled',
+        label: `${autoAcceptEnabled ? '$(check)' : '$(circle-slash)'} Enable Auto-Accept (Master)`,
+        description: autoAcceptEnabled ? 'Currently Enabled' : 'Currently Disabled',
         action: () => toggleFeature('autoAccept')
     });
 
-    if (isAutoAcceptEnabled && typeof config.autoAccept === 'object') {
+    if (autoAcceptEnabled && typeof config.autoAccept === 'object') {
         const cats = config.autoAccept.categories || {};
         
         items.push({
@@ -203,13 +208,13 @@ function toggleFeature(feature) {
 function toggleCategory(category) {
     const config = readConfig();
     if (!config.autoAccept || typeof config.autoAccept !== 'object') {
-        config.autoAccept = { enabled: true, categories: {} };
+        config.autoAccept = { enabled: false, categories: {} };
     }
     if (!config.autoAccept.categories) {
         config.autoAccept.categories = {};
     }
     if (!config.autoAccept.categories[category]) {
-        config.autoAccept.categories[category] = { enabled: true, patterns: [] };
+        config.autoAccept.categories[category] = { enabled: false, patterns: [] };
     }
     
     config.autoAccept.categories[category].enabled = config.autoAccept.categories[category].enabled === false ? true : false;
