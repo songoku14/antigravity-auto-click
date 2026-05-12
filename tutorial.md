@@ -110,7 +110,7 @@ Bạn có thể tùy chỉnh hành vi của công cụ trong file `config.json` 
 }
 ```
 
-- **performClickAutoAccept**: Nếu `false`, hệ thống vẫn nhận diện và ghi thống kê Auto-Accept nhưng không click thực tế. Đây là trạng thái an toàn để kiểm tra trước khi bật hẳn.
+- **performClickAutoAccept**: Nếu `false`, hệ thống vẫn nhận diện và ghi thống kê Auto-Accept theo Category nhưng không click thực tế. Đây là trạng thái an toàn để kiểm tra độ chính xác của việc phân loại trước khi bật hẳn.
 - **Blacklist**: Danh sách các lệnh **không bao giờ** được tự động click "Accept". Công cụ sẽ bỏ qua nếu phát hiện nội dung lệnh chứa các từ khóa này.
 - **clickDelay**: Khoảng thời gian chờ (ms) trước khi thực hiện cú click để đảm bảo an toàn.
 

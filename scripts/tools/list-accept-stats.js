@@ -30,18 +30,20 @@ function main() {
   }
 
   const acceptData = activity.accept || {};
-  const clickedByCategory = acceptData.clickedByCategory || {};
+  const detectedByCategory = acceptData.detectedByCategory || {};
+  const totalDetected = acceptData.detected || 0;
   const totalClicked = acceptData.clicked || 0;
 
-  console.log(`\n   Tổng số Accept Clicks thực tế: \x1b[1m\x1b[32m${totalClicked}\x1b[0m\n`);
+  console.log(`\n   Tổng số nhận diện (Qua lọc): \x1b[1m\x1b[36m${totalDetected}\x1b[0m`);
+  console.log(`   Tổng số Click thực tế     : \x1b[1m\x1b[32m${totalClicked}\x1b[0m\n`);
 
-  const entries = Object.entries(clickedByCategory);
+  const entries = Object.entries(detectedByCategory);
 
   if (entries.length === 0) {
-    if (totalClicked > 0) {
-      console.log('   ℹ️ Đã có click nhưng chưa phân loại được category.');
+    if (totalDetected > 0) {
+      console.log('   ℹ️ Đã phát hiện nhưng chưa phân loại được category.');
     } else {
-      console.log('   ℹ️ Chưa có dữ liệu click nào cho Auto-Accept.');
+      console.log('   ℹ️ Chưa có dữ liệu nhận diện nào cho Auto-Accept.');
     }
     console.log('\x1b[32m------------------------------------------------------\x1b[0m');
     return;
@@ -50,7 +52,7 @@ function main() {
   // Sort by count descending
   entries.sort((a, b) => b[1] - a[1]);
 
-  console.log('   \x1b[1mPHÂN LOẠI CHI TIẾT:\x1b[0m');
+  console.log('   \x1b[1mPHÂN LOẠI CHI TIẾT (QUA LỌC):\x1b[0m');
   console.log('   ------------------------------------------------------');
   
   entries.forEach(([cat, count]) => {
@@ -64,10 +66,10 @@ function main() {
     else color = '\x1b[37m'; // White
     
     const countStr = count.toString().padStart(5, ' ');
-    const pct = totalClicked > 0 ? ((count / totalClicked) * 100).toFixed(1) : '0.0';
+    const pct = totalDetected > 0 ? ((count / totalDetected) * 100).toFixed(1) : '0.0';
     
     const paddedLabel = label.padEnd(15, ' ');
-    console.log(`   - ${color}${paddedLabel}\x1b[0m : \x1b[1m${countStr}\x1b[0m clicks (${pct}%)`);
+    console.log(`   - ${color}${paddedLabel}\x1b[0m : \x1b[1m${countStr}\x1b[0m lượt (${pct}%)`);
   });
 
   console.log('\x1b[32m------------------------------------------------------\x1b[0m');
