@@ -141,6 +141,8 @@ run_regression_suite() {
 show_dev_menu() {
     while true; do
         clear
+        bash "$SCRIPT_DIR/core/status.sh"
+        echo ""
         echo "======================================================"
         echo "           🛠️ ANTIGRAVITY DEVELOPER TOOLS            "
         echo "======================================================"
@@ -149,6 +151,7 @@ show_dev_menu() {
         echo " 3) 🧪 Test DOM samples (Regression)"
         echo " 4) 🔍 Phân tích DOM trực tiếp (Live Analysis)"
         echo " 5) 📊 Thống kê lý do bỏ qua (Skip Reasons)"
+        echo " 6) 🔄 Reset bộ đếm thống kê"
         echo " 0) 🔙 Quay lại Menu chính"
         echo "======================================================"
         echo ""
@@ -184,6 +187,10 @@ show_dev_menu() {
                 node "$SCRIPT_DIR/tools/list-skip-reasons.js"
                 read -p "Nhấn Enter để tiếp tục..."
                 ;;
+            6)
+                bash "$SCRIPT_DIR/core/status.sh" --reset
+                sleep 1
+                ;;
             0)
                 return
                 ;;
@@ -204,8 +211,6 @@ while true; do
         1)
             while true; do
                 clear
-                bash "$SCRIPT_DIR/core/status.sh"
-                
                 # Get current settings for display
                 CUR_RETRY=$(jq -r 'if .autoRetry == null then true else .autoRetry end' "$PROJECT_ROOT/config.json" 2>/dev/null || echo "true")
                 CUR_ACCEPT=$(jq -r 'if .autoAccept | type == "boolean" then .autoAccept else (if .autoAccept.enabled == null then true else .autoAccept.enabled end) end' "$PROJECT_ROOT/config.json" 2>/dev/null || echo "true")
@@ -222,35 +227,31 @@ while true; do
                     IS_STARTUP="no"
                 fi
 
-                echo ""
-                echo "------------------------------------------------------"
-                echo " TÙY CHỌN CẤU HÌNH & THỐNG KÊ:"
-                echo " 1) 🔄 Reset bộ đếm thống kê"
-                echo -e " 2) 🔄 Toggle Auto Retry   (Hiện tại: $RETRY_LBL)"
-                echo -e " 3) 🔄 Toggle Auto Accept  (Hiện tại: $ACCEPT_LBL)"
-                echo -e " 4) 🔄 Toggle Khởi động cùng macOS (Hiện tại: $STARTUP_LBL)"
+                echo "======================================================"
+                echo "                ⚙️ CÀI ĐẶT HỆ THỐNG                   "
+                echo "======================================================"
+                echo -e " 1) 🔄 Toggle Auto Retry   (Hiện tại: $RETRY_LBL)"
+                echo -e " 2) 🔄 Toggle Auto Accept  (Hiện tại: $ACCEPT_LBL)"
+                echo -e " 3) 🔄 Toggle Khởi động cùng macOS (Hiện tại: $STARTUP_LBL)"
                 echo " 0) 🔙 Quay lại Menu chính"
-                echo "------------------------------------------------------"
+                echo "======================================================"
+                echo ""
                 read -p "Lựa chọn của bạn: " sub_choice
                 
                 case $sub_choice in
                     1)
-                        bash "$SCRIPT_DIR/core/status.sh" --reset
-                        sleep 1
-                        ;;
-                    2)
                         if [ "$CUR_RETRY" = "true" ]; then NEW_VAL="false"; else NEW_VAL="true"; fi
                         jq ".autoRetry = $NEW_VAL" "$PROJECT_ROOT/config.json" > "$PROJECT_ROOT/config.json.tmp" && mv "$PROJECT_ROOT/config.json.tmp" "$PROJECT_ROOT/config.json"
                         echo -e "✅ Đã chuyển Auto Retry sang: $NEW_VAL"
                         sleep 1
                         ;;
-                    3)
+                    2)
                         if [ "$CUR_ACCEPT" = "true" ]; then NEW_VAL="false"; else NEW_VAL="true"; fi
                         jq "if .autoAccept | type == \"boolean\" then .autoAccept = $NEW_VAL else .autoAccept.enabled = $NEW_VAL end" "$PROJECT_ROOT/config.json" > "$PROJECT_ROOT/config.json.tmp" && mv "$PROJECT_ROOT/config.json.tmp" "$PROJECT_ROOT/config.json"
                         echo -e "✅ Đã chuyển Auto Accept sang: $NEW_VAL"
                         sleep 1
                         ;;
-                    4)
+                    3)
                         if [ "$IS_STARTUP" = "yes" ]; then
                             bash "$SCRIPT_DIR/uninstall.sh"
                         else
