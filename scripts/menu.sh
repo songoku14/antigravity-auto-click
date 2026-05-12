@@ -252,10 +252,12 @@ while true; do
                 CUR_RETRY=$(jq -r 'if .autoRetry == null then true else .autoRetry end' "$PROJECT_ROOT/config.json" 2>/dev/null || echo "true")
                 CUR_ACCEPT=$(jq -r 'if .autoAccept | type == "boolean" then .autoAccept else (if .autoAccept.enabled == null then true else .autoAccept.enabled end) end' "$PROJECT_ROOT/config.json" 2>/dev/null || echo "true")
                 CUR_CLICK_ACCEPT=$(jq -r 'if .performClickAutoAccept == null then false else .performClickAutoAccept end' "$PROJECT_ROOT/config.json" 2>/dev/null || echo "false")
+                CUR_DEBUG=$(jq -r 'if .debug == null then true else .debug end' "$PROJECT_ROOT/config.json" 2>/dev/null || echo "true")
                 
                 [ "$CUR_RETRY" = "true" ] && RETRY_LBL="\033[32mACTIVE\033[0m" || RETRY_LBL="\033[31mOFF\033[0m"
                 [ "$CUR_ACCEPT" = "true" ] && ACCEPT_LBL="\033[32mACTIVE\033[0m" || ACCEPT_LBL="\033[31mOFF\033[0m"
                 [ "$CUR_CLICK_ACCEPT" = "true" ] && CLICK_ACCEPT_LBL="\033[32mACTIVE\033[0m" || CLICK_ACCEPT_LBL="\033[31mOFF\033[0m"
+                [ "$CUR_DEBUG" = "true" ] && DEBUG_LBL="\033[32mACTIVE\033[0m" || DEBUG_LBL="\033[31mOFF\033[0m"
 
                 # Check Startup state
                 STARTUP_LBL="\033[31mOFF\033[0m"
@@ -273,6 +275,7 @@ while true; do
                 echo -e " 2) 🔄 Toggle Auto Accept  (Hiện tại: $ACCEPT_LBL)"
                 echo -e " 3) 🔄 Toggle Khởi động cùng macOS (Hiện tại: $STARTUP_LBL)"
                 echo -e " 4) 🔄 Toggle Auto Accept Perform Click (Hiện tại: $CLICK_ACCEPT_LBL)"
+                echo -e " 5) 🔄 Toggle Debug Mode   (Hiện tại: $DEBUG_LBL)"
                 echo " 0) 🔙 Quay lại Menu chính"
                 echo "======================================================"
                 echo ""
@@ -303,6 +306,12 @@ while true; do
                         if [ "$CUR_CLICK_ACCEPT" = "true" ]; then NEW_VAL="false"; else NEW_VAL="true"; fi
                         jq ".performClickAutoAccept = $NEW_VAL" "$PROJECT_ROOT/config.json" > "$PROJECT_ROOT/config.json.tmp" && mv "$PROJECT_ROOT/config.json.tmp" "$PROJECT_ROOT/config.json"
                         echo -e "✅ Đã chuyển Auto Accept Click sang: $NEW_VAL"
+                        sleep 1
+                        ;;
+                    5)
+                        if [ "$CUR_DEBUG" = "true" ]; then NEW_VAL="false"; else NEW_VAL="true"; fi
+                        jq ".debug = $NEW_VAL" "$PROJECT_ROOT/config.json" > "$PROJECT_ROOT/config.json.tmp" && mv "$PROJECT_ROOT/config.json.tmp" "$PROJECT_ROOT/config.json"
+                        echo -e "✅ Đã chuyển Debug Mode sang: $NEW_VAL"
                         sleep 1
                         ;;
                     0)

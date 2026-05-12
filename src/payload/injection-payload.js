@@ -175,9 +175,31 @@ function getInjectionScript(userConfig = {}) {
   let pollIntervalRef = null;
   let isActive = true;
   const timeoutRefs = new Set();
+  const lastStatLogged = new Map();
 
   function log(msg) {
     console.log('[AutoRetry] ' + msg);
+  }
+
+  function logStat(type, reason, force = false) {
+    const key = type + ':' + reason;
+    const now = Date.now();
+    const last = lastStatLogged.get(key) || 0;
+    // Throttling: Log stats only once every 30 seconds per reason to reduce noise
+    if (force || (now - last > 30000)) {
+      if (reason.startsWith('DETECTED')) {
+        if (type === 'RETRY') log('[STAT] RETRY_DETECTED');
+        else {
+          const cat = reason.includes(':') ? reason.split(':')[1] : 'unknown';
+          log('[STAT] ACCEPT_DETECTED (' + cat + ')');
+        }
+      } else {
+        log('[STAT] ' + type + '_SKIPPED: ' + reason);
+      }
+      lastStatLogged.set(key, now);
+      return true;
+    }
+    return false;
   }
 
   function isAutoAcceptEnabled() {
@@ -273,20 +295,23 @@ function getInjectionScript(userConfig = {}) {
     resetCounterIfNeeded();
     const now = Date.now();
     if (isInCooldown) {
-      log('[STAT] ' + type + '_SKIPPED: rate_limit_cooldown');
-      debug('[RATE] Blocked by cooldown. actionCount=' + actionCount + ', sinceLastClick=' + (now - lastClickTime) + 'ms');
+      if (logStat(type, 'rate_limit_cooldown')) {
+        debug('[RATE] Blocked by cooldown. actionCount=' + actionCount + ', sinceLastClick=' + (now - lastClickTime) + 'ms');
+      }
       return false;
     }
     if (now - lastClickTime < CONFIG.minClickInterval) {
-      log('[STAT] ' + type + '_SKIPPED: rate_limit_min_interval');
-      debug('[RATE] Blocked by minClickInterval. sinceLastClick=' + (now - lastClickTime) + 'ms < ' + CONFIG.minClickInterval + 'ms');
+      if (logStat(type, 'rate_limit_min_interval')) {
+        debug('[RATE] Blocked by minClickInterval. sinceLastClick=' + (now - lastClickTime) + 'ms < ' + CONFIG.minClickInterval + 'ms');
+      }
       return false;
     }
     if (actionCount >= CONFIG.maxRetriesPerMinute) {
       isInCooldown = true;
-      log('[STAT] ' + type + '_SKIPPED: rate_limit_max_per_minute');
-      log('Rate limit reached. Cooling down.');
-      debug('[RATE] Entering cooldown. actionCount=' + actionCount + ', cooldownMs=' + CONFIG.cooldownMs);
+      if (logStat(type, 'rate_limit_max_per_minute')) {
+        log('Rate limit reached. Cooling down.');
+        debug('[RATE] Entering cooldown. actionCount=' + actionCount + ', cooldownMs=' + CONFIG.cooldownMs);
+      }
       schedule(() => { isInCooldown = false; actionCount = 0; }, CONFIG.cooldownMs);
       return false;
     }
@@ -384,7 +409,6 @@ function getInjectionScript(userConfig = {}) {
         });
       } catch(e) {}
     }
-    debug('[SCAN] findValidContainers() => ' + containers.size + ' container(s)');
     return Array.from(containers);
   }
 
@@ -438,8 +462,7 @@ function getInjectionScript(userConfig = {}) {
                     continue;
                   }
                   if (typeLabel) {
-                    log('Found matching ' + typeLabel + ' button: "' + text + '"');
-                    debug('[SCAN] ' + typeLabel + ' candidate ' + summarizeElement(el) + ' rect=' + formatRect(rect) + ' inFooter=' + inFooter + ' path=' + elementPath(el, 4));
+                    debug('[SCAN] Found matching ' + typeLabel + ' button: "' + text + '" ' + summarizeElement(el) + ' rect=' + formatRect(rect) + ' inFooter=' + inFooter + ' path=' + elementPath(el, 4));
                   }
                   buttons.push({ el, text, rect, inFooter });
                   break;
@@ -668,7 +691,6 @@ function getInjectionScript(userConfig = {}) {
     const useFallback = containers.length === 0 && (isAutoAcceptEnabled() || USER_CONFIG.autoRetry !== false);
     if (useFallback) containers = [document.body];
     if (dryRun) report.containerCount = containers.length;
-    debug('[SCAN] Starting pass. containers=' + containers.length + ', fallback=' + useFallback + ', autoRetry=' + (USER_CONFIG.autoRetry !== false) + ', autoAccept=' + isAutoAcceptEnabled());
 
     for (const container of containers) {
       const isAgentWindow = container.closest && container.closest('.antigravity-agent-side-panel');
@@ -688,22 +710,19 @@ function getInjectionScript(userConfig = {}) {
         buttons: { retry: [], accept: [] }
       } : null;
       if (dryRun) report.containers.push(containerReport);
-      debug(
-        '[SCAN] Inspecting container ' + summarizeElement(container) + ' rect=' + formatRect(containerRect) +
-        ' isAgentWindow=' + !!isAgentWindow + ' snippet="' + snippet + '"'
-      );
+      // Silent inspection in loops
       
       // Case 1: Auto-Retry
       if (USER_CONFIG.autoRetry !== false) {
-        debug(\`[STEP 1] Found matching RETRY container: <\${container.tagName.toLowerCase()}> (ID: \${container.id})\`);
+        // debug(\`[STEP 1] Found matching RETRY container: <\${container.tagName.toLowerCase()}> (ID: \${container.id})\`);
         const btns = findButtonsIn(container, CONFIG.retryButtonPatterns, dryRun ? null : 'RETRY');
         btns.sort((a, b) => (a.inFooter !== b.inFooter ? (b.inFooter ? 1 : -1) : b.rect.top - a.rect.top));
         if (dryRun) report.totalButtons += btns.length;
-        debug('[SCAN] RETRY candidates in container: ' + btns.length);
+        // debug('[SCAN] RETRY candidates in container: ' + btns.length);
 
         for (const btnObj of btns) {
           const diag = dryRun ? buttonDiagnostic(btnObj, container, 'retry') : null;
-          debug('[STEP 2] Found matching RETRY button: "' + btnObj.text + '" rect=' + formatRect(btnObj.rect) + ' inFooter=' + btnObj.inFooter);
+          // debug('[STEP 2] Found matching RETRY button: "' + btnObj.text + '"...');
           const isRightSide = btnObj.rect.left > window.innerWidth * 0.4;
           if (!USER_CONFIG.testMode && !isAgentWindow && !isRightSide) {
             if (dryRun) {
@@ -711,8 +730,9 @@ function getInjectionScript(userConfig = {}) {
               diag.reason = 'notRightSide';
               containerReport.buttons.retry.push(diag);
             }
-            if (!dryRun) log('[STAT] RETRY_SKIPPED: not_right_side');
-            debug('[STEP 3] Skipping RETRY button: not on right side (' + Math.round(btnObj.rect.left) + ' < ' + Math.round(window.innerWidth * 0.4) + ')');
+            if (!dryRun && logStat('RETRY', 'not_right_side')) {
+              debug('[STEP 3] Skipping RETRY button: not on right side (' + Math.round(btnObj.rect.left) + ' < ' + Math.round(window.innerWidth * 0.4) + ')');
+            }
             continue;
           }
           if (useFallback && !CONFIG.retryContextPatterns.some(p => p.test(getSurroundingText(btnObj.el)))) {
@@ -721,8 +741,9 @@ function getInjectionScript(userConfig = {}) {
               diag.reason = 'contextMismatch';
               containerReport.buttons.retry.push(diag);
             }
-            if (!dryRun) log('[STAT] RETRY_SKIPPED: context_mismatch');
-            debug(\`[STEP 3.1] Skipping RETRY button: context mismatch\`);
+            if (!dryRun && logStat('RETRY', 'context_mismatch')) {
+              debug(\`[STEP 3.1] Skipping RETRY button: context mismatch\`);
+            }
             continue;
           }
           if (!useFallback) {
@@ -733,8 +754,9 @@ function getInjectionScript(userConfig = {}) {
                 diag.reason = 'retryContextMismatch';
                 containerReport.buttons.retry.push(diag);
               }
-              if (!dryRun) log('[STAT] RETRY_SKIPPED: retry_context_mismatch');
-              debug('[STEP 3.2] Skipping RETRY button: no retry/error context in container');
+              if (!dryRun && logStat('RETRY', 'retry_context_mismatch')) {
+                debug('[STEP 3.2] Skipping RETRY button: no retry/error context in container');
+              }
               continue;
             }
           }
@@ -747,16 +769,17 @@ function getInjectionScript(userConfig = {}) {
           if (!dryRun) {
             const visibility = getVisibilityStatus(btnObj.el, btnObj.rect);
             if (!visibility.ok) {
-              if (!dryRun) log('[STAT] RETRY_SKIPPED: visibility_' + visibility.reason);
-              if (visibility.reason === 'outOfViewport') {
-                debug('[STEP 4.5] Visibility check bypassed: point out of viewport bounds');
-              } else if (visibility.reason === 'noElementAtPoint') {
-                debug('[STEP 4.5] Visibility check bypassed: no element found at point');
-                debug(
-                  '[STEP 4.5] Visibility check bypassed for ' + summarizeElement(btnObj.el) + ' rect=' + formatRect(btnObj.rect) + '. ' +
-                  'Top element: ' + visibility.topElement + ' path=' + visibility.topElementPath
-                );
-              }
+              if (!dryRun && logStat('RETRY', 'visibility_' + visibility.reason)) {
+                  if (visibility.reason === 'outOfViewport') {
+                    debug('[STEP 4.5] Visibility check bypassed: point out of viewport bounds');
+                  } else if (visibility.reason === 'noElementAtPoint') {
+                    debug('[STEP 4.5] Visibility check bypassed: no element found at point');
+                    debug(
+                      '[STEP 4.5] Visibility check bypassed for ' + summarizeElement(btnObj.el) + ' rect=' + formatRect(btnObj.rect) + '. ' +
+                      'Top element: ' + visibility.topElement + ' path=' + visibility.topElementPath
+                    );
+                  }
+                }
             } else {
               debug('[STEP 4.3] Visibility confirmed: ' + visibility.reason);
             }
@@ -770,13 +793,15 @@ function getInjectionScript(userConfig = {}) {
             report.action = diag;
             return report;
           }
-          log('[STAT] RETRY_DETECTED');
+          if (logStat('RETRY', 'DETECTED')) {
+            // Log only once per throttle period
+          }
           if (!canClick('RETRY')) return;
           performClick(btnObj, container, '🔄 RETRY', 'retry');
           return;
         }
         if (btns.length === 0) {
-          debug('[SCAN] No RETRY candidate survived pattern match in this container');
+          // debug('[SCAN] No RETRY candidate survived pattern match in this container');
         }
       }
 
@@ -787,15 +812,15 @@ function getInjectionScript(userConfig = {}) {
         for (const [catName, catConfig] of Object.entries(categories)) {
           if (catConfig.enabled === false) continue;
           
-          debug(\`[STEP 1] Found matching ACCEPT container for category "\${catName}": <\${container.tagName.toLowerCase()}>\`);
+          // debug(\`[STEP 1] Found matching ACCEPT container for category "\${catName}": <\${container.tagName.toLowerCase()}>\`);
           const btns = findButtonsIn(container, CONFIG.actionButtonPatterns, dryRun ? null : 'ACTION (' + catName.toUpperCase() + ')');
           btns.sort((a, b) => (a.inFooter !== b.inFooter ? (b.inFooter ? 1 : -1) : b.rect.top - a.rect.top));
           if (dryRun) report.totalButtons += btns.length;
-          debug('[SCAN] ACCEPT candidates for category "' + catName + '": ' + btns.length);
+          // debug('[SCAN] ACCEPT candidates for category "' + catName + '": ' + btns.length);
 
           for (const btnObj of btns) {
             const diag = dryRun ? buttonDiagnostic(btnObj, container, 'accept', catName) : null;
-            debug('[STEP 2] Found matching ACCEPT button: "' + btnObj.text + '" rect=' + formatRect(btnObj.rect) + ' inFooter=' + btnObj.inFooter);
+            // debug('[STEP 2] Found matching ACCEPT button: "' + btnObj.text + '"...');
             const isRightSide = btnObj.rect.left > window.innerWidth * 0.4;
             if (!USER_CONFIG.testMode && !isAgentWindow && !isRightSide) {
               if (dryRun) {
@@ -803,8 +828,9 @@ function getInjectionScript(userConfig = {}) {
                 diag.reason = 'notRightSide';
                 containerReport.buttons.accept.push(diag);
               }
-              if (!dryRun) log('[STAT] ACCEPT_SKIPPED: not_right_side');
-              debug('[STEP 3] Skipping ACCEPT button: not on right side (' + Math.round(btnObj.rect.left) + ' < ' + Math.round(window.innerWidth * 0.4) + ')');
+              if (!dryRun && logStat('ACCEPT', 'not_right_side')) {
+                debug('[STEP 3] Skipping ACCEPT button: not on right side (' + Math.round(btnObj.rect.left) + ' < ' + Math.round(window.innerWidth * 0.4) + ')');
+              }
               continue;
             }
             if (dryRun && !diag.visibility.ok) {
@@ -816,15 +842,16 @@ function getInjectionScript(userConfig = {}) {
             if (!dryRun) {
               const visibility = getVisibilityStatus(btnObj.el, btnObj.rect);
               if (!visibility.ok) {
-                if (!dryRun) log('[STAT] ACCEPT_SKIPPED: visibility_' + visibility.reason);
-                if (visibility.reason === 'outOfViewport') {
-                  debug('[STEP 4.5] Visibility check bypassed: point out of viewport bounds');
-                } else if (visibility.reason === 'noElementAtPoint') {
-                  debug('[STEP 4.5] Visibility check bypassed: no element found at point');
-                  debug(
-                    '[STEP 4.5] Visibility check bypassed for ' + summarizeElement(btnObj.el) + ' rect=' + formatRect(btnObj.rect) + '. ' +
-                    'Top element: ' + visibility.topElement + ' path=' + visibility.topElementPath
-                  );
+                if (!dryRun && logStat('ACCEPT', 'visibility_' + visibility.reason)) {
+                  if (visibility.reason === 'outOfViewport') {
+                    debug('[STEP 4.5] Visibility check bypassed: point out of viewport bounds');
+                  } else if (visibility.reason === 'noElementAtPoint') {
+                    debug('[STEP 4.5] Visibility check bypassed: no element found at point');
+                    debug(
+                      '[STEP 4.5] Visibility check bypassed for ' + summarizeElement(btnObj.el) + ' rect=' + formatRect(btnObj.rect) + '. ' +
+                      'Top element: ' + visibility.topElement + ' path=' + visibility.topElementPath
+                    );
+                  }
                 }
               } else {
                 debug('[STEP 4.3] Visibility confirmed: ' + visibility.reason);
@@ -847,19 +874,21 @@ function getInjectionScript(userConfig = {}) {
               report.action = diag;
               return report;
             }
-            log('[STAT] ACCEPT_DETECTED (' + catName + ')');
+            if (logStat('ACCEPT', 'DETECTED:' + catName)) {
+              // Log only once per throttle period
+            }
             debug('[ACTION] ACCEPT command context for "' + btnObj.text + '": "' + (cmdText || '').substring(0, 200) + '"');
             if (isCommandBlocked(cmdText)) {
               if (USER_CONFIG.performClickAutoAccept === true) {
                 if (!btnObj.el.__blocked) {
                   btnObj.el.__blocked = true;
-                  log('[STAT] ACCEPT_SKIPPED: blacklist');
-                  log('[STAT] ACCEPT_BLOCKED');
+                  logStat('ACCEPT', 'blacklist');
+                  logStat('ACCEPT', 'blocked');
                   btnObj.el.style.border = '2px solid red';
                   setTimeout(() => { btnObj.el.__blocked = false; }, 5000);
                 }
               } else {
-                log('[STAT] ACCEPT_DETECTED (Blacklisted command detected, but no UI mutation in read-only mode)');
+                // log('[STAT] ACCEPT_DETECTED (Blacklisted command detected, but no UI mutation in read-only mode)');
               }
               continue;
             }
@@ -871,14 +900,11 @@ function getInjectionScript(userConfig = {}) {
             }
             return;
           }
-          if (btns.length === 0) {
-            debug('[SCAN] No ACCEPT candidate for category "' + catName + '" in this container');
-          }
         }
       }
     }
 
-    debug('[SCAN] Pass completed without any actionable button');
+    // debug('[SCAN] Pass completed without any actionable button');
     if (dryRun) return report;
   }
 
@@ -1001,6 +1027,7 @@ function getInjectionScript(userConfig = {}) {
   // 7. Initialization & Lifecycle
   // ============================================================
   pollIntervalRef = setInterval(scanAndAction, CONFIG.pollInterval);
+  debug('[SCAN] Polling started. interval=' + CONFIG.pollInterval + 'ms, autoRetry=' + (USER_CONFIG.autoRetry !== false) + ', autoAccept=' + isAutoAcceptEnabled());
 
   window.__autoRetryCleanup = function() {
     isActive = false;
