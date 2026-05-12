@@ -112,7 +112,12 @@
     "minClickInterval": {
       "type": "integer",
       "description": "Khoảng cách tối thiểu (ms) giữa 2 lần click tự động.",
-      "default": 5000
+      "default": 2000
+    },
+    "pollInterval": {
+      "type": "integer",
+      "description": "Khoảng thời gian (ms) giữa các lần quét DOM (Passive Polling).",
+      "default": 2000
     }
   }
 }

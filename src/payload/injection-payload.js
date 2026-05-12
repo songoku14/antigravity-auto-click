@@ -2,10 +2,10 @@
  * injection-payload.js - JavaScript code to inject into Antigravity's DOM
  * 
  * This script runs INSIDE the Electron renderer process.
- * It uses MutationObserver to watch for error dialogs and auto-click Retry/Accept.
+ * It uses passive polling to scan for error dialogs and auto-click Retry/Accept.
  */
 
-const INJECTION_VERSION = 46;
+const INJECTION_VERSION = 47;
 
 /**
  * Trả về string JavaScript sẽ được inject vào DOM qua CDP Runtime.evaluate
@@ -137,7 +137,7 @@ function getInjectionScript(userConfig = {}) {
       "rm ", "sudo ", "force ", "push ", "delete ", "terminate ", "pkill ", "kill ", "mkfs"
     ],
 
-    pollInterval: 3000,
+    pollInterval: USER_CONFIG.pollInterval || 3000,
     clickDelay: USER_CONFIG.clickDelay || 800,
     maxRetriesPerMinute: 15,
     cooldownMs: 60000,
@@ -173,7 +173,6 @@ function getInjectionScript(userConfig = {}) {
   let lastResetTime = Date.now();
   let lastClickTime = 0;
   let isInCooldown = false;
-  let observerRef = null;
   let pollIntervalRef = null;
   let isActive = true;
   const timeoutRefs = new Set();
@@ -989,21 +988,14 @@ function getInjectionScript(userConfig = {}) {
   // ============================================================
   // 7. Initialization & Lifecycle
   // ============================================================
-  observerRef = new MutationObserver((mutations) => {
-    if (mutations.some(m => m.addedNodes.length > 0)) schedule(scanAndAction, 400);
-  });
-  observerRef.observe(document.documentElement, { childList: true, subtree: true });
-
   pollIntervalRef = setInterval(scanAndAction, CONFIG.pollInterval);
 
   window.__autoRetryCleanup = function() {
     isActive = false;
     window.__autoRetryDisabled = true;
-    if (observerRef) observerRef.disconnect();
     if (pollIntervalRef) clearInterval(pollIntervalRef);
     timeoutRefs.forEach(ref => clearTimeout(ref));
     timeoutRefs.clear();
-    observerRef = null;
     pollIntervalRef = null;
     log('Cleaned up.');
   };

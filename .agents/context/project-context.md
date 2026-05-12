@@ -8,7 +8,7 @@ This project provides a background daemon for macOS that connects to a local Ant
 ## Tech Stack
 - **Node.js**: The daemon that orchestrates the CDP connection and payload injection.
 - **Chrome DevTools Protocol (CDP)**: Used to control and inspect the Electron renderer process. Specifically utilizing `ws` to connect directly to the WebSocket endpoint.
-- **Vanilla JavaScript**: The payload that gets injected into the DOM. Uses `MutationObserver` for real-time detection.
+- **Vanilla JavaScript**: The payload that gets injected into the DOM. Uses passive polling (interval-based) for detection.
 - **macOS LaunchAgent (launchd)**: Used to ensure the Node.js daemon starts automatically when the user logs in.
 
 
@@ -18,4 +18,5 @@ This project provides a background daemon for macOS that connects to a local Ant
 - **Container Scoping**: DOM scanning is limited to dialog / notification / agent-panel style containers such as `.monaco-dialog-box`, `.notification-toast`, `.bg-agent-convo-background`, and `.antigravity-agent-side-panel` to reduce false positives.
 - **Shadow DOM Traversal**: The payload walks into shadow roots because Antigravity UI elements are not always exposed in the light DOM.
 - **Safety Gates**: Auto-Accept is protected by category matching, visibility checks, rate limiting, and a blacklist for dangerous terminal commands. By default, `performClickAutoAccept` can be kept `false` to collect detection stats without performing real clicks.
-- **Versioned Injection**: The injected script uses a version marker and cleanup hook so newer payloads can disable old observers/timers and avoid duplicate clicks or leaks during reinjection.
+- **Passive Polling Detection**: Detection is interval-based (defined by `pollInterval`) rather than event-driven (`MutationObserver`). This reduces CPU overhead and avoids race conditions during rapid DOM mutations.
+- **Versioned Injection**: The injected script uses a version marker and cleanup hook so newer payloads can disable old timers and avoid duplicate clicks or leaks during reinjection.

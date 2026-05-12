@@ -42,6 +42,7 @@
   },
   "autoRetry": true,
   "debug": true,
-  "clickDelay": 800,
-  "minClickInterval": 4000
+  "clickDelay": 1000,
+  "minClickInterval": 2000,
+  "pollInterval": 2000
 }

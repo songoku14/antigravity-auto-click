@@ -2,7 +2,7 @@
  * scripts/tests/regression.js
  * 
  * Bộ test hồi quy (Regression Testing) chạy trên toàn bộ samples DOM.
- * Đảm bảo logic nhận diện không bị lỗi sau khi cập nhật mã nguồn.
+ * Đảm bảo logic nhận diện không bị lỗi sau khi cập nhật mã nguồn (Passive Polling).
  */
 
 const fs = require('fs');
@@ -79,6 +79,16 @@ async function runRegressionTests() {
   console.log(`\n📄 Đang kiểm tra: \x1b[34mcleanup_cancels_pending_click\x1b[0m`);
   const cleanupPendingClickResult = await verifyCleanupCancelsPendingClick();
   if (cleanupPendingClickResult.success) passed++;
+
+  total++;
+  console.log(`\n📄 Đang kiểm tra: \x1b[34mephemeral_dialog_is_ignored_between_polls\x1b[0m`);
+  const ephemeralDialogResult = await verifyEphemeralDialogIgnoredBetweenPolls();
+  if (ephemeralDialogResult.success) passed++;
+
+  total++;
+  console.log(`\n📄 Đang kiểm tra: \x1b[34mmin_click_interval_blocks_click_not_detection\x1b[0m`);
+  const minClickIntervalResult = await verifyMinClickIntervalBlocksClickNotDetection();
+  if (minClickIntervalResult.success) passed++;
 
   console.log('\n\x1b[36m======================================================\x1b[0m');
   console.log(`🏁 KẾT QUẢ: \x1b[1m${passed}/${total}\x1b[0m trường hợp vượt qua.`);
@@ -256,7 +266,7 @@ async function verifyStaleReplacementScenario() {
   };
 
   try {
-    const scriptText = getInjectionScript({ autoRetry: true, autoAccept: false });
+    const scriptText = getInjectionScript({ autoRetry: true, autoAccept: false, pollInterval: 1000 });
     window.eval(scriptText);
 
     setTimeout(() => {
@@ -320,7 +330,7 @@ async function verifyFilenameRetryFalsePositive() {
   };
 
   try {
-    const scriptText = getInjectionScript({ autoRetry: true, autoAccept: false });
+    const scriptText = getInjectionScript({ autoRetry: true, autoAccept: false, pollInterval: 1000 });
     window.eval(scriptText);
     const analysis = window.__analyzeDialog();
 
@@ -383,7 +393,7 @@ async function verifyCleanupCancelsPendingClick() {
   };
 
   try {
-    const scriptText = getInjectionScript({ autoRetry: true, autoAccept: false });
+    const scriptText = getInjectionScript({ autoRetry: true, autoAccept: false, pollInterval: 1000 });
     window.eval(scriptText);
     window.__autoRetryCleanup();
 
@@ -398,6 +408,146 @@ async function verifyCleanupCancelsPendingClick() {
     return { success: false };
   } catch (e) {
     console.error('   ❌ Error in cleanup pending-click scenario:', e.message);
+    return { success: false };
+  } finally {
+    window.close();
+  }
+}
+
+async function verifyEphemeralDialogIgnoredBetweenPolls() {
+  const html = `
+    <html>
+      <body>
+        <div class="antigravity-agent-side-panel"></div>
+      </body>
+    </html>
+  `;
+
+  const dom = new JSDOM(html, {
+    runScripts: "dangerously",
+    pretendToBeVisual: true,
+    url: "http://localhost/workbench.html"
+  });
+
+  const { window } = dom;
+  window.innerWidth = 1440;
+  window.innerHeight = 900;
+
+  let clickCount = 0;
+  window.HTMLElement.prototype.click = function() {
+    clickCount++;
+    this.__clicked = true;
+  };
+
+  window.Element.prototype.getBoundingClientRect = function() {
+    if ((this.textContent || '').trim() === 'Retry') {
+      return { left: 1350, top: 700, width: 70, height: 30, right: 1420, bottom: 730, x: 1350, y: 700 };
+    }
+    return { left: 1000, top: 600, width: 430, height: 160, right: 1430, bottom: 760, x: 1000, y: 600 };
+  };
+  window.document.elementFromPoint = function() {
+    return window.document.querySelector('button') || window.document.body;
+  };
+
+  try {
+    const scriptText = getInjectionScript({ autoRetry: true, autoAccept: false, pollInterval: 1000, clickDelay: 100 });
+    window.eval(scriptText);
+
+    setTimeout(() => {
+      const dialog = window.document.createElement('div');
+      dialog.className = 'bg-agent-convo-background';
+      dialog.innerHTML = '<div>Agent terminated due to error. Try again.</div><footer><button>Retry</button></footer>';
+      window.document.body.appendChild(dialog);
+
+      setTimeout(() => {
+        dialog.remove();
+      }, 300);
+    }, 50);
+
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    const analysis = window.__analyzeDialog();
+
+    if (clickCount === 0 && analysis.wouldClick === false) {
+      console.log(`   ✅ \x1b[32mPASS\x1b[0m: Dialog ngắn hạn biến mất giữa hai kỳ poll được bỏ qua theo thiết kế.`);
+      return { success: true };
+    }
+
+    console.log(`   ❌ \x1b[31mFAIL\x1b[0m: Dialog ngắn hạn vẫn bị xử lý ngoài expected polling behavior. clickCount=${clickCount}, wouldClick=${analysis.wouldClick}`);
+    return { success: false };
+  } catch (e) {
+    console.error('   ❌ Error in ephemeral dialog scenario:', e.message);
+    return { success: false };
+  } finally {
+    window.close();
+  }
+}
+
+async function verifyMinClickIntervalBlocksClickNotDetection() {
+  const html = `
+    <html>
+      <body>
+        <div class="antigravity-agent-side-panel">
+          <div class="bg-agent-convo-background">
+            <div>Agent terminated due to error. Try again.</div>
+            <footer><button id="retry-btn">Retry</button></footer>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  const dom = new JSDOM(html, {
+    runScripts: "dangerously",
+    pretendToBeVisual: true,
+    url: "http://localhost/workbench.html"
+  });
+
+  const { window } = dom;
+  window.innerWidth = 1440;
+  window.innerHeight = 900;
+
+  const button = window.document.getElementById('retry-btn');
+  let clickCount = 0;
+  window.HTMLElement.prototype.click = function() {
+    clickCount++;
+    this.__clicked = true;
+  };
+
+  window.Element.prototype.getBoundingClientRect = function() {
+    if (this === button) {
+      return { left: 1350, top: 700, width: 70, height: 30, right: 1420, bottom: 730, x: 1350, y: 700 };
+    }
+    return { left: 1000, top: 600, width: 430, height: 160, right: 1430, bottom: 760, x: 1000, y: 600 };
+  };
+  window.document.elementFromPoint = function() {
+    return button;
+  };
+
+  try {
+    const scriptText = getInjectionScript({
+      autoRetry: true,
+      autoAccept: false,
+      pollInterval: 1000,
+      clickDelay: 100,
+      minClickInterval: 5000
+    });
+    window.eval(scriptText);
+
+    await new Promise(resolve => setTimeout(resolve, 1200));
+    const firstClickCount = clickCount;
+    const analysis = window.__analyzeDialog();
+
+    await new Promise(resolve => setTimeout(resolve, 1200));
+
+    if (firstClickCount === 1 && clickCount === 1 && analysis.wouldClick === true && analysis.clickGate.reason === 'minClickInterval') {
+      console.log(`   ✅ \x1b[32mPASS\x1b[0m: minClickInterval chặn click lặp nhưng dry-run vẫn detect được action.`);
+      return { success: true };
+    }
+
+    console.log(`   ❌ \x1b[31mFAIL\x1b[0m: minClickInterval không giữ đúng semantics detect-vs-click. firstClickCount=${firstClickCount}, clickCount=${clickCount}, wouldClick=${analysis.wouldClick}, gate=${analysis.clickGate && analysis.clickGate.reason}`);
+    return { success: false };
+  } catch (e) {
+    console.error('   ❌ Error in minClickInterval scenario:', e.message);
     return { success: false };
   } finally {
     window.close();
