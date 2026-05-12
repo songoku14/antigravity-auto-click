@@ -22,10 +22,10 @@ Verify your setup via the **Testing Lab** (Option 2 in CLI menu):
 
 ### 🛠️ Giải pháp Kỹ thuật
 
-- **Scoping (Phạm vi):** Thu hẹp phạm vi nhận diện tại các container Dialog đặc hiệu (Side Panel, Monaco Dialog).
+- **Scoping (Phạm vi):** Quét trực tiếp và toàn diện các container đặc hiệu như `.antigravity-agent-side-panel` (chính) và `.monaco-dialog-box` (phục vụ giả lập/testing).
 - **Phân cấp Nút:** Tự động ưu tiên các nút bấm nằm trong phần `footer` của container để đảm bảo tính chính xác.
 - **Phát hiện Biến động:** Kết hợp `MutationObserver` (phản ứng tức thì) và `Polling` (3s) để đảm bảo độ tin cậy.
-- **Nhận diện Thông minh:** Sử dụng Regex đa lớp để phân biệt giữa lỗi High Traffic và các yêu cầu thực thi của Agent.
+- **Nhận diện Thông minh:** Loại bỏ cơ chế lọc văn bản cấp container (Gate Logic) để tránh sai sót; sử dụng `TreeWalker` quét sâu Shadow DOM để tìm nút theo Regex pattern.
 
 ## 2. Cấu Trúc Dự Án
 

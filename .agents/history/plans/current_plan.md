@@ -1,245 +1,144 @@
-# Ke hoach toi uu cau truc du an Antigravity Auto-Click
+# Debug: Auto-Retry / Auto-Accept Không Hoạt Động
 
-## Muc tieu
+## Quyết định Thiết kế (Final)
 
-- Chuan hoa cau truc du an.
-- Giam nham lan giua Auto-Retry va Auto-Click.
-- Tach runtime state khoi source/config.
-- Lam extension manifest khop voi code.
-- Chuan bi nen de refactor daemon/payload sau nay voi rui ro thap.
+> **Scan toàn bộ `.antigravity-agent-side-panel` — đơn giản, đủ mạnh, không cần zone.**  
+> Lý do: nhiều card có thể xuất hiện đồng thời, zone-based chỉ thêm complexity mà không cover hết.
 
-## Pham vi
+`.antigravity-agent-side-panel` đã có sẵn trong `dialogContainerSelectors`. Vấn đề **không phải thiếu container** mà là **gate logic sai** ngăn không cho tìm button.
 
-- Khong thay doi logic click/retry/accept o buoc dau.
-- Khong doi behavior runtime neu khong can.
-- Uu tien chinh cau truc, naming, tai lieu, command wiring.
-- Refactor daemon chi lam o muc tach module an toan, co test hoi quy.
+---
 
-## Pha 1: Audit va chot baseline
+## Root Cause
 
-- Kiem tra trang thai git hien tai.
-- Liet ke file tracked/untracked lien quan.
-- Chay test hien co:
-  - `npm test`
-  - regression theo tung sample trong `samples/` neu can.
-- Ghi nhan baseline:
-  - test pass/fail hien tai.
-  - daemon entry hien tai.
-  - log path hien tai.
-  - LaunchAgent/script path dang dung.
+```
+scanAndAction()
+  → container = .antigravity-agent-side-panel  ✅ (tìm đúng)
+  → containerText = container.textContent.substring(0, 2000)
+  → errorPatterns.some(p => p.test(containerText))  ← LUÔN FALSE ❌
+```
 
-Ket qua mong muon:
+**Tại sao luôn false:** 2000 chars đầu của panel = toàn CSS boilerplate (`@media`, `.markdown-alert`...). Error text thật nằm ở offset 4571–9084, ngoài tầm với.
 
-- Co trang thai truoc khi sua.
-- Biet chac thay doi nao la cua minh.
+→ Gate này block toàn bộ button detection. **Xóa nó đi.**
 
-## Pha 2: Chuan hoa naming
+---
 
-- Chon ten canonical: `Antigravity Auto-Click`.
-- Cap nhat metadata:
-  - `package.json.name`: can nhac doi tu `antigravity-auto-retry` sang `antigravity-auto-click`.
-  - `package.json.displayName`: `Antigravity Auto-Click`.
-  - `package.json.description`: mo ta ca Auto-Retry va Auto-Accept.
-- Giu command id cu `antigravity-auto-retry.*` tam thoi neu extension/LaunchAgent dang phu thuoc.
-- Khong doi ten file `auto-retry.js` ngay o pha nay de tranh pha script.
+## 4 Bug Fixes Cụ Thể
 
-Ket qua mong muon:
+### 🔴 Fix #1 — Xóa `containerText` gate trong `scanAndAction()`
 
-- Ten hien thi thong nhat.
-- Khong lam gay script dang goi path cu.
+**File:** `src/payload/injection-payload.js`
 
-## Pha 3: Sua extension manifest
+```diff
+  for (const container of containers) {
+-   const containerText = (container.textContent || '').substring(0, 2000);
+    const isAgentWindow = container.closest && container.closest('.antigravity-agent-side-panel');
+    
+    // Case 1: Auto-Retry
+-   if (USER_CONFIG.autoRetry !== false && CONFIG.errorPatterns.some(p => p.test(containerText))) {
++   if (USER_CONFIG.autoRetry !== false) {
+      const btns = findButtonsIn(container, CONFIG.retryButtonPatterns, 'RETRY');
+      ...
+    }
 
-- Doi chieu command trong `package.json` voi command dang ky trong `src/extension/extension.js`.
-- Them command con thieu vao `contributes.commands`:
-  - `antigravity-auto-retry.restartIDE`
-  - `antigravity-auto-retry.editConfig`
-  - `antigravity-auto-retry.testRetry`
-  - `antigravity-auto-retry.testAccept`
-- Xu ly command dang lech:
-  - `antigravity-auto-retry.test` hien co trong manifest nhung code khong dang ky.
-  - Chon mot trong hai:
-    - them handler `test` goi menu test hoac `testRetry`;
-    - hoac xoa khoi manifest neu khong dung.
-- Kiem tra menu QuickPick van goi dung command.
+    // Case 2: Auto-Accept
+-   for (const [catName, catConfig] of Object.entries(categories)) {
+-     if (catConfig.enabled === false) continue;
+-     const catPatterns = CONFIG.actionCategories[catName] || [];
+-     if (!catPatterns.some(p => p.test(containerText)) && ...) continue;  // ← XÓA gate này
+      const btns = findButtonsIn(container, CONFIG.actionButtonPatterns, 'ACTION');
+      ...
+-   }
+  }
+```
 
-Ket qua mong muon:
+> [!IMPORTANT]
+> Sau khi bỏ gate, `findButtonsIn()` sẽ scan toàn panel và tìm buttons theo text pattern. Text pattern (Retry, Run, Proceed, Accept all) đã đủ unique để phân biệt — confirmed từ 5 DOM samples.
 
-- Command Palette khong co command chet.
-- Extension UI va manifest dong bo.
+---
 
-## Pha 4: Runtime state va logs
+### 🔴 Fix #2 — `/^run$/i` → `/^run\b/i` (khớp `"Run⌥Enter"`)
 
-- Chon lai vi tri state:
-  - de xuat: `logs/activity-log.json`.
-- Cap nhat code doc/ghi activity:
-  - tu root `activity-log.json`.
-  - sang `logs/activity-log.json`.
-- Dam bao tu tao `logs/` neu chua ton tai.
-- Cap nhat `scripts/menu.sh` neu dang doc root activity file.
-- Giu fallback doc file cu root trong mot thoi gian de khong mat thong ke cu:
-  - neu `logs/activity-log.json` chua co;
-  - neu root `activity-log.json` ton tai;
-  - migrate/copy noi dung sang path moi.
-- Cap nhat `.gitignore` neu can:
-  - `logs/`
-  - `activity-log.json` root van ignore de tuong thich.
+**File:** `src/payload/injection-payload.js`
 
-Ket qua mong muon:
+Button "Run" thực tế là `<button><span>Run</span><span>⌥Enter</span></button>`.  
+`el.textContent.trim()` = `"Run⌥Enter"` → `/^run$/i` không khớp.
 
-- Runtime output gom vao `logs/`.
-- Root project sach hon.
+```diff
+  actionButtonPatterns: [
+    /^accept$/i,
+-   /^run$/i,
++   /^run\b/i,          // matches "Run⌥Enter" ✅
+    /^execute$/i,
+    ...
+  ],
+```
 
-## Pha 5: README va tai lieu
+---
 
-- Cap nhat README:
-  - cau truc thu muc thuc te.
-  - log path dung.
-  - phan biet CLI / daemon / extension / LaunchAgent.
-  - sua cau "an toan tuyet doi" thanh mo ta thuc te hon, vi du "co lop bao ve blacklist/rate-limit".
-- Cap nhat `.agents/context/project-context.md`:
-  - bo sung Auto-Accept.
-  - bo sung `logs/activity-log.json`.
-  - cap nhat cau truc daemon/payload hien tai.
-- Neu co `tutorial.md`, kiem tra cac lenh:
-  - `npm start`
-  - `npm run menu`
-  - `npm run test`
-  - `scripts/install.sh`
-  - log path.
+### 🔴 Fix #3 — `isClickable` bỏ sót `<span class="cursor-pointer">` (Accept all)
 
-Ket qua mong muon:
+**File:** `src/payload/injection-payload.js`
 
-- Tai lieu khop code.
-- Nguoi dung moi khong bi huong dan sai file log/path.
+"Accept all" là `<span class="...cursor-pointer...">Accept all</span>` — không phải `<button>`. Cần check Tailwind class explicitly.
 
-## Pha 6: Refactor nhe daemon
+```diff
+  const isClickable = tag === 'button' || 
+                      el.getAttribute('role') === 'button' || 
+                      el.classList.contains('monaco-button') || 
+                      el.classList.contains('action-label') ||
+                      el.classList.contains('button') ||
+                      el.classList.contains('btn') ||
++                     el.classList.contains('cursor-pointer') ||
+                      el.style.cursor === 'pointer' ||
+                      window.getComputedStyle(el).cursor === 'pointer';
+```
 
-Chi lam sau khi cac pha tren pass test.
+---
 
-Tach `src/core/auto-retry.js` thanh module nho:
+### 🔴 Fix #4 — Thêm `disabled` check để không click Proceed sai
 
-- `src/core/auto-retry.js`
-  - chi giu entry point.
-  - khoi tao daemon.
-- `src/core/daemon.js`
-  - class `AutoRetryDaemon`.
-  - main loop.
-  - target lifecycle.
-- `src/core/cdp-connection.js`
-  - class `CDPConnection`.
-  - connect/send/inject/reinject/disconnect.
-- `src/core/config-store.js`
-  - load config.
-  - watch config.
-  - default config.
-- `src/core/activity-store.js`
-  - load/save activity.
-  - migrate root activity file neu can.
-  - update counters.
+**File:** `src/payload/injection-payload.js`
 
-Nguyen tac:
+"Proceed" xuất hiện ở **mọi sample** nhưng `disabled=""` khi không có plan cần duyệt.
 
-- Khong doi public behavior.
-- Khong doi payload.
-- Khong doi script command.
-- Sau moi file tach, chay test nhanh.
+```diff
+  if (isClickable) {
+    const text = (el.textContent || '').trim();
+    if (text.length > 0 && text.length <= 50) {
++     if (el.disabled || el.getAttribute('disabled') !== null) continue;
+      const rect = el.getBoundingClientRect();
+```
 
-Ket qua mong muon:
+---
 
-- Daemon de doc hon.
-- Moi module co trach nhiem ro.
+## Tóm tắt Thay đổi
 
-## Pha 7: Config schema
+| File | Thay đổi |
+|------|----------|
+| `injection-payload.js` | Xóa `containerText.substring(0,2000)` gate trong `scanAndAction()` |
+| `injection-payload.js` | Xóa `actionCategories` category loop gate |  
+| `injection-payload.js` | `/^run$/i` → `/^run\b/i` |
+| `injection-payload.js` | Thêm `classList.contains('cursor-pointer')` vào `isClickable` |
+| `injection-payload.js` | Thêm `disabled` check trong `findButtonsIn()` |
 
-- Them `config.schema.json`.
-- Mo ta:
-  - `blacklist`
-  - `autoRetry`
-  - `autoAccept.enabled`
-  - `autoAccept.categories.terminal/review/system.enabled`
-  - `patterns`
-  - `customRetryPatterns`
-  - `customAcceptPatterns`
-- Cap nhat README hoac tutorial tro toi schema.
-- Khong bat buoc validate runtime ngay o pha dau.
-- Neu them validate runtime:
-  - chi warning;
-  - khong crash daemon.
+**Không thay đổi:**
+- `dialogContainerSelectors` — `.antigravity-agent-side-panel` đã có sẵn ✅
+- Cấu trúc module daemon/cdp-connection ✅
+- Script commands, LaunchAgent ✅
 
-Ket qua mong muon:
+---
 
-- Nguoi dung sua config it sai hon.
-- Developer hieu shape config ro hon.
+## Verification Plan
 
-## Pha 8: Payload maintainability
+```bash
+npm test  # regression samples phải pass
+```
 
-Day la pha rui ro cao hon, nen lam sau.
-
-- Khong can tach payload string ngay neu chua co bundler.
-- Truoc mat chi sap xep lai trong `src/payload/injection-payload.js`:
-  - default config block.
-  - pattern conversion.
-  - container detection.
-  - command extraction.
-  - accept/retry decision.
-  - click execution.
-  - cleanup/versioning.
-- Dam bao regression samples van pass.
-- Neu muon di xa hon:
-  - tach source payload thanh file browser-native rieng.
-  - build thanh injectable string.
-  - nhung buoc nay chua nen lam ngay neu project van nho.
-
-Ket qua mong muon:
-
-- Payload de review hon.
-- Khong pha co che inject hien tai.
-
-## Pha 9: Verification
-
-Sau tung pha chinh:
-
-- `npm test`
-- kiem tra `npm run menu` khong loi syntax.
-- kiem tra scripts shell con dung path.
-- neu Antigravity dang chay debug:
-  - chay status.
-  - thu trigger Auto-Retry.
-  - thu trigger Auto-Accept.
-- kiem tra log/activity duoc ghi vao path moi.
-
-Ket qua cuoi:
-
-- Test regression pass.
-- CLI menu doc dung activity count.
-- Extension command khong lech manifest.
-- README khop cau truc thuc te.
-
-## Thu tu implement de xuat
-
-1. Pha 1: Audit baseline.
-2. Pha 3: Sua extension manifest.
-3. Pha 4: Chuyen activity log vao `logs/`.
-4. Pha 2: Chuan hoa naming metadata.
-5. Pha 5: Cap nhat README/context/tutorial.
-6. Pha 6: Refactor daemon nhe.
-7. Pha 7: Them config schema.
-8. Pha 8: Don payload.
-9. Pha 9: Verification cuoi.
-
-## Rui ro chinh
-
-- LaunchAgent co the hardcode path cu.
-- Extension command id doi qua manh co the lam mat command binding.
-- Activity log chuyen path co the lam mat count neu khong migrate.
-- Refactor daemon de gay loi lifecycle WebSocket neu lam qua rong.
-- Payload refactor de lam regression dialog detection.
-
-## Nguyen tac chot
-
-- Khong doi command id/runtime path quan trong trong cung luc.
-- Moi pha co test rieng.
-- README cap nhat sau khi code thuc te da on.
-- Refactor daemon truoc payload.
-- Payload chi dong vao sau khi regression du chac.
+Manual sau khi deploy:
+- Trigger error dialog thật → log `[STAT] RETRY_DETECTED` + `RETRY_CLICKED`
+- Trigger command card (Run) → log `[STAT] ACCEPT_DETECTED` + `ACCEPT_CLICKED`
+- Trigger plan card (Proceed enabled) → log `[STAT] ACCEPT_DETECTED` + `ACCEPT_CLICKED`
+- Trigger diff (Accept all) → log `[STAT] ACCEPT_DETECTED` + `ACCEPT_CLICKED`
+- Confirm: Proceed disabled **không** bị click

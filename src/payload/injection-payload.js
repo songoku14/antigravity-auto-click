@@ -85,7 +85,7 @@ function getInjectionScript(userConfig = {}) {
 
     actionButtonPatterns: [
       /^accept$/i,
-      /^run$/i,
+      /^run\b/i,
       /^execute$/i,
       /^allow$/i,
       /^approve$/i,
@@ -94,8 +94,8 @@ function getInjectionScript(userConfig = {}) {
       /^confirm$/i,
       /^continue$/i,
       /^proceed$/i,
-      /\\baccept\\s*all\\b/i,
-      /\\balways\\s*allow\\b/i
+      /\baccept\s*all\b/i,
+      /\balways\s*allow\b/i
     ],
 
     retryContextPatterns: [
@@ -286,12 +286,14 @@ function getInjectionScript(userConfig = {}) {
                           el.classList.contains('action-label') ||
                           el.classList.contains('button') ||
                           el.classList.contains('btn') ||
+                          el.classList.contains('cursor-pointer') ||
                           el.style.cursor === 'pointer' ||
                           window.getComputedStyle(el).cursor === 'pointer';
       
       if (isClickable) {
         const text = (el.textContent || '').trim();
         if (text.length > 0 && text.length <= 50) {
+          if (el.disabled || el.getAttribute('disabled') !== null) continue;
           const rect = el.getBoundingClientRect();
           if (rect.width > 2 && rect.height > 2) {
             let inFooter = false;
@@ -380,11 +382,10 @@ function getInjectionScript(userConfig = {}) {
     if (useFallback) containers = [document.body];
 
     for (const container of containers) {
-      const containerText = (container.textContent || '').substring(0, 2000);
       const isAgentWindow = container.closest && container.closest('.antigravity-agent-side-panel');
       
       // Case 1: Auto-Retry
-      if (USER_CONFIG.autoRetry !== false && CONFIG.errorPatterns.some(p => p.test(containerText))) {
+      if (USER_CONFIG.autoRetry !== false) {
         debug(\`[STEP 1] Found matching RETRY container: <\${container.tagName.toLowerCase()}> (ID: \${container.id})\`);
         const btns = findButtonsIn(container, CONFIG.retryButtonPatterns, 'RETRY');
         btns.sort((a, b) => (a.inFooter !== b.inFooter ? (b.inFooter ? 1 : -1) : b.rect.top - a.rect.top));
@@ -419,9 +420,7 @@ function getInjectionScript(userConfig = {}) {
 
         for (const [catName, catConfig] of Object.entries(categories)) {
           if (catConfig.enabled === false) continue;
-          const catPatterns = CONFIG.actionCategories[catName] || [];
-          if (!catPatterns.some(p => p.test(containerText)) && !catPatterns.some(p => p.test(getSurroundingText(container)))) continue;
-
+          
           debug(\`[STEP 1] Found matching ACCEPT container for category "\${catName}": <\${container.tagName.toLowerCase()}>\`);
           const btns = findButtonsIn(container, CONFIG.actionButtonPatterns, 'ACTION (' + catName.toUpperCase() + ')');
           btns.sort((a, b) => (a.inFooter !== b.inFooter ? (b.inFooter ? 1 : -1) : b.rect.top - a.rect.top));
