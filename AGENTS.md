@@ -15,4 +15,4 @@ Danh sách các AI Agent cộng tác trong dự án.
 - [Ngữ cảnh Dự án & Kiến trúc](.agents/context/project-context.md)
 
 ---
-*Ghi chú: Gõ @ kèm tên agent để triệu hồi.*
+*Ghi chú: Gõ @ kèm tên agent để triệu hồi. Mọi Agent phải tuân thủ tuyệt đối quy trình tại [RULES.md](.agents/rules/RULES.md).*
