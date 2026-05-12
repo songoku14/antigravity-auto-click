@@ -5,7 +5,7 @@
  * It uses MutationObserver to watch for error dialogs and auto-click Retry/Accept.
  */
 
-const INJECTION_VERSION = 40;
+const INJECTION_VERSION = 41;
 
 /**
  * Trả về string JavaScript sẽ được inject vào DOM qua CDP Runtime.evaluate
@@ -180,6 +180,28 @@ function getInjectionScript(userConfig = {}) {
 
   function log(msg) {
     console.log('[AutoRetry] ' + msg);
+  }
+
+  function isAutoAcceptEnabled() {
+    const autoAcceptConfig = USER_CONFIG.autoAccept;
+    return autoAcceptConfig === true || (
+      !!autoAcceptConfig &&
+      typeof autoAcceptConfig === 'object' &&
+      autoAcceptConfig.enabled !== false
+    );
+  }
+
+  function getAutoAcceptCategories() {
+    const autoAcceptConfig = USER_CONFIG.autoAccept;
+    if (!isAutoAcceptEnabled()) return {};
+    if (autoAcceptConfig && typeof autoAcceptConfig === 'object' && autoAcceptConfig.categories) {
+      return autoAcceptConfig.categories;
+    }
+    return {
+      terminal: { enabled: true },
+      review: { enabled: true },
+      system: { enabled: true }
+    };
   }
 
   function debug(msg) {
@@ -606,7 +628,7 @@ function getInjectionScript(userConfig = {}) {
       scriptVersion: SCRIPT_VERSION,
       config: {
         autoRetry: USER_CONFIG.autoRetry !== false,
-        autoAccept: USER_CONFIG.autoAccept,
+        autoAccept: isAutoAcceptEnabled(),
         testMode: !!USER_CONFIG.testMode
       },
       clickGate,
@@ -631,10 +653,10 @@ function getInjectionScript(userConfig = {}) {
     if (!dryRun && !canClick()) return;
 
     let containers = findValidContainers();
-    const useFallback = containers.length === 0 && (USER_CONFIG.autoAccept !== false || USER_CONFIG.autoRetry !== false);
+    const useFallback = containers.length === 0 && (isAutoAcceptEnabled() || USER_CONFIG.autoRetry !== false);
     if (useFallback) containers = [document.body];
     if (dryRun) report.containerCount = containers.length;
-    debug('[SCAN] Starting pass. containers=' + containers.length + ', fallback=' + useFallback + ', autoRetry=' + (USER_CONFIG.autoRetry !== false) + ', autoAccept=' + (USER_CONFIG.autoAccept !== false));
+    debug('[SCAN] Starting pass. containers=' + containers.length + ', fallback=' + useFallback + ', autoRetry=' + (USER_CONFIG.autoRetry !== false) + ', autoAccept=' + isAutoAcceptEnabled());
 
     for (const container of containers) {
       const isAgentWindow = container.closest && container.closest('.antigravity-agent-side-panel');
@@ -743,11 +765,8 @@ function getInjectionScript(userConfig = {}) {
       }
 
       // Case 2: Auto-Accept
-      const autoAcceptConfig = USER_CONFIG.autoAccept;
-      if (autoAcceptConfig === true || (autoAcceptConfig && autoAcceptConfig.enabled !== false)) {
-        const categories = (autoAcceptConfig && typeof autoAcceptConfig === 'object' && autoAcceptConfig.categories) 
-                           ? autoAcceptConfig.categories 
-                           : { terminal: { enabled: true }, review: { enabled: true }, system: { enabled: true } };
+      if (isAutoAcceptEnabled()) {
+        const categories = getAutoAcceptCategories();
 
         for (const [catName, catConfig] of Object.entries(categories)) {
           if (catConfig.enabled === false) continue;
@@ -980,7 +999,7 @@ function getInjectionScript(userConfig = {}) {
   };
 
   schedule(scanAndAction, 1000);
-  log('v' + SCRIPT_VERSION + ' active. Retry: ' + (USER_CONFIG.autoRetry !== false ? 'ON' : 'OFF') + ', Accept: ' + (USER_CONFIG.autoAccept !== false ? 'ON' : 'OFF'));
+  log('v' + SCRIPT_VERSION + ' active. Retry: ' + (USER_CONFIG.autoRetry !== false ? 'ON' : 'OFF') + ', Accept: ' + (isAutoAcceptEnabled() ? 'ON' : 'OFF'));
   return 'injection_success';
 })();
 `;
