@@ -32,7 +32,7 @@ class CDPConnection {
   connect() {
     return new Promise((resolve, reject) => {
       const url = this.target.webSocketDebuggerUrl;
-      this.debug(`Connecting to ${url}`);
+      this.debug(`Connecting to ${url} (title="${this.target.title}", url="${this.target.url || ''}")`);
 
       this.ws = new WebSocket(url, {
         perMessageDeflate: false,
@@ -165,6 +165,9 @@ class CDPConnection {
       await this.injectCleanup();
 
       this.config = config;
+      this.debug(
+        `Injecting script into target "${this.target.title}" (${this.target.id}) with config ${JSON.stringify(config)}`
+      );
       const script = getInjectionScript(config);
       const result = await this.send('Runtime.evaluate', {
         expression: script,

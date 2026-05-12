@@ -93,12 +93,17 @@ class AutoRetryDaemon {
     let targets;
     try {
       targets = await getTargets(port);
+      this.debug(`CDP returned ${targets.length} total target(s) on port ${port}`);
     } catch (e) {
       this.debug(`Failed to get targets: ${e.message}`);
       return;
     }
 
     const pageTargets = filterPageTargets(targets);
+    this.debug(
+      `Filtered to ${pageTargets.length} page target(s): ` +
+      pageTargets.map(t => `${t.title || '<untitled>'} <${t.url || 'no-url'}> [${t.id}]`).join(' | ')
+    );
     const config = this.configStore.get();
 
     // Connect & inject into new targets

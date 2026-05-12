@@ -5,7 +5,7 @@
  * It uses MutationObserver to watch for error dialogs and auto-click Retry/Accept.
  */
 
-const INJECTION_VERSION = 36;
+const INJECTION_VERSION = 37;
 
 /**
  * Trả về string JavaScript sẽ được inject vào DOM qua CDP Runtime.evaluate
@@ -183,6 +183,34 @@ function getInjectionScript(userConfig = {}) {
     if (USER_CONFIG.debug) console.log('[AutoRetry] [DEBUG] ' + msg);
   }
 
+  function formatRect(rect) {
+    if (!rect) return 'n/a';
+    return 'x=' + Math.round(rect.left) +
+      ',y=' + Math.round(rect.top) +
+      ',w=' + Math.round(rect.width) +
+      ',h=' + Math.round(rect.height);
+  }
+
+  function summarizeElement(el) {
+    if (!el || !el.tagName) return '<unknown>';
+    const tag = el.tagName.toLowerCase();
+    const id = el.id ? '#' + el.id : '';
+    const className = typeof el.className === 'string'
+      ? '.' + el.className.trim().replace(/\s+/g, '.')
+      : '';
+    return '<' + tag + id + className + '>';
+  }
+
+  function elementPath(el, maxDepth = 5) {
+    const parts = [];
+    let curr = el;
+    for (let i = 0; curr && i < maxDepth; i++) {
+      parts.push(summarizeElement(curr));
+      curr = curr.parentElement || (curr.getRootNode && curr.getRootNode().host);
+    }
+    return parts.join(' <- ');
+  }
+
   function cleanupMocks() {
     try {
       const mocks = document.querySelectorAll('.' + MOCK_MARKER_CLASS);
@@ -201,6 +229,7 @@ function getInjectionScript(userConfig = {}) {
   function resetCounterIfNeeded() {
     const now = Date.now();
     if (now - lastResetTime > 60000) {
+      debug('[RATE] Resetting counters after ' + (now - lastResetTime) + 'ms. Previous actionCount=' + actionCount + ', cooldown=' + isInCooldown);
       actionCount = 0;
       lastResetTime = now;
       isInCooldown = false;
@@ -209,11 +238,19 @@ function getInjectionScript(userConfig = {}) {
 
   function canClick() {
     resetCounterIfNeeded();
-    if (isInCooldown) return false;
-    if (Date.now() - lastClickTime < CONFIG.minClickInterval) return false;
+    const now = Date.now();
+    if (isInCooldown) {
+      debug('[RATE] Blocked by cooldown. actionCount=' + actionCount + ', sinceLastClick=' + (now - lastClickTime) + 'ms');
+      return false;
+    }
+    if (now - lastClickTime < CONFIG.minClickInterval) {
+      debug('[RATE] Blocked by minClickInterval. sinceLastClick=' + (now - lastClickTime) + 'ms < ' + CONFIG.minClickInterval + 'ms');
+      return false;
+    }
     if (actionCount >= CONFIG.maxRetriesPerMinute) {
       isInCooldown = true;
       log('Rate limit reached. Cooling down.');
+      debug('[RATE] Entering cooldown. actionCount=' + actionCount + ', cooldownMs=' + CONFIG.cooldownMs);
       setTimeout(() => { isInCooldown = false; actionCount = 0; }, CONFIG.cooldownMs);
       return false;
     }
@@ -271,6 +308,7 @@ function getInjectionScript(userConfig = {}) {
         });
       } catch(e) {}
     }
+    debug('[SCAN] findValidContainers() => ' + containers.size + ' container(s)');
     return Array.from(containers);
   }
 
@@ -293,7 +331,10 @@ function getInjectionScript(userConfig = {}) {
       if (isClickable) {
         const text = (el.textContent || '').trim();
         if (text.length > 0 && text.length <= 50) {
-          if (el.disabled || el.getAttribute('disabled') !== null) continue;
+          if (el.disabled || el.getAttribute('disabled') !== null) {
+            debug('[SCAN] Skipping disabled clickable ' + summarizeElement(el) + ' text="' + text + '"');
+            continue;
+          }
           const rect = el.getBoundingClientRect();
           if (rect.width > 2 && rect.height > 2) {
             let inFooter = false;
@@ -309,7 +350,10 @@ function getInjectionScript(userConfig = {}) {
             if (patterns) {
               for (const pattern of patterns) {
                 if (pattern.test(text)) {
-                  if (typeLabel) log('Found matching ' + typeLabel + ' button: "' + text + '"');
+                  if (typeLabel) {
+                    log('Found matching ' + typeLabel + ' button: "' + text + '"');
+                    debug('[SCAN] ' + typeLabel + ' candidate ' + summarizeElement(el) + ' rect=' + formatRect(rect) + ' inFooter=' + inFooter + ' path=' + elementPath(el, 4));
+                  }
                   buttons.push({ el, text, rect, inFooter });
                   break;
                 }
@@ -362,7 +406,10 @@ function getInjectionScript(userConfig = {}) {
       }
       curr = curr.parentElement || (curr.getRootNode && curr.getRootNode().host);
     }
-    debug(\`[STEP 4.4] Visibility failed: another element is on top: <\${topEl.tagName.toLowerCase()}> (ID: \${topEl.id}, Class: \${topEl.className})\`);
+    debug(
+      '[STEP 4.4] Visibility failed for ' + summarizeElement(el) + ' rect=' + formatRect(rect) + '. ' +
+      'Top element: ' + summarizeElement(topEl) + ' path=' + elementPath(topEl, 4)
+    );
     return false;
   }
 
@@ -385,18 +432,26 @@ function getInjectionScript(userConfig = {}) {
     let containers = findValidContainers();
     const useFallback = containers.length === 0 && (USER_CONFIG.autoAccept !== false || USER_CONFIG.autoRetry !== false);
     if (useFallback) containers = [document.body];
+    debug('[SCAN] Starting pass. containers=' + containers.length + ', fallback=' + useFallback + ', autoRetry=' + (USER_CONFIG.autoRetry !== false) + ', autoAccept=' + (USER_CONFIG.autoAccept !== false));
 
     for (const container of containers) {
       const isAgentWindow = container.closest && container.closest('.antigravity-agent-side-panel');
+      const containerRect = container.getBoundingClientRect();
+      const snippet = (container.textContent || '').replace(/\s+/g, ' ').trim().substring(0, 120);
+      debug(
+        '[SCAN] Inspecting container ' + summarizeElement(container) + ' rect=' + formatRect(containerRect) +
+        ' isAgentWindow=' + !!isAgentWindow + ' snippet="' + snippet + '"'
+      );
       
       // Case 1: Auto-Retry
       if (USER_CONFIG.autoRetry !== false) {
         debug(\`[STEP 1] Found matching RETRY container: <\${container.tagName.toLowerCase()}> (ID: \${container.id})\`);
         const btns = findButtonsIn(container, CONFIG.retryButtonPatterns, 'RETRY');
         btns.sort((a, b) => (a.inFooter !== b.inFooter ? (b.inFooter ? 1 : -1) : b.rect.top - a.rect.top));
+        debug('[SCAN] RETRY candidates in container: ' + btns.length);
 
         for (const btnObj of btns) {
-          debug('[STEP 2] Found matching RETRY button: "' + btnObj.text + '"');
+          debug('[STEP 2] Found matching RETRY button: "' + btnObj.text + '" rect=' + formatRect(btnObj.rect) + ' inFooter=' + btnObj.inFooter);
           const isRightSide = btnObj.rect.left > window.innerWidth * 0.4;
           if (!USER_CONFIG.testMode && !isAgentWindow && !isRightSide) {
             debug('[STEP 3] Skipping RETRY button: not on right side (' + Math.round(btnObj.rect.left) + ' < ' + Math.round(window.innerWidth * 0.4) + ')');
@@ -414,6 +469,9 @@ function getInjectionScript(userConfig = {}) {
           performClick(btnObj.el, btnObj.text, '🔄 RETRY');
           return;
         }
+        if (btns.length === 0) {
+          debug('[SCAN] No RETRY candidate survived pattern match in this container');
+        }
       }
 
       // Case 2: Auto-Accept
@@ -429,9 +487,10 @@ function getInjectionScript(userConfig = {}) {
           debug(\`[STEP 1] Found matching ACCEPT container for category "\${catName}": <\${container.tagName.toLowerCase()}>\`);
           const btns = findButtonsIn(container, CONFIG.actionButtonPatterns, 'ACTION (' + catName.toUpperCase() + ')');
           btns.sort((a, b) => (a.inFooter !== b.inFooter ? (b.inFooter ? 1 : -1) : b.rect.top - a.rect.top));
+          debug('[SCAN] ACCEPT candidates for category "' + catName + '": ' + btns.length);
 
           for (const btnObj of btns) {
-            debug('[STEP 2] Found matching ACCEPT button: "' + btnObj.text + '"');
+            debug('[STEP 2] Found matching ACCEPT button: "' + btnObj.text + '" rect=' + formatRect(btnObj.rect) + ' inFooter=' + btnObj.inFooter);
             const isRightSide = btnObj.rect.left > window.innerWidth * 0.4;
             if (!USER_CONFIG.testMode && !isAgentWindow && !isRightSide) {
               debug('[STEP 3] Skipping ACCEPT button: not on right side (' + Math.round(btnObj.rect.left) + ' < ' + Math.round(window.innerWidth * 0.4) + ')');
@@ -443,6 +502,7 @@ function getInjectionScript(userConfig = {}) {
 
             log('[STAT] ACCEPT_DETECTED (' + catName + ')');
             const cmdText = extractCommandText(btnObj.el);
+            debug('[ACTION] ACCEPT command context for "' + btnObj.text + '": "' + (cmdText || '').substring(0, 200) + '"');
             if (isCommandBlocked(cmdText)) {
               if (!btnObj.el.__blocked) {
                 btnObj.el.__blocked = true;
@@ -455,17 +515,30 @@ function getInjectionScript(userConfig = {}) {
             performClick(btnObj.el, btnObj.text, '⚡ ACTION (' + catName.toUpperCase() + ')');
             return;
           }
+          if (btns.length === 0) {
+            debug('[SCAN] No ACCEPT candidate for category "' + catName + '" in this container');
+          }
         }
       }
     }
+
+    debug('[SCAN] Pass completed without any actionable button');
   }
 
   function performClick(btn, btnText, typeLabel) {
-    if (btn.__clicked) return;
+    if (btn.__clicked) {
+      debug('[ACTION] Skipping click because __clicked is already true for ' + summarizeElement(btn) + ' text="' + btnText + '"');
+      return;
+    }
     btn.__clicked = true;
     actionCount++;
     lastClickTime = Date.now();
+    const initialRect = btn.getBoundingClientRect();
     log(typeLabel + '! [STEP 5] Clicking button "' + btnText + '"');
+    debug(
+      '[ACTION] Preparing click for ' + summarizeElement(btn) + ' rect=' + formatRect(initialRect) +
+      ' path=' + elementPath(btn, 4) + ' actionCount=' + actionCount
+    );
 
     const isMock = btn.closest('.' + MOCK_MARKER_CLASS);
     btn.style.outline = '3px solid #3794ff';
@@ -477,8 +550,17 @@ function getInjectionScript(userConfig = {}) {
           btn.click();
         } else {
           debug('[STEP 5.2] Executing fallback MouseEvent sequence on <' + btn.tagName.toLowerCase() + '>');
-          const opts = { bubbles: true, cancelable: true, view: window };
+          const liveRect = btn.getBoundingClientRect();
+          const opts = {
+            bubbles: true,
+            cancelable: true,
+            view: window,
+            clientX: liveRect.left + liveRect.width / 2,
+            clientY: liveRect.top + liveRect.height / 2
+          };
+          btn.dispatchEvent(new PointerEvent('pointerdown', opts));
           btn.dispatchEvent(new MouseEvent('mousedown', opts));
+          btn.dispatchEvent(new PointerEvent('pointerup', opts));
           btn.dispatchEvent(new MouseEvent('mouseup', opts));
           btn.dispatchEvent(new MouseEvent('click', opts));
         }
@@ -496,6 +578,7 @@ function getInjectionScript(userConfig = {}) {
       setTimeout(() => {
         // Check if button is still in DOM and visible
         const stillPresent = document.contains(btn) && btn.offsetParent !== null;
+        debug('[STEP 6/7] Post-click verification for "' + btnText + '": stillPresent=' + stillPresent);
         if (stillPresent) {
           if (isMock) {
             log('⚠️ [STEP 7] Mock button still visible. Triggering robust cleanup...');
@@ -506,6 +589,7 @@ function getInjectionScript(userConfig = {}) {
             
             setTimeout(() => {
               const finalCheck = document.contains(btn) && btn.offsetParent !== null;
+              debug('[STEP 8] Final verification for "' + btnText + '": finalCheck=' + finalCheck);
               if (finalCheck) {
                 log('❌ [STEP 8] Dialog persistent even after fallback click. Manual intervention may be required.');
               } else {
@@ -550,8 +634,8 @@ function getInjectionScript(userConfig = {}) {
     const seenButtons = new Set();
     
     // Check for agent panel specifically
-    const agentPanel = document.querySelector('.antigravity-agent-side-panel');
-    const hasAgentPanel = !!agentPanel;
+    const agentPanels = findInShadows(document, '.antigravity-agent-side-panel');
+    const hasAgentPanel = agentPanels.length > 0;
 
     const getContext = (el) => {
       try {

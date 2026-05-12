@@ -6,6 +6,10 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 PLIST_NAME="com.antigravity.autoretry"
 ACTIVITY_FILE="$PROJECT_ROOT/logs/activity-log.json"
 
+# Auto-restart on launch to ensure system is ready
+echo "🚀 Đang tự động kiểm tra và khởi chạy hệ thống..."
+bash "$SCRIPT_DIR/core/restart.sh"
+
 show_menu() {
     clear
     echo "======================================================"
@@ -61,17 +65,13 @@ show_menu() {
     echo -e "   Tổng quan:  $STATUS_HEADER    |    CDP Debug:  $CDP_STATUS_LABEL"
     echo -e "   Auto Retry: $RETRY_STATUS ($RETRY_COUNT)    |    Auto Accept: $ACCEPT_STATUS ($ACCEPT_COUNT)"
     echo "======================================================"
-    echo " 1) 📊 Xem Trạng thái & Logs chi tiết"
-    echo " 2) 🧪 Test DOM samples (Regression)"
-    echo " 3) 🛠️ Developer Tools (Debug & Analysis)"
+    echo " 1) ⚙️ Cài đặt"
+    echo " 2) 🛠️ Developer Tools (Debug & Analysis)"
     echo "------------------------------------------------------"
-    echo " 4) 🚀 Start All Features (Bắt đầu chạy)"
-    echo " 5) 🛑 Stop All Features  (Dừng hoàn toàn)"
-    echo " 6) 🔄 Restart All Features (Khởi động lại)"
+    echo " 3) 🚀 Start/Restart All Features (Khởi chạy hệ thống)"
+    echo " 4) 🛑 Stop All Features  (Dừng hoàn toàn)"
     echo "------------------------------------------------------"
-    echo " 7) 📥 Bật Khởi động cùng máy tính"
-    echo " 8) 🗑️ Tắt Khởi động cùng máy tính"
-    echo " 9) 🐛 Bật CDP (Chrome DevTools Protocol)"
+    echo " 5) 🐛 Bật CDP (Chrome DevTools Protocol)"
     echo " 0) 🚪 Thoát"
     echo "======================================================"
     echo ""
@@ -145,6 +145,9 @@ show_dev_menu() {
         echo "           🛠️ ANTIGRAVITY DEVELOPER TOOLS            "
         echo "======================================================"
         echo " 1) 📦 Chụp toàn bộ IDE (Dump DOM Snapshot)"
+        echo " 2) 📋 Xem log daemon thời gian thực (tail -f)"
+        echo " 3) 🧪 Test DOM samples (Regression)"
+        echo " 4) 🔍 Phân tích DOM trực tiếp (Live Analysis)"
         echo " 0) 🔙 Quay lại Menu chính"
         echo "======================================================"
         echo ""
@@ -155,6 +158,24 @@ show_dev_menu() {
             1)
                 echo "📦 Đang thực hiện dump toàn bộ DOM..."
                 node "$SCRIPT_DIR/tools/dump-dom.js"
+                read -p "Nhấn Enter để tiếp tục..."
+                ;;
+            2)
+                LOG_FILE="$PROJECT_ROOT/logs/daemon.log"
+                if [ -f "$LOG_FILE" ]; then
+                    echo "Đang theo dõi log (Nhấn Ctrl+C để thoát)..."
+                    tail -f "$LOG_FILE"
+                else
+                    echo "Chưa có file log nào."
+                    sleep 1
+                fi
+                ;;
+            3)
+                run_regression_suite
+                ;;
+            4)
+                echo "🔍 Đang phân tích trạng thái Antigravity..."
+                node "$SCRIPT_DIR/tools/analyze-live.js"
                 read -p "Nhấn Enter để tiếp tục..."
                 ;;
             0)
@@ -186,43 +207,50 @@ while true; do
                 [ "$CUR_RETRY" = "true" ] && RETRY_LBL="\033[32mACTIVE\033[0m" || RETRY_LBL="\033[31mOFF\033[0m"
                 [ "$CUR_ACCEPT" = "true" ] && ACCEPT_LBL="\033[32mACTIVE\033[0m" || ACCEPT_LBL="\033[31mOFF\033[0m"
 
+                # Check Startup state
+                STARTUP_LBL="\033[31mOFF\033[0m"
+                if [ -f "$HOME/Library/LaunchAgents/$PLIST_NAME.plist" ]; then
+                    STARTUP_LBL="\033[32mACTIVE\033[0m"
+                    IS_STARTUP="yes"
+                else
+                    IS_STARTUP="no"
+                fi
+
                 echo ""
                 echo "------------------------------------------------------"
-                echo " TÙY CHỌN CHI TIẾT:"
-                echo " 1) 📋 Xem log thời gian thực (tail -f)"
-                echo " 2) 🔄 Reset bộ đếm thống kê"
-                echo -e " 3) 🔄 Toggle Auto Retry   (Hiện tại: $RETRY_LBL)"
-                echo -e " 4) 🔄 Toggle Auto Accept  (Hiện tại: $ACCEPT_LBL)"
+                echo " TÙY CHỌN CẤU HÌNH & THỐNG KÊ:"
+                echo " 1) 🔄 Reset bộ đếm thống kê"
+                echo -e " 2) 🔄 Toggle Auto Retry   (Hiện tại: $RETRY_LBL)"
+                echo -e " 3) 🔄 Toggle Auto Accept  (Hiện tại: $ACCEPT_LBL)"
+                echo -e " 4) 🔄 Toggle Khởi động cùng macOS (Hiện tại: $STARTUP_LBL)"
                 echo " 0) 🔙 Quay lại Menu chính"
                 echo "------------------------------------------------------"
                 read -p "Lựa chọn của bạn: " sub_choice
                 
                 case $sub_choice in
                     1)
-                        LOG_FILE="$PROJECT_ROOT/logs/daemon.log"
-                        if [ -f "$LOG_FILE" ]; then
-                            echo "Đang theo dõi log (Nhấn Ctrl+C để thoát)..."
-                            tail -f "$LOG_FILE"
-                        else
-                            echo "Chưa có file log nào."
-                            sleep 1
-                        fi
-                        ;;
-                    2)
                         bash "$SCRIPT_DIR/core/status.sh" --reset
                         sleep 1
                         ;;
-                    3)
+                    2)
                         if [ "$CUR_RETRY" = "true" ]; then NEW_VAL="false"; else NEW_VAL="true"; fi
                         jq ".autoRetry = $NEW_VAL" "$PROJECT_ROOT/config.json" > "$PROJECT_ROOT/config.json.tmp" && mv "$PROJECT_ROOT/config.json.tmp" "$PROJECT_ROOT/config.json"
                         echo -e "✅ Đã chuyển Auto Retry sang: $NEW_VAL"
                         sleep 1
                         ;;
-                    4)
+                    3)
                         if [ "$CUR_ACCEPT" = "true" ]; then NEW_VAL="false"; else NEW_VAL="true"; fi
                         jq "if .autoAccept | type == \"boolean\" then .autoAccept = $NEW_VAL else .autoAccept.enabled = $NEW_VAL end" "$PROJECT_ROOT/config.json" > "$PROJECT_ROOT/config.json.tmp" && mv "$PROJECT_ROOT/config.json.tmp" "$PROJECT_ROOT/config.json"
                         echo -e "✅ Đã chuyển Auto Accept sang: $NEW_VAL"
                         sleep 1
+                        ;;
+                    4)
+                        if [ "$IS_STARTUP" = "yes" ]; then
+                            bash "$SCRIPT_DIR/uninstall.sh"
+                        else
+                            bash "$SCRIPT_DIR/install.sh"
+                        fi
+                        read -p "Nhấn Enter để tiếp tục..."
                         ;;
                     0)
                         break
@@ -235,35 +263,19 @@ while true; do
             done
             ;;
         2)
-            run_regression_suite
-            ;;
-        3)
             show_dev_menu
             ;;
-        4)
-            bash "$SCRIPT_DIR/core/start.sh"
-            sleep 1
-            read -p "Nhấn Enter để quay lại menu..."
-            ;;
-        5)
-            echo "🛑 Đang dừng hệ thống..."
-            bash "$SCRIPT_DIR/core/stop.sh"
-            read -p "Nhấn Enter để quay lại menu..."
-            ;;
-        6)
+        3)
             bash "$SCRIPT_DIR/core/restart.sh"
             sleep 1
             read -p "Nhấn Enter để quay lại menu..."
             ;;
-        7)
-            bash "$SCRIPT_DIR/install.sh"
+        4)
+            echo "🛑 Đang dừng hệ thống..."
+            bash "$SCRIPT_DIR/core/stop.sh"
             read -p "Nhấn Enter để quay lại menu..."
             ;;
-        8)
-            bash "$SCRIPT_DIR/uninstall.sh"
-            read -p "Nhấn Enter để quay lại menu..."
-            ;;
-        9)
+        5)
             echo "======================================================"
             echo -e "🐛 \033[33mBẬT CHẾ ĐỘ CDP (CHROME DEVTOOLS PROTOCOL)\033[0m"
             echo "======================================================"

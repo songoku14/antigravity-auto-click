@@ -59,14 +59,7 @@ get_status() {
     fi
 }
 
-echo "🔍 Antigravity Auto-Click Status:"
-echo "------------------------------------------------"
-echo -e "Auto Retry:  $(get_status "$([ "$AUTO_RETRY" = "true" ] && [ "$NODE_RUNNING" = "yes" ] && echo "yes" || echo "no")")"
-echo -e "Auto Accept: $(get_status "$([ "$AUTO_ACCEPT" = "true" ] && [ "$NODE_RUNNING" = "yes" ] && echo "yes" || echo "no")")"
-echo "------------------------------------------------"
-echo -e "CDP (Remote Debug):  $(get_status "$CDP_ENABLED")"
-echo -e "Khởi động cùng máy:  $(get_status "$AUTO_START_ENABLED")"
-echo "------------------------------------------------"
+
 
 # Activity Stats
 if [ -f "$ACTIVITY_FILE" ]; then
@@ -106,10 +99,4 @@ if [ -n "$ERRORS" ]; then
     echo "------------------------------------------------"
 fi
 
-# Show 3 latest logs for context
-LOG_FILE="$PROJECT_ROOT/logs/daemon.log"
-if [ -f "$LOG_FILE" ]; then
-    echo "Dòng log cuối:"
-    tail -n 3 "$LOG_FILE" | sed 's/^/  /'
-    echo "------------------------------------------------"
-fi
+
