@@ -60,9 +60,9 @@ antigravity-auto-click/
 **Bước 1: Bật chế độ Debug cho IDE (Bắt buộc)**
 Dán lệnh sau vào Terminal để tạo alias khởi động nhanh:
 ```bash
-echo 'alias antigravity="open -a Antigravity --args --remote-debugging-port=9222"' >> ~/.zshrc && source ~/.zshrc
+echo 'alias antigravity="open -a Antigravity --args --remote-debugging-port=31905"' >> ~/.zshrc && source ~/.zshrc
 ```
-Từ giờ, luôn mở IDE bằng cách gõ lệnh `antigravity` trong Terminal. `9222` chỉ là ví dụ; daemon sẽ tự dò port CDP thực tế từ tiến trình Antigravity.
+Từ giờ, luôn mở IDE bằng cách gõ lệnh `antigravity` trong Terminal. `31905` chỉ là ví dụ; daemon sẽ tự dò port CDP thực tế từ tiến trình Antigravity.
 
 **Bước 2: Sử dụng & Vận hành**
 - **Chi tiết tính năng:** Xem [tutorial.md](tutorial.md) để biết cách dùng qua CLI hoặc Extension.

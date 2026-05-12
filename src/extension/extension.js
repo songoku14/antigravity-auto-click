@@ -268,7 +268,7 @@ function stopDaemon() {
 }
 
 function restartIDE() {
-    const cmd = 'open -a Antigravity --args --remote-debugging-port=9222';
+    const cmd = 'open -a Antigravity --args --remote-debugging-port=31905';
     vscode.env.clipboard.writeText(cmd).then(() => {
         vscode.window.showInformationMessage('Đã copy lệnh vào Clipboard. Đang đóng IDE...');
         cp.exec('open -a Terminal', () => {

@@ -138,7 +138,7 @@ function getInjectionScript(userConfig = {}) {
     ],
 
     pollInterval: 3000,
-    clickDelay: 800,
+    clickDelay: USER_CONFIG.clickDelay || 800,
     maxRetriesPerMinute: 15,
     cooldownMs: 60000,
     minClickInterval: 2000

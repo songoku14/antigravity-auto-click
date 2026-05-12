@@ -41,5 +41,6 @@
     }
   },
   "autoRetry": true,
-  "debug": true
+  "debug": true,
+  "clickDelay": 800
 }

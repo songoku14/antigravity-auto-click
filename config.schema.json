@@ -103,6 +103,11 @@
         "type": "string"
       },
       "description": "Các regex bổ sung để nhận diện nút Accept."
+    },
+    "clickDelay": {
+      "type": "integer",
+      "description": "Khoảng thời gian chờ (ms) trước khi thực hiện cú click.",
+      "default": 800
     }
   }
 }
