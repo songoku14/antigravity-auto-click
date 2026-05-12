@@ -11,13 +11,18 @@ if [ "$1" == "--reset" ]; then
     mkdir -p "$(dirname "$ACTIVITY_FILE")"
     echo '{
   "retry": {
+    "candidates": 0,
+    "skipped": 0,
     "detected": 0,
     "clicked": 0
   },
   "accept": {
+    "candidates": 0,
+    "skipped": 0,
     "detected": 0,
     "clicked": 0,
-    "blocked": 0
+    "blocked": 0,
+    "clickedByCategory": {}
   }
 }' > "$ACTIVITY_FILE"
     echo "✅ Đã reset bộ đếm thống kê thành công!"
@@ -63,15 +68,25 @@ get_status() {
 
 # Activity Stats
 if [ -f "$ACTIVITY_FILE" ]; then
-    RETRY_DET=$(jq -r '.retry.detected' "$ACTIVITY_FILE")
-    RETRY_CLK=$(jq -r '.retry.clicked' "$ACTIVITY_FILE")
-    ACCEPT_DET=$(jq -r '.accept.detected' "$ACTIVITY_FILE")
-    ACCEPT_CLK=$(jq -r '.accept.clicked' "$ACTIVITY_FILE")
-    ACCEPT_BLK=$(jq -r '.accept.blocked' "$ACTIVITY_FILE")
+    RETRY_DET=$(jq -r '.retry.detected // 0' "$ACTIVITY_FILE")
+    RETRY_CLK=$(jq -r '.retry.clicked // 0' "$ACTIVITY_FILE")
+    ACCEPT_DET=$(jq -r '.accept.detected // 0' "$ACTIVITY_FILE")
+    ACCEPT_CLK=$(jq -r '.accept.clicked // 0' "$ACTIVITY_FILE")
+    ACCEPT_BLK=$(jq -r '.accept.blocked // 0' "$ACTIVITY_FILE")
+    RETRY_SKP=$(jq -r '(.retry.skipped // ([.skipReasons // {} | to_entries[]? | select(.key | startswith("retry:")) | (.value // 0)] | add)) // 0' "$ACTIVITY_FILE")
+    ACCEPT_SKP=$(jq -r '(.accept.skipped // ([.skipReasons // {} | to_entries[]? | select(.key | startswith("accept:")) | (.value // 0)] | add)) // 0' "$ACTIVITY_FILE")
+    RETRY_CAN=$(jq -r "(.retry.candidates // ($RETRY_DET + $RETRY_SKP)) // 0" "$ACTIVITY_FILE")
+    ACCEPT_CAN=$(jq -r "(.accept.candidates // ($ACCEPT_DET + $ACCEPT_SKP)) // 0" "$ACTIVITY_FILE")
 
     echo "📊 Thống kê hoạt động (Toàn thời gian):"
-    echo -e "   [Retry]  Phát hiện: \033[1m$RETRY_DET\033[0m | Click: \033[32m$RETRY_CLK\033[0m"
-    echo -e "   [Accept] Phát hiện: \033[1m$ACCEPT_DET\033[0m | Click: \033[32m$ACCEPT_CLK\033[0m | Chặn: \033[31m$ACCEPT_BLK\033[0m"
+    echo -e "   [Retry]  Ứng viên: \033[1m$RETRY_CAN\033[0m | Bỏ qua: \033[33m$RETRY_SKP\033[0m | Qua lọc: \033[36m$RETRY_DET\033[0m | Click: \033[32m$RETRY_CLK\033[0m"
+    echo -e "   [Accept] Ứng viên: \033[1m$ACCEPT_CAN\033[0m | Bỏ qua: \033[33m$ACCEPT_SKP\033[0m | Qua lọc: \033[36m$ACCEPT_DET\033[0m | Click: \033[32m$ACCEPT_CLK\033[0m | Chặn: \033[31m$ACCEPT_BLK\033[0m"
+    
+    # Accept breakdown by category
+    ACCEPT_CATS=$(jq -r '.accept.clickedByCategory // {} | to_entries | map("\(.key|ascii_upcase): \(.value)") | join(" | ")' "$ACTIVITY_FILE")
+    if [ -n "$ACCEPT_CATS" ] && [ "$ACCEPT_CATS" != "" ]; then
+        echo -e "            ↳ Chi tiết: \033[32m$ACCEPT_CATS\033[0m"
+    fi
     echo "------------------------------------------------"
 fi
 
@@ -98,5 +113,3 @@ if [ -n "$ERRORS" ]; then
     echo -e "$ERRORS"
     echo "------------------------------------------------"
 fi
-
-

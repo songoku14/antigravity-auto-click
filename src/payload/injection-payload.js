@@ -5,7 +5,7 @@
  * It uses MutationObserver to watch for error dialogs and auto-click Retry/Accept.
  */
 
-const INJECTION_VERSION = 43;
+const INJECTION_VERSION = 45;
 
 /**
  * Trả về string JavaScript sẽ được inject vào DOM qua CDP Runtime.evaluate
@@ -761,7 +761,7 @@ function getInjectionScript(userConfig = {}) {
           }
           log('[STAT] RETRY_DETECTED');
           if (!canClick('RETRY')) return;
-          performClick(btnObj, container, '🔄 RETRY');
+          performClick(btnObj, container, '🔄 RETRY', 'retry');
           return;
         }
         if (btns.length === 0) {
@@ -854,7 +854,7 @@ function getInjectionScript(userConfig = {}) {
             }
             if (USER_CONFIG.performClickAutoAccept === true) {
               if (!canClick('ACCEPT')) return;
-              performClick(btnObj, container, '⚡ ACTION (' + catName.toUpperCase() + ')');
+              performClick(btnObj, container, '⚡ ACTION (' + catName.toUpperCase() + ')', catName);
             } else {
               debug('[ACTION] performClickAutoAccept is false, skipping click but logged to statistics.');
             }
@@ -871,7 +871,7 @@ function getInjectionScript(userConfig = {}) {
     if (dryRun) return report;
   }
 
-  function performClick(btnObj, container, typeLabel) {
+  function performClick(btnObj, container, typeLabel, category = '') {
     if (!isActive || window.__autoRetryDisabled) return;
     if (!btnObj || !btnObj.el) return;
     const originalBtn = btnObj.el;
@@ -969,7 +969,7 @@ function getInjectionScript(userConfig = {}) {
                 log('❌ [STEP 8] Dialog persistent even after fallback click. Manual intervention may be required.');
               } else {
                 log('✅ [STEP 8] Fallback click worked. Dialog dismissed.');
-                log(typeLabel.includes('RETRY') ? '[STAT] RETRY_CLICKED' : '[STAT] ACCEPT_CLICKED');
+                log(typeLabel.includes('RETRY') ? '[STAT] RETRY_CLICKED' : '[STAT] ACCEPT_CLICKED:' + category.toLowerCase());
               }
               liveBtn.__clicked = false;
               originalBtn.__clicked = false;
@@ -977,7 +977,7 @@ function getInjectionScript(userConfig = {}) {
           }
         } else {
           log('✅ [STEP 6] Clicked successfully, dialog dismissed.');
-          log(typeLabel.includes('RETRY') ? '[STAT] RETRY_CLICKED' : '[STAT] ACCEPT_CLICKED');
+          log(typeLabel.includes('RETRY') ? '[STAT] RETRY_CLICKED' : '[STAT] ACCEPT_CLICKED:' + category.toLowerCase());
           if (isMock) cleanupMocks(); // Clean up other potential mocks
           liveBtn.__clicked = false;
           originalBtn.__clicked = false;

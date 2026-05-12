@@ -150,6 +150,7 @@ show_stats_menu() {
         echo " 1) 📊 Thống kê lý do bỏ qua (Skip Reasons)"
         echo " 2) 🔄 Load lại dữ liệu"
         echo " 3) 🗑️ Reset bộ đếm thống kê"
+        echo " 4) 📊 Thống kê Accept (Chi tiết Category)"
         echo " 0) 🔙 Quay lại Menu chính"
         echo "======================================================"
         echo ""
@@ -169,6 +170,10 @@ show_stats_menu() {
             3)
                 bash "$SCRIPT_DIR/core/status.sh" --reset
                 sleep 1
+                ;;
+            4)
+                node "$SCRIPT_DIR/tools/list-accept-stats.js"
+                read -p "Nhấn Enter để tiếp tục..."
                 ;;
             0)
                 return

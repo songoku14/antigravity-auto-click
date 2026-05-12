@@ -30,6 +30,22 @@ function main() {
 
   const reasons = activity.skipReasons || {};
   const entries = Object.entries(reasons);
+  const retrySkippedFromReasons = entries
+    .filter(([k]) => k.startsWith('retry:'))
+    .reduce((sum, [, count]) => sum + (Number(count) || 0), 0);
+  const acceptSkippedFromReasons = entries
+    .filter(([k]) => k.startsWith('accept:'))
+    .reduce((sum, [, count]) => sum + (Number(count) || 0), 0);
+  const retryDetected = activity.retry?.detected || 0;
+  const acceptDetected = activity.accept?.detected || 0;
+  const retryStats = {
+    skipped: activity.retry?.skipped ?? retrySkippedFromReasons,
+    candidates: activity.retry?.candidates ?? (retryDetected + (activity.retry?.skipped ?? retrySkippedFromReasons))
+  };
+  const acceptStats = {
+    skipped: activity.accept?.skipped ?? acceptSkippedFromReasons,
+    candidates: activity.accept?.candidates ?? (acceptDetected + (activity.accept?.skipped ?? acceptSkippedFromReasons))
+  };
 
   if (entries.length === 0) {
     console.log('   ℹ️ Chưa có trường hợp nào bị bỏ qua được ghi nhận.');
@@ -41,23 +57,25 @@ function main() {
   const acceptReasons = entries.filter(([k]) => k.startsWith('accept:'));
 
   console.log('\n \x1b[1m🔄 AUTO RETRY SKIPS:\x1b[0m');
+  console.log(`   Tổng skip: \x1b[1m${retryStats.skipped}\x1b[0m / Ứng viên: \x1b[1m${retryStats.candidates}\x1b[0m`);
   if (retryReasons.length === 0) {
     console.log('   (Không có)');
   } else {
-    displayTable(retryReasons);
+    displayTable(retryReasons, retryStats.skipped);
   }
 
   console.log('\n \x1b[1m⚡ AUTO ACCEPT SKIPS:\x1b[0m');
+  console.log(`   Tổng skip: \x1b[1m${acceptStats.skipped}\x1b[0m / Ứng viên: \x1b[1m${acceptStats.candidates}\x1b[0m`);
   if (acceptReasons.length === 0) {
     console.log('   (Không có)');
   } else {
-    displayTable(acceptReasons);
+    displayTable(acceptReasons, acceptStats.skipped);
   }
 
   console.log('\x1b[36m------------------------------------------------------\x1b[0m');
 }
 
-function displayTable(items) {
+function displayTable(items, totalSkips) {
   // Sort by count descending
   items.sort((a, b) => b[1] - a[1]);
 
@@ -72,8 +90,9 @@ function displayTable(items) {
     
     const label = reason.padEnd(30, ' ');
     const countStr = count.toString().padStart(5, ' ');
+    const pct = totalSkips > 0 ? ((count / totalSkips) * 100).toFixed(1) : '0.0';
     
-    console.log(`   - ${color}${label}\x1b[0m : \x1b[1m${countStr}\x1b[0m lần`);
+    console.log(`   - ${color}${label}\x1b[0m : \x1b[1m${countStr}\x1b[0m lần (${pct}%)`);
   });
 }
 

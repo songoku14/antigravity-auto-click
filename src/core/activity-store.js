@@ -35,13 +35,30 @@ class ActivityStore {
       if (fs.existsSync(this.activityFile)) {
         const data = fs.readFileSync(this.activityFile, 'utf8');
         const parsed = JSON.parse(data);
+        const skipReasons = parsed.skipReasons || {};
+        const retrySkipped = Object.entries(skipReasons)
+          .filter(([key]) => key.startsWith('retry:'))
+          .reduce((sum, [, count]) => sum + (Number(count) || 0), 0);
+        const acceptSkipped = Object.entries(skipReasons)
+          .filter(([key]) => key.startsWith('accept:'))
+          .reduce((sum, [, count]) => sum + (Number(count) || 0), 0);
         // Merge with initial to ensure all fields exist
         return {
           ...activity,
           ...parsed,
-          retry: { ...activity.retry, ...(parsed.retry || {}) },
-          accept: { ...activity.accept, ...(parsed.accept || {}) },
-          skipReasons: parsed.skipReasons || {}
+          retry: {
+            ...activity.retry,
+            ...(parsed.retry || {}),
+            skipped: parsed.retry?.skipped ?? retrySkipped,
+            candidates: parsed.retry?.candidates ?? ((parsed.retry?.detected || 0) + retrySkipped)
+          },
+          accept: {
+            ...activity.accept,
+            ...(parsed.accept || {}),
+            skipped: parsed.accept?.skipped ?? acceptSkipped,
+            candidates: parsed.accept?.candidates ?? ((parsed.accept?.detected || 0) + acceptSkipped)
+          },
+          skipReasons
         };
       }
     } catch (e) {
@@ -52,8 +69,8 @@ class ActivityStore {
 
   _getInitialActivity() {
     return {
-      retry: { detected: 0, clicked: 0 },
-      accept: { detected: 0, clicked: 0, blocked: 0 },
+      retry: { candidates: 0, skipped: 0, detected: 0, clicked: 0 },
+      accept: { candidates: 0, skipped: 0, detected: 0, clicked: 0, blocked: 0, clickedByCategory: {} },
       skipReasons: {}
     };
   }
@@ -70,32 +87,41 @@ class ActivityStore {
     const activity = this.load();
     let changed = false;
 
+    const skipMatch = text.match(/\[STAT\] (RETRY|ACCEPT)_SKIPPED: ([\w_:]+)/);
+    if (skipMatch) {
+      const type = skipMatch[1].toLowerCase();
+      const reason = skipMatch[2];
+      const key = `${type}:${reason}`;
+
+      activity[type].candidates++;
+      activity[type].skipped++;
+      if (!activity.skipReasons) activity.skipReasons = {};
+      activity.skipReasons[key] = (activity.skipReasons[key] || 0) + 1;
+      changed = true;
+    }
+
     if (text.includes('RETRY_DETECTED')) {
+      activity.retry.candidates++;
       activity.retry.detected++;
       changed = true;
     } else if (text.includes('RETRY_CLICKED')) {
       activity.retry.clicked++;
       changed = true;
     } else if (text.includes('ACCEPT_DETECTED')) {
+      activity.accept.candidates++;
       activity.accept.detected++;
       changed = true;
     } else if (text.includes('ACCEPT_CLICKED')) {
       activity.accept.clicked++;
+      const catMatch = text.match(/ACCEPT_CLICKED:([^\s!]+)/);
+      if (catMatch) {
+        const cat = catMatch[1];
+        if (!activity.accept.clickedByCategory) activity.accept.clickedByCategory = {};
+        activity.accept.clickedByCategory[cat] = (activity.accept.clickedByCategory[cat] || 0) + 1;
+      }
       changed = true;
     } else if (text.includes('ACCEPT_BLOCKED')) {
       activity.accept.blocked++;
-      changed = true;
-    }
-
-    // Handle skip reasons: "[STAT] RETRY_SKIPPED: reason"
-    const skipMatch = text.match(/\[STAT\] (RETRY|ACCEPT)_SKIPPED: ([\w_:]+)/);
-    if (skipMatch) {
-      const type = skipMatch[1].toLowerCase(); // retry or accept
-      const reason = skipMatch[2];
-      const key = `${type}:${reason}`;
-      
-      if (!activity.skipReasons) activity.skipReasons = {};
-      activity.skipReasons[key] = (activity.skipReasons[key] || 0) + 1;
       changed = true;
     }
 
