@@ -714,7 +714,7 @@ function getInjectionScript(userConfig = {}) {
               containerReport.buttons.retry.push(diag);
             }
             if (!dryRun) log('[STAT] RETRY_SKIPPED: context_mismatch');
-            debug(`[STEP 3.1] Skipping RETRY button: context mismatch`);
+            debug(\`[STEP 3.1] Skipping RETRY button: context mismatch\`);
             continue;
           }
           if (!useFallback) {

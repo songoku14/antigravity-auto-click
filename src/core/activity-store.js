@@ -29,7 +29,7 @@ class ActivityStore {
       }
     }
   }
-
+  load() {
     const activity = this._getInitialActivity();
     try {
       if (fs.existsSync(this.activityFile)) {
