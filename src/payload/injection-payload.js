@@ -5,7 +5,7 @@
  * It uses MutationObserver to watch for error dialogs and auto-click Retry/Accept.
  */
 
-const INJECTION_VERSION = 38;
+const INJECTION_VERSION = 40;
 
 /**
  * Trả về string JavaScript sẽ được inject vào DOM qua CDP Runtime.evaluate
@@ -36,6 +36,7 @@ function getInjectionScript(userConfig = {}) {
   
   window.__autoRetryInjected = true;
   window.__autoRetryVersion = SCRIPT_VERSION;
+  window.__autoRetryDisabled = false;
 
   // ============================================================
   // 2. Configuration & Patterns
@@ -174,6 +175,8 @@ function getInjectionScript(userConfig = {}) {
   let isInCooldown = false;
   let observerRef = null;
   let pollIntervalRef = null;
+  let isActive = true;
+  const timeoutRefs = new Set();
 
   function log(msg) {
     console.log('[AutoRetry] ' + msg);
@@ -181,6 +184,16 @@ function getInjectionScript(userConfig = {}) {
 
   function debug(msg) {
     if (USER_CONFIG.debug) console.log('[AutoRetry] [DEBUG] ' + msg);
+  }
+
+  function schedule(fn, delay) {
+    const ref = setTimeout(() => {
+      timeoutRefs.delete(ref);
+      if (!isActive || window.__autoRetryDisabled) return;
+      fn();
+    }, delay);
+    timeoutRefs.add(ref);
+    return ref;
   }
 
   function formatRect(rect) {
@@ -251,7 +264,7 @@ function getInjectionScript(userConfig = {}) {
       isInCooldown = true;
       log('Rate limit reached. Cooling down.');
       debug('[RATE] Entering cooldown. actionCount=' + actionCount + ', cooldownMs=' + CONFIG.cooldownMs);
-      setTimeout(() => { isInCooldown = false; actionCount = 0; }, CONFIG.cooldownMs);
+      schedule(() => { isInCooldown = false; actionCount = 0; }, CONFIG.cooldownMs);
       return false;
     }
     return true;
@@ -354,21 +367,28 @@ function getInjectionScript(userConfig = {}) {
 
   function findButtonsIn(root, patterns, typeLabel) {
     let buttons = [];
+    const isRetryScan = patterns === CONFIG.retryButtonPatterns;
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
     let el;
     while (el = walker.nextNode()) {
       const tag = el.tagName.toLowerCase();
-      const isClickable = tag === 'button' || 
-                          el.getAttribute('role') === 'button' || 
-                          el.classList.contains('monaco-button') || 
-                          el.classList.contains('action-label') ||
-                          el.classList.contains('button') ||
-                          el.classList.contains('btn') ||
-                          el.classList.contains('cursor-pointer') ||
-                          el.style.cursor === 'pointer' ||
-                          window.getComputedStyle(el).cursor === 'pointer';
+      const role = el.getAttribute('role');
+      const isPrimaryButton = tag === 'button' ||
+                              role === 'button' ||
+                              el.classList.contains('monaco-button') ||
+                              el.classList.contains('action-label');
+      const isLooseClickable = el.classList.contains('button') ||
+                               el.classList.contains('btn') ||
+                               el.classList.contains('cursor-pointer') ||
+                               el.style.cursor === 'pointer' ||
+                               window.getComputedStyle(el).cursor === 'pointer';
+      const isClickable = isRetryScan ? isPrimaryButton : (isPrimaryButton || isLooseClickable);
       
       if (isClickable) {
+        if (isUnsafeClickableContext(el)) {
+          debug('[SCAN] Skipping unsafe clickable context ' + summarizeElement(el));
+          continue;
+        }
         const text = (el.textContent || '').trim();
         if (text.length > 0 && text.length <= 50) {
           if (el.disabled || el.getAttribute('disabled') !== null) {
@@ -409,6 +429,28 @@ function getInjectionScript(userConfig = {}) {
       }
     }
     return buttons;
+  }
+
+  function isUnsafeClickableContext(el) {
+    try {
+      const role = el.getAttribute('role');
+      if (role === 'menuitem' || role === 'option' || role === 'treeitem' || role === 'tab') return true;
+      return !!el.closest([
+        '[role="menu"]',
+        '[role="listbox"]',
+        '.quick-input-widget',
+        '.quick-input-list',
+        '.monaco-list',
+        '.monaco-menu-container',
+        '.explorer-viewlet',
+        '.tabs-container',
+        '.monaco-breadcrumbs',
+        '.part.titlebar',
+        '.monaco-editor'
+      ].join(','));
+    } catch (e) {
+      return false;
+    }
   }
 
   function getVisibilityStatus(el, rect) {
@@ -500,6 +542,38 @@ function getInjectionScript(userConfig = {}) {
     } catch (e) { return ''; }
   }
 
+  function normalizeText(text) {
+    return String(text || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  }
+
+  function resolveLiveButton(btnObj, container) {
+    if (!btnObj || !btnObj.el) return null;
+    if (document.contains(btnObj.el)) return btnObj.el;
+
+    const searchRoot = container && document.contains(container) ? container : document.body;
+    const allCandidates = findButtonsIn(searchRoot, null, null);
+    const wantedText = normalizeText(btnObj.text);
+    const matches = allCandidates.filter(candidate => normalizeText(candidate.text) === wantedText);
+    if (matches.length === 0) return null;
+
+    if (!btnObj.rect) return matches[0].el;
+
+    matches.sort((a, b) => {
+      const distA = Math.abs(a.rect.left - btnObj.rect.left) + Math.abs(a.rect.top - btnObj.rect.top);
+      const distB = Math.abs(b.rect.left - btnObj.rect.left) + Math.abs(b.rect.top - btnObj.rect.top);
+      return distA - distB;
+    });
+    return matches[0].el;
+  }
+
+  function hasEquivalentVisibleButton(btnObj, container) {
+    const liveBtn = resolveLiveButton(btnObj, container);
+    if (!liveBtn) return false;
+    const liveRect = liveBtn.getBoundingClientRect();
+    if (liveRect.width <= 2 || liveRect.height <= 2) return false;
+    return isVisibleAtPoint(liveBtn, liveRect);
+  }
+
   function buttonDiagnostic(btnObj, container, kind, category) {
     const surroundingText = getSurroundingText(btnObj.el);
     const isAgentWindow = !!(container.closest && container.closest('.antigravity-agent-side-panel'));
@@ -549,13 +623,11 @@ function getInjectionScript(userConfig = {}) {
   // 6. Main Action Logic
   // ============================================================
   function scanAndAction(options = {}) {
+    if (!isActive || window.__autoRetryDisabled) return;
     const dryRun = !!options.dryRun;
     const clickGate = getClickGateStatus();
     const report = dryRun ? createScanReport(clickGate) : null;
 
-    if (dryRun && !clickGate.ok) {
-      return report;
-    }
     if (!dryRun && !canClick()) return;
 
     let containers = findValidContainers();
@@ -617,14 +689,40 @@ function getInjectionScript(userConfig = {}) {
             debug(\`[STEP 3.1] Skipping RETRY button: context mismatch\`);
             continue;
           }
+          if (!useFallback) {
+            const retryContext = (container.textContent || '') + ' ' + getSurroundingText(btnObj.el);
+            if (!CONFIG.retryContextPatterns.some(p => p.test(retryContext))) {
+              if (dryRun) {
+                diag.decision = 'skip';
+                diag.reason = 'retryContextMismatch';
+                containerReport.buttons.retry.push(diag);
+              }
+              debug('[STEP 3.2] Skipping RETRY button: no retry/error context in container');
+              continue;
+            }
+          }
           if (dryRun && !diag.visibility.ok) {
             diag.decision = 'skip';
             diag.reason = 'visibility:' + diag.visibility.reason;
             containerReport.buttons.retry.push(diag);
             continue;
           }
-          if (!dryRun && !isVisibleAtPoint(btnObj.el, btnObj.rect)) {
-            continue;
+          if (!dryRun) {
+            const visibility = getVisibilityStatus(btnObj.el, btnObj.rect);
+            if (!visibility.ok) {
+              if (visibility.reason === 'outOfViewport') {
+                debug('[STEP 4.5] Visibility check bypassed: point out of viewport bounds');
+              } else if (visibility.reason === 'noElementAtPoint') {
+                debug('[STEP 4.5] Visibility check bypassed: no element found at point');
+              } else {
+                debug(
+                  '[STEP 4.5] Visibility check bypassed for ' + summarizeElement(btnObj.el) + ' rect=' + formatRect(btnObj.rect) + '. ' +
+                  'Top element: ' + visibility.topElement + ' path=' + visibility.topElementPath
+                );
+              }
+            } else {
+              debug('[STEP 4.3] Visibility confirmed: ' + visibility.reason);
+            }
           }
 
           if (dryRun) {
@@ -636,7 +734,7 @@ function getInjectionScript(userConfig = {}) {
             return report;
           }
           log('[STAT] RETRY_DETECTED');
-          performClick(btnObj.el, btnObj.text, '🔄 RETRY');
+          performClick(btnObj, container, '🔄 RETRY');
           return;
         }
         if (btns.length === 0) {
@@ -679,8 +777,22 @@ function getInjectionScript(userConfig = {}) {
               containerReport.buttons.accept.push(diag);
               continue;
             }
-            if (!dryRun && !isVisibleAtPoint(btnObj.el, btnObj.rect)) {
-              continue;
+            if (!dryRun) {
+              const visibility = getVisibilityStatus(btnObj.el, btnObj.rect);
+              if (!visibility.ok) {
+                if (visibility.reason === 'outOfViewport') {
+                  debug('[STEP 4.5] Visibility check bypassed: point out of viewport bounds');
+                } else if (visibility.reason === 'noElementAtPoint') {
+                  debug('[STEP 4.5] Visibility check bypassed: no element found at point');
+                } else {
+                  debug(
+                    '[STEP 4.5] Visibility check bypassed for ' + summarizeElement(btnObj.el) + ' rect=' + formatRect(btnObj.rect) + '. ' +
+                    'Top element: ' + visibility.topElement + ' path=' + visibility.topElementPath
+                  );
+                }
+              } else {
+                debug('[STEP 4.3] Visibility confirmed: ' + visibility.reason);
+              }
             }
 
             const cmdText = extractCommandText(btnObj.el);
@@ -710,7 +822,7 @@ function getInjectionScript(userConfig = {}) {
               }
               continue;
             }
-            performClick(btnObj.el, btnObj.text, '⚡ ACTION (' + catName.toUpperCase() + ')');
+            performClick(btnObj, container, '⚡ ACTION (' + catName.toUpperCase() + ')');
             return;
           }
           if (btns.length === 0) {
@@ -724,25 +836,21 @@ function getInjectionScript(userConfig = {}) {
     if (dryRun) return report;
   }
 
-  function performClick(btn, btnText, typeLabel) {
-    if (btn.__clicked) {
-      debug('[ACTION] Skipping click because __clicked is already true for ' + summarizeElement(btn) + ' text="' + btnText + '"');
+  function performClick(btnObj, container, typeLabel) {
+    if (!isActive || window.__autoRetryDisabled) return;
+    if (!btnObj || !btnObj.el) return;
+    const originalBtn = btnObj.el;
+    const btnText = btnObj.text;
+
+    if (document.contains(originalBtn) && originalBtn.__clicked) {
+      debug('[ACTION] Skipping click because __clicked is already true for ' + summarizeElement(originalBtn) + ' text="' + btnText + '"');
       return;
     }
-    btn.__clicked = true;
-    actionCount++;
-    lastClickTime = Date.now();
-    const initialRect = btn.getBoundingClientRect();
-    log(typeLabel + '! [STEP 5] Clicking button "' + btnText + '"');
-    debug(
-      '[ACTION] Preparing click for ' + summarizeElement(btn) + ' rect=' + formatRect(initialRect) +
-      ' path=' + elementPath(btn, 4) + ' actionCount=' + actionCount
-    );
+    if (originalBtn.__clicked && !document.contains(originalBtn)) {
+      originalBtn.__clicked = false;
+    }
 
-    const isMock = btn.closest('.' + MOCK_MARKER_CLASS);
-    btn.style.outline = '3px solid #3794ff';
-    
-    const executeClick = (isFallback = false) => {
+    const executeClick = (btn, isFallback = false) => {
       try {
         if (!isFallback) {
           debug('[STEP 5.1] Executing DOM click() on <' + btn.tagName.toLowerCase() + '>');
@@ -770,13 +878,38 @@ function getInjectionScript(userConfig = {}) {
       }
     };
 
-    setTimeout(() => {
-      executeClick(false);
+    schedule(() => {
+      if (!isActive || window.__autoRetryDisabled) return;
+      const liveBtn = resolveLiveButton(btnObj, container);
+      if (!liveBtn) {
+        debug('[STEP 5] Aborting click because live target could not be resolved for "' + btnText + '"');
+        originalBtn.__clicked = false;
+        return;
+      }
+
+      if (liveBtn.__clicked) {
+        debug('[STEP 5] Live target already marked __clicked for "' + btnText + '"');
+        return;
+      }
+
+      liveBtn.__clicked = true;
+      actionCount++;
+      lastClickTime = Date.now();
+      const initialRect = liveBtn.getBoundingClientRect();
+      log(typeLabel + '! [STEP 5] Clicking button "' + btnText + '"');
+      debug(
+        '[ACTION] Preparing click for ' + summarizeElement(liveBtn) + ' rect=' + formatRect(initialRect) +
+        ' path=' + elementPath(liveBtn, 4) + ' actionCount=' + actionCount
+      );
+
+      const isMock = liveBtn.closest('.' + MOCK_MARKER_CLASS);
+      liveBtn.style.outline = '3px solid #3794ff';
+      executeClick(liveBtn, false);
       
       // Verify after a short delay
-      setTimeout(() => {
-        // Check if button is still in DOM and visible
-        const stillPresent = document.contains(btn) && btn.offsetParent !== null;
+      schedule(() => {
+        if (!isActive || window.__autoRetryDisabled) return;
+        const stillPresent = hasEquivalentVisibleButton(btnObj, container);
         debug('[STEP 6/7] Post-click verification for "' + btnText + '": stillPresent=' + stillPresent);
         if (stillPresent) {
           if (isMock) {
@@ -784,10 +917,18 @@ function getInjectionScript(userConfig = {}) {
             cleanupMocks();
           } else {
             log('⚠️ [STEP 7] Button still visible after click. Retrying with fallback...');
-            executeClick(true);
+            const retryBtn = resolveLiveButton(btnObj, container);
+            if (!retryBtn) {
+              debug('[STEP 7] Fallback skipped because live target disappeared for "' + btnText + '"');
+              liveBtn.__clicked = false;
+              originalBtn.__clicked = false;
+              return;
+            }
+            executeClick(retryBtn, true);
             
-            setTimeout(() => {
-              const finalCheck = document.contains(btn) && btn.offsetParent !== null;
+            schedule(() => {
+              if (!isActive || window.__autoRetryDisabled) return;
+              const finalCheck = hasEquivalentVisibleButton(btnObj, container);
               debug('[STEP 8] Final verification for "' + btnText + '": finalCheck=' + finalCheck);
               if (finalCheck) {
                 log('❌ [STEP 8] Dialog persistent even after fallback click. Manual intervention may be required.');
@@ -795,14 +936,16 @@ function getInjectionScript(userConfig = {}) {
                 log('✅ [STEP 8] Fallback click worked. Dialog dismissed.');
                 log(typeLabel.includes('RETRY') ? '[STAT] RETRY_CLICKED' : '[STAT] ACCEPT_CLICKED');
               }
-              btn.__clicked = false;
+              liveBtn.__clicked = false;
+              originalBtn.__clicked = false;
             }, 500);
           }
         } else {
           log('✅ [STEP 6] Clicked successfully, dialog dismissed.');
           log(typeLabel.includes('RETRY') ? '[STAT] RETRY_CLICKED' : '[STAT] ACCEPT_CLICKED');
           if (isMock) cleanupMocks(); // Clean up other potential mocks
-          btn.__clicked = false;
+          liveBtn.__clicked = false;
+          originalBtn.__clicked = false;
         }
       }, 500);
     }, CONFIG.clickDelay);
@@ -812,15 +955,21 @@ function getInjectionScript(userConfig = {}) {
   // 7. Initialization & Lifecycle
   // ============================================================
   observerRef = new MutationObserver((mutations) => {
-    if (mutations.some(m => m.addedNodes.length > 0)) setTimeout(scanAndAction, 400);
+    if (mutations.some(m => m.addedNodes.length > 0)) schedule(scanAndAction, 400);
   });
   observerRef.observe(document.documentElement, { childList: true, subtree: true });
 
   pollIntervalRef = setInterval(scanAndAction, CONFIG.pollInterval);
 
   window.__autoRetryCleanup = function() {
+    isActive = false;
+    window.__autoRetryDisabled = true;
     if (observerRef) observerRef.disconnect();
     if (pollIntervalRef) clearInterval(pollIntervalRef);
+    timeoutRefs.forEach(ref => clearTimeout(ref));
+    timeoutRefs.clear();
+    observerRef = null;
+    pollIntervalRef = null;
     log('Cleaned up.');
   };
 
@@ -830,7 +979,7 @@ function getInjectionScript(userConfig = {}) {
     return scanAndAction({ dryRun: true });
   };
 
-  setTimeout(scanAndAction, 1000);
+  schedule(scanAndAction, 1000);
   log('v' + SCRIPT_VERSION + ' active. Retry: ' + (USER_CONFIG.autoRetry !== false ? 'ON' : 'OFF') + ', Accept: ' + (USER_CONFIG.autoAccept !== false ? 'ON' : 'OFF'));
   return 'injection_success';
 })();

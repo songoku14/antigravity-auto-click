@@ -251,15 +251,17 @@ function startDaemon() {
 }
 
 function stopDaemon() {
-    if (!daemonProcess) {
-        vscode.window.showInformationMessage('Antigravity Auto-Click is not running.');
-        return;
-    }
+    const stopScript = path.join(__dirname, '..', '..', 'scripts', 'core', 'stop.sh');
+    cp.execFile('bash', [stopScript], (error, stdout, stderr) => {
+        if (stdout) outputChannel.append(stdout);
+        if (stderr) outputChannel.append(`[ERROR] ${stderr}`);
+        if (error) outputChannel.appendLine(`[Extension] Stop warning: ${error.message}`);
 
-    daemonProcess.kill();
-    daemonProcess = null;
-    updateStatusBar(false);
-    vscode.window.showInformationMessage('Antigravity Auto-Click stopped.');
+        if (daemonProcess) daemonProcess.kill();
+        daemonProcess = null;
+        updateStatusBar(false);
+        vscode.window.showInformationMessage('Antigravity Auto-Click stopped.');
+    });
 }
 
 function testRetry() {

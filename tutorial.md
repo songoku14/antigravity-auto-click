@@ -30,35 +30,32 @@ cd /đường/dẫn/đến/antigravity-auto-click
 ```
 
 ### 📋 Giải thích Menu Quản lý
-Giao diện Menu sẽ trông như thế này:
+Giao diện Menu thực tế sẽ trông như thế này:
 ```text
 ======================================================
          🤖 ANTIGRAVITY AUTO-CLICK MENU 🤖          
 ======================================================
-   Trạng thái: [✅ HỆ THỐNG ĐANG HOẠT ĐỘNG]
+   Tổng quan:  [✅ HỆ THỐNG ĐANG HOẠT ĐỘNG]  |  CDP Debug: ACTIVE
+   Auto Retry: ACTIVE (5)  |  Auto Accept: ACTIVE [tr] (12)
 ======================================================
- 1) 📊 Xem Trạng thái & Logs chi tiết
- 2) 🧪 Testing Lab (Live & Regression)
- 3) 🛠️ Developer Tools (Debug & Analysis)
+ 1) ⚙️ Cài đặt & Trạng thái
+ 2) 🛠️ Developer Tools (Debug & Analysis)
 ------------------------------------------------------
- 4) 🚀 Start All Features (Bắt đầu chạy)
- 5) 🛑 Stop All Features  (Dừng hoàn toàn)
+ 3) 🚀 Start/Restart All Features (Khởi chạy hệ thống)
+ 4) 🛑 Stop All Features  (Dừng hoàn toàn)
 ------------------------------------------------------
- 6) 📥 Bật Khởi động cùng máy tính
- 7) 🗑️ Tắt Khởi động cùng máy tính
+ 5) 🐛 Bật CDP (Chrome DevTools Protocol)
  0) 🚪 Thoát
 ======================================================
 ```
 
 | Mục | Chức năng | Chi tiết |
 |:---:|:---|:---|
-| **1** | **Status & Logs** | Kiểm tra daemon có đang chạy không, kết nối CDP có ổn định không và xem log thời gian thực. |
-| **2** | **Testing Lab** | Menu phụ cho phép chạy Test Live (Retry/Accept) hoặc Regression Test (Offline). |
-| **3** | **Dev Tools** | Menu phụ cho các công cụ Debug: Khởi động lại (CDP), Phân tích Dialog, Giả lập, Dump DOM. |
-| **4** | **Start All** | Kích hoạt cả Auto-Retry và Auto-Accept ngay lập tức. |
-| **5** | **Stop All** | Dừng toàn bộ tiến trình chạy ngầm. |
-| **6** | **Auto-Start** | Cài đặt tự động chạy cùng máy tính. |
-| **7** | **Uninstall** | Gỡ bỏ tính năng tự chạy cùng máy tính. |
+| **1** | **Settings** | Bật/tắt Auto-Retry, Auto-Accept, Reset bộ đếm và Cài đặt tự khởi động cùng macOS. |
+| **2** | **Dev Tools** | Xem log, Dump DOM, Chạy Regression Test hoặc Phân tích Live DOM. |
+| **3** | **Start/Restart** | Kích hoạt hoặc khởi động lại toàn bộ tính năng chạy ngầm. |
+| **4** | **Stop All** | Dừng toàn bộ tiến trình daemon ngay lập tức. |
+| **5** | **Bật CDP** | Tự động copy lệnh và hướng dẫn bạn mở IDE ở chế độ Debug. |
 
 ---
 
@@ -74,18 +71,18 @@ Phù hợp cho việc bật/tắt nhanh các tính năng trong lúc đang code m
 2. Khởi động lại Antigravity.
 
 ### 🛰️ Chỉ số tại Status Bar (Góc dưới phải)
-Bạn sẽ thấy biểu tượng ⚡ kèm theo các ký tự trạng thái:
+Bạn sẽ thấy biểu tượng dấu tích (Check) hoặc gạch chéo (Circle-slash) kèm theo trạng thái:
 - `(R)` : **Auto-Retry** đang Bật.
-- `(A[trs])` : **Auto-Accept** đang Bật với các nhóm (t: terminal, r: review, s: system).
-- `(R/A[trs])` : Cả hai đều đang Bật.
+- `(A[tr])` : **Auto-Accept** đang Bật với các nhóm (t: terminal, r: review).
+- `(R/A[tr])` : Cả hai đều đang Bật.
 - `(OFF)` : Hệ thống đang tạm dừng.
 
 ### ⚡ Thao tác nhanh (Quick Actions)
 Click vào biểu tượng Status Bar để mở menu:
-- **Toggle Auto-Retry**: Bật/Tắt tính năng tự click thử lại.
-- **Toggle Auto-Accept**: Bật/Tắt tính năng tự chấp nhận lệnh.
-- **Bật CDP (Debug Mode)**: Antigravity sẽ tự tắt. Bạn chỉ cần mở Terminal, **Paste (Dán) và Enter** để khởi động lại ở chế độ hỗ trợ Auto-Click.
-- **Open Settings**: Mở file cấu hình để chỉnh sửa danh sách đen (Blacklist).
+- **Enable/Disable Features**: Bật/Tắt nhanh Retry hoặc các danh mục Accept.
+- **Restart Antigravity (Debug Mode)**: IDE sẽ tự đóng và copy lệnh vào Clipboard để bạn dán vào Terminal.
+- **Edit Blacklist / Settings**: Mở trực tiếp file `config.json`.
+- **Start/Stop All Features**: Điều khiển daemon trực tiếp từ IDE.
 
 ---
 

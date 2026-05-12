@@ -67,6 +67,21 @@ async function runRegressionTests() {
     if (result.success) passed++;
   }
 
+  total++;
+  console.log(`\n📄 Đang kiểm tra: \x1b[34mstale_retry_button_replacement\x1b[0m`);
+  const staleReplacementResult = await verifyStaleReplacementScenario();
+  if (staleReplacementResult.success) passed++;
+
+  total++;
+  console.log(`\n📄 Đang kiểm tra: \x1b[34mfilename_retry_false_positive\x1b[0m`);
+  const filenameFalsePositiveResult = await verifyFilenameRetryFalsePositive();
+  if (filenameFalsePositiveResult.success) passed++;
+
+  total++;
+  console.log(`\n📄 Đang kiểm tra: \x1b[34mcleanup_cancels_pending_click\x1b[0m`);
+  const cleanupPendingClickResult = await verifyCleanupCancelsPendingClick();
+  if (cleanupPendingClickResult.success) passed++;
+
   console.log('\n\x1b[36m======================================================\x1b[0m');
   console.log(`🏁 KẾT QUẢ: \x1b[1m${passed}/${total}\x1b[0m trường hợp vượt qua.`);
   console.log('\x1b[36m======================================================\x1b[0m');
@@ -142,13 +157,17 @@ async function verifySample(htmlPath, metadata) {
       
       if (c.buttons.retry.length > 0) {
         c.buttons.retry.forEach(b => {
-          console.log(`         🔄 Btn: \x1b[32m${b.text}\x1b[0m | Cạnh đó: \x1b[2m${b.context || 'N/A'}\x1b[0m`);
+          const decision = b.decision === 'wouldClick' ? '\x1b[32mWOULD_CLICK\x1b[0m' : `\x1b[31mSKIP\x1b[0m ${b.reason || ''}`;
+          const clickMark = b.clickedFlag ? ' [CLICKED ✅]' : '';
+          console.log(`         🔄 Btn: \x1b[32m${b.text}\x1b[0m | ${decision}${clickMark} | Cạnh đó: \x1b[2m${b.context || 'N/A'}\x1b[0m`);
         });
       }
       
       if (c.buttons.accept.length > 0) {
         c.buttons.accept.forEach(b => {
-          console.log(`         ⚡ Btn: \x1b[36m${b.text}\x1b[0m | Cạnh đó: \x1b[2m${b.context || 'N/A'}\x1b[0m`);
+          const decision = b.decision === 'wouldClick' ? '\x1b[32mWOULD_CLICK\x1b[0m' : `\x1b[31mSKIP\x1b[0m ${b.reason || ''}`;
+          const clickMark = b.clickedFlag ? ' [CLICKED ✅]' : '';
+          console.log(`         ⚡ Btn: \x1b[36m${b.text}\x1b[0m | ${decision}${clickMark} | Cạnh đó: \x1b[2m${b.context || 'N/A'}\x1b[0m`);
         });
       }
 
@@ -181,6 +200,206 @@ async function verifySample(htmlPath, metadata) {
     return { success: false };
   } catch (e) {
     console.error('   ❌ Error in analysis:', e.message);
+    return { success: false };
+  } finally {
+    window.close();
+  }
+}
+
+async function verifyStaleReplacementScenario() {
+  const html = `
+    <html>
+      <body>
+        <div class="antigravity-agent-side-panel">
+          <div class="bg-agent-convo-background">
+            <div>Agent terminated due to error. Try again.</div>
+            <footer>
+              <button id="retry-btn">Retry</button>
+            </footer>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  const dom = new JSDOM(html, {
+    runScripts: "dangerously",
+    pretendToBeVisual: true,
+    url: "http://localhost/workbench.html"
+  });
+
+  const { window } = dom;
+  window.requestAnimationFrame = (cb) => setTimeout(cb, 0);
+  window.innerWidth = 1440;
+  window.innerHeight = 900;
+
+  const card = window.document.querySelector('.bg-agent-convo-background');
+  let activeButton = window.document.getElementById('retry-btn');
+
+  window.HTMLElement.prototype.click = function() {
+    this.__clicked = true;
+    this.setAttribute('data-clicked', 'true');
+  };
+
+  window.Element.prototype.getBoundingClientRect = function() {
+    if (this === card) {
+      return { left: 992, top: 610, width: 440, height: 149, right: 1432, bottom: 759, x: 992, y: 610 };
+    }
+    if ((this.textContent || '').trim() === 'Retry') {
+      return { left: 1375, top: 724, width: 48, height: 26, right: 1423, bottom: 750, x: 1375, y: 724 };
+    }
+    return { left: 0, top: 0, width: 10, height: 10, right: 10, bottom: 10, x: 0, y: 0 };
+  };
+
+  window.document.elementFromPoint = function(x, y) {
+    const rect = activeButton.getBoundingClientRect();
+    const withinButton = x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+    return withinButton ? activeButton : window.document.body;
+  };
+
+  try {
+    const scriptText = getInjectionScript({ autoRetry: true, autoAccept: false });
+    window.eval(scriptText);
+
+    setTimeout(() => {
+      const replacement = activeButton.cloneNode(true);
+      replacement.removeAttribute('data-clicked');
+      activeButton.replaceWith(replacement);
+      activeButton = replacement;
+    }, 200);
+
+    await new Promise(resolve => setTimeout(resolve, 2500));
+
+    if (activeButton.getAttribute('data-clicked') === 'true') {
+      console.log(`   ✅ \x1b[32mPASS\x1b[0m: Button thay thế vẫn được click sau khi rerender.`);
+      return { success: true };
+    }
+
+    console.log(`   ❌ \x1b[31mFAIL\x1b[0m: Button thay thế không được click.`);
+    return { success: false };
+  } catch (e) {
+    console.error('   ❌ Error in stale replacement scenario:', e.message);
+    return { success: false };
+  } finally {
+    window.close();
+  }
+}
+
+async function verifyFilenameRetryFalsePositive() {
+  const html = `
+    <html>
+      <body>
+        <div class="antigravity-agent-side-panel">
+          <div role="menu">
+            <div role="menuitem" class="cursor-pointer">src/core/auto-retry.js</div>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  const dom = new JSDOM(html, {
+    runScripts: "dangerously",
+    pretendToBeVisual: true,
+    url: "http://localhost/workbench.html"
+  });
+
+  const { window } = dom;
+  window.innerWidth = 1440;
+  window.innerHeight = 900;
+
+  let clickCount = 0;
+  window.HTMLElement.prototype.click = function() {
+    clickCount++;
+    this.__clicked = true;
+  };
+
+  window.Element.prototype.getBoundingClientRect = function() {
+    return { left: 1050, top: 100, width: 240, height: 30, right: 1290, bottom: 130, x: 1050, y: 100 };
+  };
+  window.document.elementFromPoint = function() {
+    return window.document.querySelector('[role="menuitem"]');
+  };
+
+  try {
+    const scriptText = getInjectionScript({ autoRetry: true, autoAccept: false });
+    window.eval(scriptText);
+    const analysis = window.__analyzeDialog();
+
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
+    if (clickCount === 0 && !analysis.wouldClick) {
+      console.log(`   ✅ \x1b[32mPASS\x1b[0m: Tên file/menu chứa "retry" không bị click.`);
+      return { success: true };
+    }
+
+    console.log(`   ❌ \x1b[31mFAIL\x1b[0m: False positive vẫn có thể click. clickCount=${clickCount}, wouldClick=${analysis.wouldClick}`);
+    return { success: false };
+  } catch (e) {
+    console.error('   ❌ Error in filename false-positive scenario:', e.message);
+    return { success: false };
+  } finally {
+    window.close();
+  }
+}
+
+async function verifyCleanupCancelsPendingClick() {
+  const html = `
+    <html>
+      <body>
+        <div class="antigravity-agent-side-panel">
+          <div class="bg-agent-convo-background">
+            <div>Agent terminated due to error. Try again.</div>
+            <footer><button id="retry-btn">Retry</button></footer>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  const dom = new JSDOM(html, {
+    runScripts: "dangerously",
+    pretendToBeVisual: true,
+    url: "http://localhost/workbench.html"
+  });
+
+  const { window } = dom;
+  window.innerWidth = 1440;
+  window.innerHeight = 900;
+
+  const button = window.document.getElementById('retry-btn');
+  let clickCount = 0;
+  window.HTMLElement.prototype.click = function() {
+    clickCount++;
+    this.__clicked = true;
+  };
+
+  window.Element.prototype.getBoundingClientRect = function() {
+    if (this === button) {
+      return { left: 1350, top: 700, width: 70, height: 30, right: 1420, bottom: 730, x: 1350, y: 700 };
+    }
+    return { left: 1000, top: 600, width: 430, height: 160, right: 1430, bottom: 760, x: 1000, y: 600 };
+  };
+  window.document.elementFromPoint = function() {
+    return button;
+  };
+
+  try {
+    const scriptText = getInjectionScript({ autoRetry: true, autoAccept: false });
+    window.eval(scriptText);
+    window.__autoRetryCleanup();
+
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
+    if (clickCount === 0 && window.__autoRetryDisabled === true) {
+      console.log(`   ✅ \x1b[32mPASS\x1b[0m: Cleanup hủy click timeout đang chờ.`);
+      return { success: true };
+    }
+
+    console.log(`   ❌ \x1b[31mFAIL\x1b[0m: Cleanup không hủy pending click. clickCount=${clickCount}`);
+    return { success: false };
+  } catch (e) {
+    console.error('   ❌ Error in cleanup pending-click scenario:', e.message);
     return { success: false };
   } finally {
     window.close();

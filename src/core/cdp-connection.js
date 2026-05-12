@@ -10,6 +10,8 @@ class CDPConnection {
     this.pendingCallbacks = new Map();
     this.isConnected = false;
     this.injected = false;
+    this.injectInFlight = null;
+    this.reinjectTimer = null;
     this.config = null;
     this.logPrefix = `[CDP:${target.title}]`;
   }
@@ -132,10 +134,10 @@ class CDPConnection {
   if (window.__autoRetryCleanup) {
     window.__autoRetryCleanup();
   }
-  if (!window.__autoRetryCleanedUp) {
-    window.__autoRetryCleanedUp = true;
-    window.__autoRetryInjected = false;
-    window.__autoRetryVersion = 0;
+  window.__autoRetryCleanedUp = true;
+  window.__autoRetryInjected = false;
+  window.__autoRetryVersion = 0;
+  if (!window.__autoRetryCleanup) {
     console.log('[AutoRetry] Cleanup: old scripts neutralized.');
   }
   return 'cleanup_done';
@@ -155,39 +157,50 @@ class CDPConnection {
   }
 
   async inject(config = {}) {
+    if (this.injectInFlight) {
+      this.debug(`Injection already in progress for "${this.target.title}"`);
+      return this.injectInFlight;
+    }
+
     if (this.injected && JSON.stringify(this.config) === JSON.stringify(config)) {
       this.debug(`Already injected with current config`);
       return;
     }
 
-    try {
-      await this.enableConsole();
-      await this.injectCleanup();
+    this.injectInFlight = (async () => {
+      try {
+        await this.enableConsole();
+        await this.injectCleanup();
 
-      this.config = config;
-      this.debug(
-        `Injecting script into target "${this.target.title}" (${this.target.id}) with config ${JSON.stringify(config)}`
-      );
-      const script = getInjectionScript(config);
-      const result = await this.send('Runtime.evaluate', {
-        expression: script,
-        returnByValue: true,
-        awaitPromise: false
-      });
+        this.config = config;
+        this.debug(
+          `Injecting script into target "${this.target.title}" (${this.target.id}) with config ${JSON.stringify(config)}`
+        );
+        const script = getInjectionScript(config);
+        const result = await this.send('Runtime.evaluate', {
+          expression: script,
+          returnByValue: true,
+          awaitPromise: false
+        });
 
-      const value = result?.result?.value;
-      if (value === 'injection_success') {
-        this.injected = true;
-        this.log(`✅ Injection successful`);
-      } else if (value === 'already_injected') {
-        this.injected = true;
-        this.log(`ℹ️ Already has active script.`);
-      } else {
-        this.error(`Unexpected injection result: ${JSON.stringify(result)}`);
+        const value = result?.result?.value;
+        if (value === 'injection_success') {
+          this.injected = true;
+          this.log(`✅ Injection successful`);
+        } else if (value === 'already_injected') {
+          this.injected = true;
+          this.log(`ℹ️ Already has active script.`);
+        } else {
+          this.error(`Unexpected injection result: ${JSON.stringify(result)}`);
+        }
+      } catch (e) {
+        this.error(`Injection failed: ${e.message}`);
+      } finally {
+        this.injectInFlight = null;
       }
-    } catch (e) {
-      this.error(`Injection failed: ${e.message}`);
-    }
+    })();
+
+    return this.injectInFlight;
   }
 
   async setupAutoReinject() {
@@ -200,7 +213,11 @@ class CDPConnection {
               msg.method === 'Page.domContentEventFired') {
             this.log(`Page reloaded, re-injecting in 2s...`);
             this.injected = false;
-            setTimeout(() => this.inject(this.config), 2000);
+            if (this.reinjectTimer) clearTimeout(this.reinjectTimer);
+            this.reinjectTimer = setTimeout(() => {
+              this.reinjectTimer = null;
+              this.inject(this.config);
+            }, 2000);
           }
         } catch (e) {}
       });
@@ -211,6 +228,10 @@ class CDPConnection {
   }
 
   disconnect() {
+    if (this.reinjectTimer) {
+      clearTimeout(this.reinjectTimer);
+      this.reinjectTimer = null;
+    }
     if (this.ws) {
       this.ws.close();
       this.ws = null;
