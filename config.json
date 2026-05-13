@@ -11,7 +11,7 @@
     "mkfs",
     "format "
   ],
-  "performClickAutoAccept": false,
+  "performClickAutoAccept": true,
   "autoAccept": {
     "enabled": true,
     "categories": {

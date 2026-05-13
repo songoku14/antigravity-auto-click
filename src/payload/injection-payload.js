@@ -119,30 +119,20 @@ function getInjectionScript(userConfig = {}) {
         ]
       },
       review: {
-        buttons: [ /^approve$/i, /^review$/i ],
+        buttons: [ /^proceed$/i, /^accept\\s*all$/i ],
         context: [
           /review\\s*the\\s*changes/i,
           /agent\\s*prompt/i,
           /approve\\s*request/i,
           /review\\s*required/i,
-          /proceed\\s*with\\s*changes/i,
-          /xem\\s*lại/i,
-          /duyệt\\s*kế\\s*hoạch/i,
-          /plan/i,
-          /review/i
+          /proceed\\s*with\\s*changes/i
         ]
       },
       system: {
         buttons: [
-          /^accept$/i, /^allow$/i, /^yes$/i, /^ok$/i, /^confirm$/i, /^continue$/i, /^proceed$/i,
-          /\\baccept\\s*all\\b/i, /\\balways\\s*allow\\b/i
+          
         ],
         context: [
-          /security\\s*confirmation/i,
-          /allow\\s*this\\s*action/i,
-          /accept\\s*terms/i,
-          /permission\\s*request/i,
-          /xác\\s*nhận\\s*bảo\\s*mật/i
         ]
       }
     },
