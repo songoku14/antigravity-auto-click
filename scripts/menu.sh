@@ -67,12 +67,11 @@ show_menu() {
     echo "======================================================"
     echo " 1) ⚙️ Cài đặt"
     echo " 2) 🛠️ Developer Tools (Debug & Analysis)"
-    echo " 3) 📊 Thống kê"
     echo "------------------------------------------------------"
-    echo " 4) 🚀 Start/Restart All Features (Khởi chạy hệ thống)"
-    echo " 5) 🛑 Stop All Features  (Dừng hoàn toàn)"
+    echo " 3) 🚀 Start/Restart All Features (Khởi chạy hệ thống)"
+    echo " 4) 🛑 Stop All Features  (Dừng hoàn toàn)"
     echo "------------------------------------------------------"
-    echo " 6) 🐛 Bật CDP (Chrome DevTools Protocol)"
+    echo " 5) 🐛 Bật CDP (Chrome DevTools Protocol)"
     echo " 0) 🚪 Thoát"
     echo "======================================================"
     echo ""
@@ -139,52 +138,6 @@ run_regression_suite() {
     done
 }
 
-show_stats_menu() {
-    while true; do
-        clear
-        bash "$SCRIPT_DIR/core/status.sh"
-        echo ""
-        echo "======================================================"
-        echo "                📊 THỐNG KÊ HOẠT ĐỘNG                 "
-        echo "======================================================"
-        echo " 1) 📊 Thống kê lý do bỏ qua (Skip Reasons)"
-        echo " 2) 🔄 Load lại dữ liệu"
-        echo " 3) 🗑️ Reset bộ đếm thống kê"
-        echo " 4) 📊 Thống kê Accept (Chi tiết Category)"
-        echo " 0) 🔙 Quay lại Menu chính"
-        echo "======================================================"
-        echo ""
-        read -p "Lựa chọn của bạn: " stats_choice
-        echo ""
-        
-        case $stats_choice in
-            1)
-                echo "📊 Đang hiển thị thống kê lý do skip..."
-                node "$SCRIPT_DIR/tools/list-skip-reasons.js"
-                read -p "Nhấn Enter để tiếp tục..."
-                ;;
-            2)
-                echo "🔄 Đang load lại dữ liệu..."
-                sleep 0.5
-                ;;
-            3)
-                bash "$SCRIPT_DIR/core/status.sh" --reset
-                sleep 1
-                ;;
-            4)
-                node "$SCRIPT_DIR/tools/list-accept-stats.js"
-                read -p "Nhấn Enter để tiếp tục..."
-                ;;
-            0)
-                return
-                ;;
-            *)
-                echo "❌ Lựa chọn không hợp lệ."
-                sleep 1
-                ;;
-        esac
-    done
-}
 
 show_dev_menu() {
     while true; do
@@ -198,6 +151,11 @@ show_dev_menu() {
         echo " 2) 📋 Xem log daemon thời gian thực (tail -f)"
         echo " 3) 🧪 Test DOM samples (Regression)"
         echo " 4) 🔍 Phân tích DOM trực tiếp (Live Analysis)"
+        echo "------------------------------------------------------"
+        echo " 5) 📊 Thống kê lý do bỏ qua (Skip Reasons)"
+        echo " 6) 📊 Thống kê Accept (Chi tiết Category)"
+        echo " 7) 🔄 Load lại dữ liệu"
+        echo " 8) 🗑️ Reset bộ đếm thống kê"
         echo " 0) 🔙 Quay lại Menu chính"
         echo "======================================================"
         echo ""
@@ -227,6 +185,23 @@ show_dev_menu() {
                 echo "🔍 Đang phân tích trạng thái Antigravity..."
                 node "$SCRIPT_DIR/tools/analyze-live.js"
                 read -p "Nhấn Enter để tiếp tục..."
+                ;;
+            5)
+                echo "📊 Đang hiển thị thống kê lý do skip..."
+                node "$SCRIPT_DIR/tools/list-skip-reasons.js"
+                read -p "Nhấn Enter để tiếp tục..."
+                ;;
+            6)
+                node "$SCRIPT_DIR/tools/list-accept-stats.js"
+                read -p "Nhấn Enter để tiếp tục..."
+                ;;
+            7)
+                echo "🔄 Đang load lại dữ liệu..."
+                sleep 0.5
+                ;;
+            8)
+                bash "$SCRIPT_DIR/core/status.sh" --reset
+                sleep 1
                 ;;
             0)
                 return
@@ -328,19 +303,16 @@ while true; do
             show_dev_menu
             ;;
         3)
-            show_stats_menu
-            ;;
-        4)
             bash "$SCRIPT_DIR/core/restart.sh"
             sleep 1
             read -p "Nhấn Enter để quay lại menu..."
             ;;
-        5)
+        4)
             echo "🛑 Đang dừng hệ thống..."
             bash "$SCRIPT_DIR/core/stop.sh"
             read -p "Nhấn Enter để quay lại menu..."
             ;;
-        6)
+        5)
             echo "======================================================"
             echo -e "🐛 \033[33mBẬT CHẾ ĐỘ CDP (CHROME DEVTOOLS PROTOCOL)\033[0m"
             echo "======================================================"

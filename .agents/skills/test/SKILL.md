@@ -22,6 +22,7 @@ node scripts/tests/regression.js [pattern]
 ## Cách hiểu mode test
 - `Auto Retry`: Chỉ test các mẫu liên quan tới Retry / High Traffic / Agent terminated.
 - `Auto Accept`: Test các mẫu Accept. Nếu người dùng có đưa category thì chỉ test category đó.
+- `Blacklist`: Kiểm tra khả năng chặn các lệnh nguy hiểm (ví dụ: `rm`, `sudo`) trong Terminal và đảm bảo Review không bị chặn nhầm.
 - `All`: Chạy toàn bộ sample hiện có, kèm các scenario tổng hợp có sẵn trong `scripts/tests/regression.js`.
 
 ## Mapping mode -> lệnh chạy
@@ -57,13 +58,20 @@ node scripts/tests/regression.js System
 ```
 - Nếu pattern/category không tìm thấy sample phù hợp trong `samples/`, phải báo rõ `không có sample khớp` thay vì suy diễn PASS.
 
-### 3. All
+### 3. Blacklist
+- Chạy các mẫu cụ thể có chứa keyword blacklist:
+```bash
+node scripts/tests/regression.js blacklist
+node scripts/tests/regression.js black_list
+```
+
+### 4. All
 ```bash
 node scripts/tests/regression.js
 ```
 
 ## Execution Steps
-1. Xác định mode từ yêu cầu người dùng: `retry`, `accept`, `accept <category>`, hoặc `all`.
+1. Xác định mode từ yêu cầu người dùng: `retry`, `accept`, `accept <category>`, `blacklist`, hoặc `all`.
 2. Chạy đúng lệnh regression tương ứng như phần mapping ở trên.
 3. Dùng chính output của `scripts/tests/regression.js` làm bằng chứng:
    - Tên sample/scenario đã chạy.

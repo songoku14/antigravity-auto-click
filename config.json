@@ -66,7 +66,7 @@
   },
   "autoAccept": {
     "enabled": true,
-    "performClick": false,
+    "performClick": true,
     "blacklist": [
       "rm ",
       "sudo ",

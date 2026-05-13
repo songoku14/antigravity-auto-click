@@ -35,9 +35,26 @@ async function analyzeLive() {
     return;
   }
 
+  // Đọc thống kê hiện tại từ activity-log.json
+  const fs = require('fs');
+  const path = require('path');
+  const projectRoot = path.join(__dirname, '../..');
+  const activityFile = path.join(projectRoot, 'logs', 'activity-log.json');
+  
+  let statsSummary = 'N/A';
+  try {
+    if (fs.existsSync(activityFile)) {
+      const data = JSON.parse(fs.readFileSync(activityFile, 'utf8'));
+      const retryClicked = data.retry?.clicked || 0;
+      const acceptClicked = data.accept?.clicked || 0;
+      statsSummary = `\x1b[32mRetry Clicked: ${retryClicked}\x1b[0m | \x1b[36mAccept Clicked: ${acceptClicked}\x1b[0m`;
+    }
+  } catch (e) {}
+
   for (const target of pageTargets) {
     console.log('\x1b[36m======================================================\x1b[0m');
     console.log(`\x1b[36m🔍 PHÂN TÍCH TRỰC TIẾP TARGET: "${target.title}"\x1b[0m`);
+    console.log(`📊 Thống kê hiện tại: ${statsSummary}`);
     console.log('\x1b[36m======================================================\x1b[0m');
     await runAnalysis(target);
   }
