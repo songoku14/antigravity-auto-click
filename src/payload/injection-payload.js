@@ -7,7 +7,7 @@
 
 const { normalizeConfig } = require('../core/config-schema');
 
-const INJECTION_VERSION = 50;
+const INJECTION_VERSION = 51;
 
 /**
  * Trả về string JavaScript sẽ được inject vào DOM qua CDP Runtime.evaluate
@@ -21,6 +21,14 @@ function getInjectionScript(userConfig = {}) {
   const SCRIPT_VERSION = ${INJECTION_VERSION};
   const USER_CONFIG = ${configJson};
   const MOCK_MARKER_CLASS = 'antigravity-mock-dialog';
+  const COMMAND_TEXT_SELECTORS = [
+    '.command-text',
+    'pre',
+    'code',
+    '[class*="font-mono"]',
+    'textarea.xterm-helper-textarea'
+  ];
+  const NOISY_CONTEXT_SELECTOR = '.monaco-editor-background, .view-lines';
   
   // ============================================================
   // 1. Versioning & Cleanup Logic
@@ -161,8 +169,8 @@ function getInjectionScript(userConfig = {}) {
     return null;
   }
 
-  function getCategoryForContainer(container) {
-    const text = (container.textContent || '') + ' ' + getSurroundingText(container);
+  function getCategoryForContainer(container, btn) {
+    const text = getContextText(btn, container);
     for (const [catName, catObj] of Object.entries(CONFIG.actionCategories)) {
       // Chỉ kiểm tra các mẫu ngữ cảnh (Context)
       if (catObj.context.some(p => p.test(text))) return catName;
@@ -307,21 +315,109 @@ function getInjectionScript(userConfig = {}) {
     return CONFIG.blacklist.some(pattern => lowerCmd.includes(pattern.toLowerCase()));
   }
 
-  function extractCommandText(btn) {
+  function uniqueTextJoin(parts, maxChars = 1000) {
+    const seen = new Set();
+    const kept = [];
+    for (const part of parts) {
+      const normalized = String(part || '').replace(/\s+/g, ' ').trim();
+      if (!normalized || seen.has(normalized)) continue;
+      seen.add(normalized);
+      kept.push(normalized);
+      if (kept.join(' ').length >= maxChars) break;
+    }
+    return kept.join(' ').substring(0, maxChars).trim();
+  }
+
+  function collectTextContent(root, options = {}) {
+    if (!root) return '';
+    const maxChars = options.maxChars || 1000;
+    const excludeSelector = options.excludeSelector || '';
+    const includeTextareas = !!options.includeTextareas;
+    const parts = [];
     try {
-      let el = btn;
-      for (let i = 0; i < 12 && el && el !== document.body; i++) {
-        el = el.parentElement;
-        if (!el) break;
-        const codes = el.querySelectorAll('pre, code, .monaco-editor-background, .command-text');
-        if (codes.length > 0) {
-          let allText = '';
-          codes.forEach(c => allText += ' ' + (c.textContent || '').trim());
-          return allText.trim();
-        }
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      let node;
+      while (node = walker.nextNode()) {
+        const parent = node.parentElement;
+        if (!parent) continue;
+        const tag = parent.tagName;
+        if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NOSCRIPT' || tag === 'BUTTON') continue;
+        if (!includeTextareas && tag === 'TEXTAREA') continue;
+        if (excludeSelector && parent.closest(excludeSelector)) continue;
+        const text = String(node.textContent || '').replace(/\s+/g, ' ').trim();
+        if (!text) continue;
+        parts.push(text);
+        if (parts.join(' ').length >= maxChars) break;
+      }
+      if (includeTextareas && root.querySelectorAll) {
+        root.querySelectorAll('textarea').forEach((textarea) => {
+          if (excludeSelector && textarea.closest(excludeSelector)) return;
+          const text = String(textarea.value || textarea.textContent || '').replace(/\s+/g, ' ').trim();
+          if (!text) return;
+          parts.push(text);
+        });
       }
     } catch (e) {}
-    return null;
+    return uniqueTextJoin(parts, maxChars) || '';
+  }
+
+  function extractLocalTextNearButton(btn, selectors, options = {}) {
+    if (!btn) return '';
+    const maxDepth = options.maxDepth || 12;
+    const maxChars = options.maxChars || 1000;
+    const selectorList = Array.isArray(selectors) ? selectors : [String(selectors || '')];
+    let el = btn;
+    for (let i = 0; i < maxDepth && el && el !== document.body; i++) {
+      el = el.parentElement;
+      if (!el) break;
+      for (const selector of selectorList) {
+        const parts = [];
+        try {
+          el.querySelectorAll(selector).forEach((candidate) => {
+            if (candidate === btn || candidate.contains(btn)) return;
+            if (candidate.closest(NOISY_CONTEXT_SELECTOR)) return;
+            const text = String(candidate.value || candidate.textContent || '').replace(/\s+/g, ' ').trim();
+            if (!text) return;
+            parts.push(text);
+          });
+        } catch (e) {}
+        const joined = uniqueTextJoin(parts, maxChars);
+        if (joined) return joined;
+      }
+    }
+    return '';
+  }
+
+  function extractCommandText(btn, category) {
+    if (category !== 'terminal') return null;
+    const text = extractLocalTextNearButton(btn, COMMAND_TEXT_SELECTORS);
+    return text || null;
+  }
+
+  function getContainerContextText(container) {
+    return collectTextContent(container, {
+      maxChars: 1000,
+      excludeSelector: NOISY_CONTEXT_SELECTOR
+    });
+  }
+
+  function getContextText(btn, container, category) {
+    const parts = [];
+    if (btn) {
+      const commandText = extractCommandText(btn, category || 'terminal');
+      if (commandText) parts.push(commandText);
+      const localContextEl = btn.parentElement || btn;
+      const localContext = collectTextContent(localContextEl, {
+        maxChars: 400,
+        excludeSelector: NOISY_CONTEXT_SELECTOR
+      });
+      if (localContext) parts.push(localContext);
+    }
+    if (container) {
+      const containerText = getContainerContextText(container);
+      if (containerText) parts.push(containerText);
+    }
+    return uniqueTextJoin(parts, 1000);
   }
 
   // ============================================================
@@ -566,10 +662,12 @@ function getInjectionScript(userConfig = {}) {
   function getSurroundingText(el) {
     try {
       let contextEl = el.parentElement;
-      for (let i = 0; i < 2 && contextEl && contextEl.textContent.length < 50; i++) {
+      for (let i = 0; i < 2 && contextEl && collectTextContent(contextEl, { maxChars: 120, excludeSelector: NOISY_CONTEXT_SELECTOR }).length < 50; i++) {
         if (contextEl.parentElement) contextEl = contextEl.parentElement;
       }
-      return (contextEl ? contextEl.textContent : '').substring(0, 1000).trim();
+      return contextEl
+        ? collectTextContent(contextEl, { maxChars: 1000, excludeSelector: NOISY_CONTEXT_SELECTOR })
+        : '';
     } catch (e) { return ''; }
   }
 
@@ -649,6 +747,9 @@ function getInjectionScript(userConfig = {}) {
         autoAccept: isAutoAcceptEnabled(),
         testMode: !!USER_CONFIG.testMode
       },
+      analysisMode: {
+        ignoreCategoryConfig: false
+      },
       clickGate,
       foundAgentPanel: findInShadows(document, '.antigravity-agent-side-panel').length > 0,
       containerCount: 0,
@@ -681,9 +782,13 @@ function getInjectionScript(userConfig = {}) {
   function scanAndAction(options = {}) {
     if (!isActive || window.__autoRetryDisabled) return;
     const dryRun = !!options.dryRun;
+    const ignoreCategoryConfig = !!options.ignoreCategoryConfig;
     const clickGate = getClickGateStatus();
     const report = dryRun ? createScanReport(clickGate) : null;
     const reportSeenButtons = dryRun ? new Set() : null;
+    if (report) {
+      report.analysisMode.ignoreCategoryConfig = ignoreCategoryConfig;
+    }
 
     let containers = findValidContainers();
     const useFallback = containers.length === 0 && (isAutoAcceptEnabled() || RETRY_CONFIG.enabled !== false);
@@ -742,7 +847,7 @@ function getInjectionScript(userConfig = {}) {
             continue;
           }
           if (!useFallback) {
-            const retryContext = (container.textContent || '') + ' ' + getSurroundingText(btnObj.el);
+            const retryContext = getContextText(btnObj.el, container);
             if (!CONFIG.retryContextPatterns.some(p => p.test(retryContext))) {
               if (dryRun) {
                 diag.decision = 'skip';
@@ -807,98 +912,108 @@ function getInjectionScript(userConfig = {}) {
           for (const btnObj of btns) {
             // Logic phân loại ưu tiên: Nút bấm -> Ngữ cảnh -> Mặc định
             const buttonCat = getCategoryForButton(btnObj.text);
-            const matchedCat = buttonCat || getCategoryForContainer(container);
+            const matchedCat = buttonCat || getCategoryForContainer(container, btnObj.el);
             const catConfig = categories[matchedCat];
+            const categoryEnabled = !!(catConfig && catConfig.enabled !== false);
 
-            if (catConfig && catConfig.enabled !== false) {
-              if (dryRun && !rememberUniqueButton(reportSeenButtons, btnObj)) continue;
-              if (dryRun) report.totalButtons++;
-              const diag = dryRun ? buttonDiagnostic(btnObj, container, 'accept', matchedCat) : null;
-              
-              const isRightSide = btnObj.rect.left > window.innerWidth * 0.4;
-              if (!USER_CONFIG.testMode && !isAgentWindow && !isRightSide) {
-                if (dryRun) {
-                  diag.decision = 'skip';
-                  diag.reason = 'notRightSide';
-                  containerReport.buttons.accept.push(diag);
-                }
-                if (!dryRun) logSkippedStat('ACCEPT', 'not_right_side');
-                debug('[STEP 3] Skipping ACCEPT button: not on right side (' + Math.round(btnObj.rect.left) + ' < ' + Math.round(window.innerWidth * 0.4) + ')');
-                continue;
-              }
-              if (dryRun && !diag.visibility.ok) {
-                diag.decision = 'skip';
-                diag.reason = 'visibility:' + diag.visibility.reason;
-                containerReport.buttons.accept.push(diag);
-                continue;
-              }
-              if (!dryRun) {
-                const visibility = getVisibilityStatus(btnObj.el, btnObj.rect);
-                if (!visibility.ok) {
-                  if (!dryRun) {
-                    logSkippedStat('ACCEPT', 'visibility_' + visibility.reason);
-                    if (visibility.reason === 'outOfViewport') {
-                      debug('[STEP 4.5] Visibility check bypassed: point out of viewport bounds');
-                    } else if (visibility.reason === 'noElementAtPoint') {
-                      debug('[STEP 4.5] Visibility check bypassed: no element found at point');
-                      debug(
-                        '[STEP 4.5] Visibility check bypassed for ' + summarizeElement(btnObj.el) + ' rect=' + formatRect(btnObj.rect) + '. ' +
-                        'Top element: ' + visibility.topElement + ' path=' + visibility.topElementPath
-                      );
-                    }
-                  }
-                } else {
-                  debug('[STEP 4.3] Visibility confirmed: ' + visibility.reason);
-                }
-              }
+            if (!catConfig) continue;
+            if (dryRun && !rememberUniqueButton(reportSeenButtons, btnObj)) continue;
+            if (dryRun) report.totalButtons++;
+            const diag = dryRun ? buttonDiagnostic(btnObj, container, 'accept', matchedCat) : null;
 
-              const cmdText = extractCommandText(btnObj.el);
+            if (dryRun && !categoryEnabled && ignoreCategoryConfig) {
+              diag.decision = 'skip';
+              diag.reason = 'categoryDisabled';
+              diag.categoryEnabled = false;
+              containerReport.buttons.accept.push(diag);
+              continue;
+            }
+            if (!categoryEnabled) continue;
+            if (dryRun) diag.categoryEnabled = true;
+
+            const isRightSide = btnObj.rect.left > window.innerWidth * 0.4;
+            if (!USER_CONFIG.testMode && !isAgentWindow && !isRightSide) {
               if (dryRun) {
-                diag.commandText = (cmdText || '').substring(0, 200);
-                if (isCommandBlocked(cmdText)) {
-                  diag.decision = 'skip';
-                  diag.reason = 'blacklist';
-                  containerReport.buttons.accept.push(diag);
-                  continue;
-                }
-                diag.decision = 'wouldClick';
-                diag.reason = 'passedAllGates';
+                diag.decision = 'skip';
+                diag.reason = 'notRightSide';
                 containerReport.buttons.accept.push(diag);
-                if (hasContainerButtons(containerReport)) report.containers.push(containerReport);
-                report.wouldClick = true;
-                report.action = diag;
-                report.containerCount = report.containers.length;
-                return report;
               }
-
-              logDetectedStat('ACCEPT', matchedCat);
-              debug('[ACTION] ACCEPT command context for "' + btnObj.text + '": "' + (cmdText || '').substring(0, 200) + '"');
-              if (isCommandBlocked(cmdText)) {
-                debug('[ACTION] Command BLOCKED by blacklist: "' + (cmdText || '').substring(0, 50) + '..."');
-                const shouldClick = ACCEPT_CONFIG.performClick === true || ACCEPT_CONFIG.performClick === 'true';
-                if (shouldClick) {
-                  if (!btnObj.el.__blocked) {
-                    btnObj.el.__blocked = true;
-                    logSkippedStat('ACCEPT', 'blacklist');
-                    logAcceptBlockedStat(matchedCat);
-                    btnObj.el.style.border = '2px solid red';
-                    setTimeout(() => { btnObj.el.__blocked = false; }, 5000);
+              if (!dryRun) logSkippedStat('ACCEPT', 'not_right_side');
+              debug('[STEP 3] Skipping ACCEPT button: not on right side (' + Math.round(btnObj.rect.left) + ' < ' + Math.round(window.innerWidth * 0.4) + ')');
+              continue;
+            }
+            if (dryRun && !diag.visibility.ok) {
+              diag.decision = 'skip';
+              diag.reason = 'visibility:' + diag.visibility.reason;
+              containerReport.buttons.accept.push(diag);
+              continue;
+            }
+            if (!dryRun) {
+              const visibility = getVisibilityStatus(btnObj.el, btnObj.rect);
+              if (!visibility.ok) {
+                if (!dryRun) {
+                  logSkippedStat('ACCEPT', 'visibility_' + visibility.reason);
+                  if (visibility.reason === 'outOfViewport') {
+                    debug('[STEP 4.5] Visibility check bypassed: point out of viewport bounds');
+                  } else if (visibility.reason === 'noElementAtPoint') {
+                    debug('[STEP 4.5] Visibility check bypassed: no element found at point');
+                    debug(
+                      '[STEP 4.5] Visibility check bypassed for ' + summarizeElement(btnObj.el) + ' rect=' + formatRect(btnObj.rect) + '. ' +
+                      'Top element: ' + visibility.topElement + ' path=' + visibility.topElementPath
+                    );
                   }
                 }
+              } else {
+                debug('[STEP 4.3] Visibility confirmed: ' + visibility.reason);
+              }
+            }
+
+            const cmdText = extractCommandText(btnObj.el, matchedCat);
+            if (dryRun) {
+              diag.commandText = (cmdText || '').substring(0, 200);
+              if (isCommandBlocked(cmdText)) {
+                diag.decision = 'skip';
+                diag.reason = 'blacklist';
+                containerReport.buttons.accept.push(diag);
                 continue;
               }
+              diag.decision = 'wouldClick';
+              diag.reason = 'passedAllGates';
+              containerReport.buttons.accept.push(diag);
+              if (hasContainerButtons(containerReport)) report.containers.push(containerReport);
+              report.wouldClick = true;
+              report.action = diag;
+              report.containerCount = report.containers.length;
+              return report;
+            }
+
+            logDetectedStat('ACCEPT', matchedCat);
+            debug('[ACTION] ACCEPT command context for "' + btnObj.text + '": "' + (cmdText || '').substring(0, 200) + '"');
+            if (isCommandBlocked(cmdText)) {
+              debug('[ACTION] Command BLOCKED by blacklist: "' + (cmdText || '').substring(0, 50) + '..."');
               const shouldClick = ACCEPT_CONFIG.performClick === true || ACCEPT_CONFIG.performClick === 'true';
               if (shouldClick) {
-                if (!canClick('ACCEPT')) {
-                  debug('[ACTION] Click blocked by rate limit or cooldown for category: ' + matchedCat);
-                  return;
+                if (!btnObj.el.__blocked) {
+                  btnObj.el.__blocked = true;
+                  logSkippedStat('ACCEPT', 'blacklist');
+                  logAcceptBlockedStat(matchedCat);
+                  btnObj.el.style.border = '2px solid red';
+                  setTimeout(() => { btnObj.el.__blocked = false; }, 5000);
                 }
-                performClick(btnObj, container, '⚡ ACTION (' + matchedCat.toUpperCase() + ')', matchedCat);
-              } else {
-                debug('[ACTION] performClickAutoAccept is OFF (' + ACCEPT_CONFIG.performClick + '), skipping click but logged to statistics.');
               }
-              return;
+              continue;
             }
+            const shouldClick = ACCEPT_CONFIG.performClick === true || ACCEPT_CONFIG.performClick === 'true';
+            if (shouldClick) {
+              if (!canClick('ACCEPT')) {
+                debug('[ACTION] Click blocked by rate limit or cooldown for category: ' + matchedCat);
+                return;
+              }
+              performClick(btnObj, container, '⚡ ACTION (' + matchedCat.toUpperCase() + ')', matchedCat);
+            } else {
+              debug('[ACTION] performClickAutoAccept is OFF (' + ACCEPT_CONFIG.performClick + '), skipping click but logged to statistics.');
+            }
+            return;
           }
         }
       }
@@ -1047,9 +1162,12 @@ function getInjectionScript(userConfig = {}) {
   };
 
   // Helper for manual analysis
-  window.__analyzeDialog = function() {
+  window.__analyzeDialog = function(options = {}) {
     log('Analyzing current DOM with daemon-equivalent dry-run...');
-    return scanAndAction({ dryRun: true });
+    return scanAndAction({
+      dryRun: true,
+      ignoreCategoryConfig: !!options.ignoreCategoryConfig
+    });
   };
 
   schedule(scanAndAction, 1000);

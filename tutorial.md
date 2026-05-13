@@ -53,11 +53,17 @@ Giao diện Menu thực tế sẽ trông như thế này:
 | Mục | Chức năng | Chi tiết |
 |:---:|:---|:---|
 | **1** | **Settings** | Bật/tắt Auto-Retry, Auto-Accept, cài tự khởi động cùng macOS và bật `autoAccept.performClick`. |
-| **2** | **Dev Tools** | Xem log, Dump DOM, Chạy Regression Test hoặc Phân tích Live DOM. |
+| **2** | **Dev Tools** | Xem log, Dump DOM, Chạy Regression Test (Retry/Accept/All) hoặc Phân tích Live DOM. |
 | **3** | **Thống kê** | Xem skip reasons, thống kê Accept theo category và reset bộ đếm. |
 | **4** | **Start/Restart** | Kích hoạt hoặc khởi động lại toàn bộ tính năng chạy ngầm. |
 | **5** | **Stop All** | Dừng toàn bộ tiến trình daemon ngay lập tức. |
 | **6** | **Bật CDP** | Tự động copy lệnh và hướng dẫn bạn mở IDE ở chế độ Debug. |
+
+> [!TIP]
+> Khi chạy **Regression Test** (từ menu hoặc CLI), bạn có thể dùng các pattern lọc:
+> - `Retry`: Chỉ kiểm tra các ca thử lại.
+> - `Run`, `Proceed`, `Accept_all`, `System`: Kiểm tra theo từng nhóm Auto-Accept.
+
 
 ---
 

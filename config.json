@@ -100,7 +100,7 @@
         ]
       },
       "review": {
-        "enabled": false,
+        "enabled": true,
         "buttons": [
           "/^proceed$/i",
           "/^accept\\s*all$/i"
@@ -114,7 +114,7 @@
         ]
       },
       "system": {
-        "enabled": false,
+        "enabled": true,
         "buttons": [],
         "context": []
       }

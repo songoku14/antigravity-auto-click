@@ -1,11 +1,16 @@
 const fs = require('fs');
+const path = require('path');
 const { DEFAULT_CONFIG, normalizeConfig } = require('./config-schema');
 
 class ConfigStore {
   constructor(configPath) {
     this.configPath = configPath;
+    this.configDir = path.dirname(configPath);
+    this.configFileName = path.basename(configPath);
     this.config = this.load(DEFAULT_CONFIG);
     this.watchCallbacks = [];
+    this.reloadTimer = null;
+    this.watcher = null;
     this.setupWatcher();
   }
 
@@ -22,18 +27,27 @@ class ConfigStore {
   }
 
   setupWatcher() {
-    if (!fs.existsSync(this.configPath)) return;
+    if (!fs.existsSync(this.configDir)) return;
 
-    fs.watch(this.configPath, (event) => {
-      if (event === 'change') {
-        // Small delay to ensure file is written
-        setTimeout(() => {
-          this.config = this.load(this.config);
-          console.log(`[AutoRetry] [ConfigStore] Config reloaded from ${this.configPath}`);
-          this.watchCallbacks.forEach(cb => cb(this.config));
-        }, 500);
-      }
+    this.watcher = fs.watch(this.configDir, (_event, filename) => {
+      if (filename && filename !== this.configFileName) return;
+      this.scheduleReload();
     });
+    this.watcher.on('error', (err) => {
+      console.error(`[ConfigStore] Watcher error: ${err.message}`);
+    });
+  }
+
+  scheduleReload() {
+    if (this.reloadTimer) clearTimeout(this.reloadTimer);
+    // Debounce to let mv/write complete before re-reading.
+    this.reloadTimer = setTimeout(() => {
+      this.reloadTimer = null;
+      const nextConfig = this.load(this.config);
+      this.config = nextConfig;
+      console.log(`[AutoRetry] [ConfigStore] Config reloaded from ${this.configPath}`);
+      this.watchCallbacks.forEach(cb => cb(this.config));
+    }, 300);
   }
 
   onConfigChange(cb) {

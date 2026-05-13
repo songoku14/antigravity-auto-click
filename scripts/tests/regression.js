@@ -103,6 +103,21 @@ async function runRegressionTests() {
   const minClickIntervalResult = await verifyMinClickIntervalBlocksClickNotDetection();
   if (minClickIntervalResult.success) passed++;
 
+  total++;
+  console.log(`\n📄 Đang kiểm tra: \x1b[34mreview_accept_ignores_blacklist_context\x1b[0m`);
+  const reviewBlacklistResult = await verifyReviewAcceptIgnoresBlacklistContext();
+  if (reviewBlacklistResult.success) passed++;
+
+  total++;
+  console.log(`\n📄 Đang kiểm tra: \x1b[34mretry_ignores_monaco_noise_context\x1b[0m`);
+  const retryMonacoNoiseResult = await verifyRetryIgnoresMonacoNoiseContext();
+  if (retryMonacoNoiseResult.success) passed++;
+
+  total++;
+  console.log(`\n📄 Đang kiểm tra: \x1b[34mterminal_accept_uses_local_command_text\x1b[0m`);
+  const terminalLocalCommandResult = await verifyTerminalAcceptUsesLocalCommandText();
+  if (terminalLocalCommandResult.success) passed++;
+
   console.log('\n\x1b[36m======================================================\x1b[0m');
   console.log(`🏁 KẾT QUẢ: \x1b[1m${passed}/${total}\x1b[0m trường hợp vượt qua.`);
   console.log('\x1b[36m======================================================\x1b[0m');
@@ -162,7 +177,7 @@ async function verifySample(htmlPath, metadata) {
       return { success: false };
     }
 
-    const analysis = window.__analyzeDialog();
+    const analysis = window.__analyzeDialog({ ignoreCategoryConfig: true });
 
     // Give the real daemon-equivalent scan a moment to execute for click checks.
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -345,7 +360,7 @@ async function verifyFilenameRetryFalsePositive() {
   try {
     const scriptText = getInjectionScript({ autoRetry: true, autoAccept: false, pollInterval: 1000 });
     window.eval(scriptText);
-    const analysis = window.__analyzeDialog();
+  const analysis = window.__analyzeDialog({ ignoreCategoryConfig: true });
 
     await new Promise(resolve => setTimeout(resolve, 1500));
 
@@ -432,7 +447,7 @@ async function verifyHistoryTitleRetryFalsePositive() {
   try {
     const scriptText = getInjectionScript({ autoRetry: true, autoAccept: false, pollInterval: 1000, clickDelay: 100 });
     window.eval(scriptText);
-    const analysis = window.__analyzeDialog();
+  const analysis = window.__analyzeDialog({ ignoreCategoryConfig: true });
 
     await new Promise(resolve => setTimeout(resolve, 1500));
 
@@ -569,7 +584,7 @@ async function verifyEphemeralDialogIgnoredBetweenPolls() {
     }, 50);
 
     await new Promise(resolve => setTimeout(resolve, 1500));
-    const analysis = window.__analyzeDialog();
+  const analysis = window.__analyzeDialog({ ignoreCategoryConfig: true });
 
     if (clickCount === 0 && analysis.wouldClick === false) {
       console.log(`   ✅ \x1b[32mPASS\x1b[0m: Dialog ngắn hạn biến mất giữa hai kỳ poll được bỏ qua theo thiết kế.`);
@@ -639,7 +654,7 @@ async function verifyMinClickIntervalBlocksClickNotDetection() {
 
     await new Promise(resolve => setTimeout(resolve, 1200));
     const firstClickCount = clickCount;
-    const analysis = window.__analyzeDialog();
+  const analysis = window.__analyzeDialog({ ignoreCategoryConfig: true });
 
     await new Promise(resolve => setTimeout(resolve, 1200));
 
@@ -652,6 +667,223 @@ async function verifyMinClickIntervalBlocksClickNotDetection() {
     return { success: false };
   } catch (e) {
     console.error('   ❌ Error in minClickInterval scenario:', e.message);
+    return { success: false };
+  } finally {
+    window.close();
+  }
+}
+
+async function verifyReviewAcceptIgnoresBlacklistContext() {
+  const html = `
+    <html>
+      <body>
+        <div class="antigravity-agent-side-panel">
+          <div class="bg-agent-convo-background">
+            <div>Review required for this change.</div>
+            <pre>rm -rf /tmp/demo</pre>
+            <footer>
+              <button id="reject-btn">Reject all</button>
+              <button id="accept-btn">Accept all</button>
+            </footer>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  const dom = new JSDOM(html, {
+    runScripts: "dangerously",
+    pretendToBeVisual: true,
+    url: "http://localhost/workbench.html"
+  });
+
+  const { window } = dom;
+  window.requestAnimationFrame = (cb) => setTimeout(cb, 0);
+  window.innerWidth = 1440;
+  window.innerHeight = 900;
+
+  const acceptButton = window.document.getElementById('accept-btn');
+
+  window.HTMLElement.prototype.click = function() {
+    this.__clicked = true;
+  };
+
+  window.Element.prototype.getBoundingClientRect = function() {
+    if (this === acceptButton) {
+      return { left: 1350, top: 700, width: 70, height: 30, right: 1420, bottom: 730, x: 1350, y: 700 };
+    }
+    return { left: 1000, top: 600, width: 430, height: 160, right: 1430, bottom: 760, x: 1000, y: 600 };
+  };
+
+  window.document.elementFromPoint = function() {
+    return acceptButton;
+  };
+
+  try {
+    const scriptText = getInjectionScript({
+      autoRetry: true,
+      autoAccept: true,
+      performClickAutoAccept: false
+    });
+    window.eval(scriptText);
+
+    const analysis = window.__analyzeDialog({ ignoreCategoryConfig: true });
+    const acceptDiag = analysis.containers.flatMap(c => c.buttons.accept).find(b => /accept all/i.test(b.text));
+
+    if (acceptDiag && acceptDiag.reason !== 'blacklist' && acceptDiag.decision === 'wouldClick') {
+      console.log(`   ✅ \x1b[32mPASS\x1b[0m: Review Accept không bị blacklist bởi code block lân cận.`);
+      return { success: true };
+    }
+
+    console.log(`   ❌ \x1b[31mFAIL\x1b[0m: Review Accept vẫn bị hiểu nhầm là blacklist. diag=${JSON.stringify(acceptDiag)}`);
+    return { success: false };
+  } catch (e) {
+    console.error('   ❌ Error in review blacklist scenario:', e.message);
+    return { success: false };
+  } finally {
+    window.close();
+  }
+}
+
+async function verifyRetryIgnoresMonacoNoiseContext() {
+  const html = `
+    <html>
+      <body>
+        <div class="antigravity-agent-side-panel">
+          <div class="bg-agent-convo-background">
+            <div class="monaco-editor-background">
+              Agent terminated due to error. Try again.
+            </div>
+            <footer><button id="retry-btn">Retry</button></footer>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  const dom = new JSDOM(html, {
+    runScripts: "dangerously",
+    pretendToBeVisual: true,
+    url: "http://localhost/workbench.html"
+  });
+
+  const { window } = dom;
+  window.requestAnimationFrame = (cb) => setTimeout(cb, 0);
+  window.innerWidth = 1440;
+  window.innerHeight = 900;
+
+  const retryButton = window.document.getElementById('retry-btn');
+
+  window.HTMLElement.prototype.click = function() {
+    this.__clicked = true;
+  };
+
+  window.Element.prototype.getBoundingClientRect = function() {
+    if (this === retryButton) {
+      return { left: 1350, top: 700, width: 70, height: 30, right: 1420, bottom: 730, x: 1350, y: 700 };
+    }
+    return { left: 1000, top: 600, width: 430, height: 160, right: 1430, bottom: 760, x: 1000, y: 600 };
+  };
+
+  window.document.elementFromPoint = function() {
+    return retryButton;
+  };
+
+  try {
+    const scriptText = getInjectionScript({
+      autoRetry: true,
+      autoAccept: false
+    });
+    window.eval(scriptText);
+
+    const analysis = window.__analyzeDialog({ ignoreCategoryConfig: true });
+    const retryDiag = analysis.containers.flatMap(c => c.buttons.retry).find(b => /retry/i.test(b.text));
+
+    if (retryDiag && retryDiag.reason === 'retryContextMismatch' && retryDiag.decision === 'skip') {
+      console.log(`   ✅ \x1b[32mPASS\x1b[0m: Retry không dùng context nhiễu từ monaco editor background.`);
+      return { success: true };
+    }
+
+    console.log(`   ❌ \x1b[31mFAIL\x1b[0m: Retry vẫn bị context nhiễu từ monaco editor. diag=${JSON.stringify(retryDiag)}`);
+    return { success: false };
+  } catch (e) {
+    console.error('   ❌ Error in retry monaco-noise scenario:', e.message);
+    return { success: false };
+  } finally {
+    window.close();
+  }
+}
+
+async function verifyTerminalAcceptUsesLocalCommandText() {
+  const html = `
+    <html>
+      <body>
+        <div class="antigravity-agent-side-panel">
+          <div class="bg-agent-convo-background">
+            <div>Allow the following command</div>
+            <div class="command-text">npm test</div>
+            <div class="monaco-editor-background"><pre>rm -rf /tmp/demo</pre></div>
+            <footer><button id="run-btn">Run</button></footer>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  const dom = new JSDOM(html, {
+    runScripts: "dangerously",
+    pretendToBeVisual: true,
+    url: "http://localhost/workbench.html"
+  });
+
+  const { window } = dom;
+  window.requestAnimationFrame = (cb) => setTimeout(cb, 0);
+  window.innerWidth = 1440;
+  window.innerHeight = 900;
+
+  const runButton = window.document.getElementById('run-btn');
+
+  window.HTMLElement.prototype.click = function() {
+    this.__clicked = true;
+  };
+
+  window.Element.prototype.getBoundingClientRect = function() {
+    if (this === runButton) {
+      return { left: 1350, top: 700, width: 70, height: 30, right: 1420, bottom: 730, x: 1350, y: 700 };
+    }
+    return { left: 1000, top: 600, width: 430, height: 160, right: 1430, bottom: 760, x: 1000, y: 600 };
+  };
+
+  window.document.elementFromPoint = function() {
+    return runButton;
+  };
+
+  try {
+    const scriptText = getInjectionScript({
+      autoRetry: false,
+      autoAccept: true,
+      performClickAutoAccept: false
+    });
+    window.eval(scriptText);
+
+    const analysis = window.__analyzeDialog({ ignoreCategoryConfig: true });
+    const acceptDiag = analysis.containers.flatMap(c => c.buttons.accept).find(b => /run/i.test(b.text));
+    const normalizedCmd = String(acceptDiag && acceptDiag.commandText || '').toLowerCase().replace(/\s+/g, ' ');
+
+    if (acceptDiag &&
+        acceptDiag.category === 'terminal' &&
+        normalizedCmd.includes('npm') &&
+        normalizedCmd.includes('te') &&
+        !acceptDiag.commandText.includes('rm -rf') &&
+        acceptDiag.decision === 'wouldClick') {
+      console.log(`   ✅ \x1b[32mPASS\x1b[0m: Terminal Accept lấy command text cục bộ quanh nút, không ăn nhầm editor background.`);
+      return { success: true };
+    }
+
+    console.log(`   ❌ \x1b[31mFAIL\x1b[0m: Terminal Accept chưa ưu tiên command text cục bộ. diag=${JSON.stringify(acceptDiag)}`);
+    return { success: false };
+  } catch (e) {
+    console.error('   ❌ Error in terminal local-command scenario:', e.message);
     return { success: false };
   } finally {
     window.close();

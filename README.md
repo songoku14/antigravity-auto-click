@@ -80,7 +80,10 @@ Hệ thống cung cấp bộ công cụ mạnh mẽ để đảm bảo tính ổ
 
 ### 🧪 Test DOM samples (CLI > Developer Tools > Option 3)
 Dùng để kiểm tra độ tin cậy của logic nhận diện dựa trên dữ liệu thực tế.
-- **Test DOM samples (Regression)**: `node scripts/tests/regression.js` - Chạy logic nhận diện trên các mẫu **Full-DOM Snapshot** (SAMPLES) đã lưu sẵn. Hệ thống sẽ giả lập môi trường và xác nhận xem nút bấm có được click hay không.
+- **Test DOM samples (Regression)**: `node scripts/tests/regression.js [pattern]` - Chạy logic trên các mẫu Full-DOM Snapshot (SAMPLES).
+    - `Retry`: Test các mẫu Retry/High Traffic.
+    - `Run` / `Proceed` / `Accept_all` / `System`: Test theo category Auto-Accept.
+    - Không tham số: Chạy toàn bộ (All).
 
 ### 🛠️ Developer Tools (CLI > Option 2)
 - **Dump DOM Snapshot**: `node scripts/tools/dump-dom.js` - Chụp lại toàn bộ cấu trúc HTML của IDE và lưu vào thư mục `samples/`. Đây là bước duy nhất để tạo một ca kiểm thử mới (Test Case).
@@ -107,6 +110,6 @@ graph TD
 
 ## 6. Skills (Lệnh AI)
 - **/status**: Kiểm tra trạng thái & log.
-- **/test**: Giả lập lỗi để xác nhận hoạt động.
+- **/test**: Chạy regression test trên DOM samples (Retry, Accept, All).
 - **/deploy**: Khởi chạy hệ thống.
 - **/review**: Kiểm tra mã nguồn & kiến trúc.
