@@ -1,6 +1,9 @@
 const fs = require('fs');
 const path = require('path');
 
+const CATEGORY_KEY_RE = /^[a-z0-9_-]+$/i;
+const SKIP_REASON_RE = /^[a-z0-9_:-]+$/i;
+
 class ActivityStore {
   constructor(logsDir) {
     this.logsDir = logsDir;
@@ -57,7 +60,8 @@ class ActivityStore {
             ...(parsed.accept || {}),
             skipped: parsed.accept?.skipped ?? acceptSkipped,
             candidates: parsed.accept?.candidates ?? ((parsed.accept?.detected || 0) + acceptSkipped),
-            detectedByCategory: parsed.accept?.detectedByCategory || {}
+            clickedByCategory: this._sanitizeCategoryMap(parsed.accept?.clickedByCategory),
+            detectedByCategory: this._sanitizeCategoryMap(parsed.accept?.detectedByCategory)
           },
           skipReasons
         };
@@ -88,17 +92,19 @@ class ActivityStore {
     const activity = this.load();
     let changed = false;
 
-    const skipMatch = text.match(/\[STAT\] (RETRY|ACCEPT)_SKIPPED: ([\w_:]+)/);
+    const skipMatch = text.match(/\[STAT\] (RETRY|ACCEPT)_SKIPPED: ([a-z0-9_:-]+)/i);
     if (skipMatch) {
       const type = skipMatch[1].toLowerCase();
-      const reason = skipMatch[2];
+      const reason = String(skipMatch[2]).toLowerCase();
       const key = `${type}:${reason}`;
 
-      activity[type].candidates++;
-      activity[type].skipped++;
-      if (!activity.skipReasons) activity.skipReasons = {};
-      activity.skipReasons[key] = (activity.skipReasons[key] || 0) + 1;
-      changed = true;
+      if (SKIP_REASON_RE.test(reason)) {
+        activity[type].candidates++;
+        activity[type].skipped++;
+        if (!activity.skipReasons) activity.skipReasons = {};
+        activity.skipReasons[key] = (activity.skipReasons[key] || 0) + 1;
+        changed = true;
+      }
     }
 
     if (text.includes('RETRY_DETECTED')) {
@@ -111,23 +117,21 @@ class ActivityStore {
     } else if (text.includes('ACCEPT_DETECTED')) {
       activity.accept.candidates++;
       activity.accept.detected++;
-      const catMatch = text.match(/ACCEPT_DETECTED:([^\s!]+)/);
-      if (catMatch) {
-        const cat = catMatch[1];
+      const cat = this._extractCategory(text, 'ACCEPT_DETECTED');
+      if (cat) {
         if (!activity.accept.detectedByCategory) activity.accept.detectedByCategory = {};
         activity.accept.detectedByCategory[cat] = (activity.accept.detectedByCategory[cat] || 0) + 1;
       }
       changed = true;
     } else if (text.includes('ACCEPT_CLICKED')) {
       activity.accept.clicked++;
-      const catMatch = text.match(/ACCEPT_CLICKED:([^\s!]+)/);
-      if (catMatch) {
-        const cat = catMatch[1];
+      const cat = this._extractCategory(text, 'ACCEPT_CLICKED');
+      if (cat) {
         if (!activity.accept.clickedByCategory) activity.accept.clickedByCategory = {};
         activity.accept.clickedByCategory[cat] = (activity.accept.clickedByCategory[cat] || 0) + 1;
       }
       changed = true;
-    } else if (text.includes('ACCEPT_BLOCKED')) {
+    } else if (text.match(/\[STAT\] ACCEPT_BLOCKED(?::[a-z0-9_-]+)?/i)) {
       activity.accept.blocked++;
       changed = true;
     }
@@ -136,6 +140,22 @@ class ActivityStore {
       this.save(activity);
     }
     return changed;
+  }
+
+  _extractCategory(text, eventName) {
+    const match = text.match(new RegExp(`\\[STAT\\] ${eventName}:([a-z0-9_-]+)`, 'i'));
+    if (!match) return null;
+    const category = String(match[1]).toLowerCase();
+    return CATEGORY_KEY_RE.test(category) ? category : null;
+  }
+
+  _sanitizeCategoryMap(categoryMap) {
+    if (!categoryMap || typeof categoryMap !== 'object') return {};
+    return Object.fromEntries(
+      Object.entries(categoryMap)
+        .map(([key, count]) => [String(key).toLowerCase(), Number(count) || 0])
+        .filter(([key, count]) => CATEGORY_KEY_RE.test(key) && count > 0)
+    );
   }
 }
 

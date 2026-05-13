@@ -22,8 +22,10 @@ if [ "$1" == "--reset" ]; then
     "detected": 0,
     "clicked": 0,
     "blocked": 0,
-    "clickedByCategory": {}
-  }
+    "clickedByCategory": {},
+    "detectedByCategory": {}
+  },
+  "skipReasons": {}
 }' > "$ACTIVITY_FILE"
     echo "✅ Đã reset bộ đếm thống kê thành công!"
     exit 0
@@ -94,10 +96,14 @@ if [ -f "$ACTIVITY_FILE" ]; then
     echo -e "   [Retry]  Ứng viên: \033[1m$RETRY_CAN\033[0m | Bỏ qua: \033[33m$RETRY_SKP\033[0m | Qua lọc: \033[36m$RETRY_DET\033[0m | Click: \033[32m$RETRY_CLK\033[0m"
     echo -e "   [Accept] Ứng viên: \033[1m$ACCEPT_CAN\033[0m | Bỏ qua: \033[33m$ACCEPT_SKP\033[0m | Qua lọc: \033[36m$ACCEPT_DET\033[0m | Click: \033[32m$ACCEPT_CLK\033[0m | Chặn: \033[31m$ACCEPT_BLK\033[0m"
     
-    # Accept breakdown by category (based on detections/passed)
-    ACCEPT_CATS=$(jq -r '.accept.detectedByCategory // {} | to_entries | map("\(.key|ascii_upcase): \(.value)") | join(" | ")' "$ACTIVITY_FILE")
+    # Accept breakdown by category (based on actual clicks)
+    ACCEPT_CATS=$(jq -r '.accept.clickedByCategory // {} | to_entries | map(select(.key | test("^[A-Za-z0-9_-]+$"))) | map("\(.key|ascii_upcase): \(.value)") | join(" | ")' "$ACTIVITY_FILE")
+    ACCEPT_INVALID_CAT_CLICKS=$(jq -r '[.accept.clickedByCategory // {} | to_entries[]? | select(.key | test("^[A-Za-z0-9_-]+$") | not) | (.value // 0)] | add // 0' "$ACTIVITY_FILE")
     if [ -n "$ACCEPT_CATS" ] && [ "$ACCEPT_CATS" != "" ]; then
-        echo -e "            ↳ Chi tiết (Qua lọc): \033[32m$ACCEPT_CATS\033[0m"
+        echo -e "            ↳ Chi tiết Click thực tế: \033[32m$ACCEPT_CATS\033[0m"
+    fi
+    if [ "$ACCEPT_INVALID_CAT_CLICKS" -gt 0 ]; then
+        echo -e "            ↳ Bỏ qua \033[33m$ACCEPT_INVALID_CAT_CLICKS\033[0m click category lỗi từ dữ liệu cũ"
     fi
     echo "------------------------------------------------"
 fi

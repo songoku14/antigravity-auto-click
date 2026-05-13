@@ -7,7 +7,7 @@
 
 const { normalizeConfig } = require('../core/config-schema');
 
-const INJECTION_VERSION = 49;
+const INJECTION_VERSION = 50;
 
 /**
  * Trả về string JavaScript sẽ được inject vào DOM qua CDP Runtime.evaluate
@@ -118,31 +118,26 @@ function getInjectionScript(userConfig = {}) {
   let pollIntervalRef = null;
   let isActive = true;
   const timeoutRefs = new Set();
-  const lastStatLogged = new Map();
-
   function log(msg) {
     console.log('[AutoRetry] ' + msg);
   }
 
-  function logStat(type, reason, force = false) {
-    const key = type + ':' + reason;
-    const now = Date.now();
-    const last = lastStatLogged.get(key) || 0;
-    // Throttling: Log stats only once every 30 seconds per reason to reduce noise
-    if (force || (now - last > 30000)) {
-      if (reason.startsWith('DETECTED')) {
-        if (type === 'RETRY') log('[STAT] RETRY_DETECTED');
-        else {
-          const cat = reason.includes(':') ? reason.split(':')[1] : 'unknown';
-          log('[STAT] ACCEPT_DETECTED:' + cat);
-        }
-      } else {
-        log('[STAT] ' + type + '_SKIPPED: ' + reason);
-      }
-      lastStatLogged.set(key, now);
-      return true;
+  function logDetectedStat(type, category = '') {
+    if (type === 'RETRY') {
+      log('[STAT] RETRY_DETECTED');
+      return;
     }
-    return false;
+    const normalizedCategory = String(category || 'unknown').toLowerCase();
+    log('[STAT] ACCEPT_DETECTED:' + normalizedCategory);
+  }
+
+  function logSkippedStat(type, reason) {
+    log('[STAT] ' + type + '_SKIPPED: ' + reason);
+  }
+
+  function logAcceptBlockedStat(category = '') {
+    const normalizedCategory = String(category || 'unknown').toLowerCase();
+    log('[STAT] ACCEPT_BLOCKED:' + normalizedCategory);
   }
 
   function isAutoAcceptEnabled() {
@@ -246,23 +241,20 @@ function getInjectionScript(userConfig = {}) {
     resetCounterIfNeeded();
     const now = Date.now();
     if (isInCooldown) {
-      if (logStat(type, 'rate_limit_cooldown')) {
-        debug('[RATE] Blocked by cooldown. actionCount=' + actionCount + ', sinceLastClick=' + (now - lastClickTime) + 'ms');
-      }
+      logSkippedStat(type, 'rate_limit_cooldown');
+      debug('[RATE] Blocked by cooldown. actionCount=' + actionCount + ', sinceLastClick=' + (now - lastClickTime) + 'ms');
       return false;
     }
     if (now - lastClickTime < CONFIG.minClickInterval) {
-      if (logStat(type, 'rate_limit_min_interval')) {
-        debug('[RATE] Blocked by minClickInterval. sinceLastClick=' + (now - lastClickTime) + 'ms < ' + CONFIG.minClickInterval + 'ms');
-      }
+      logSkippedStat(type, 'rate_limit_min_interval');
+      debug('[RATE] Blocked by minClickInterval. sinceLastClick=' + (now - lastClickTime) + 'ms < ' + CONFIG.minClickInterval + 'ms');
       return false;
     }
     if (actionCount >= CONFIG.maxRetriesPerMinute) {
       isInCooldown = true;
-      if (logStat(type, 'rate_limit_max_per_minute')) {
-        log('Rate limit reached. Cooling down.');
-        debug('[RATE] Entering cooldown. actionCount=' + actionCount + ', cooldownMs=' + CONFIG.cooldownMs);
-      }
+      logSkippedStat(type, 'rate_limit_max_per_minute');
+      log('Rate limit reached. Cooling down.');
+      debug('[RATE] Entering cooldown. actionCount=' + actionCount + ', cooldownMs=' + CONFIG.cooldownMs);
       schedule(() => { isInCooldown = false; actionCount = 0; }, CONFIG.cooldownMs);
       return false;
     }
@@ -735,9 +727,8 @@ function getInjectionScript(userConfig = {}) {
               diag.reason = 'notRightSide';
               containerReport.buttons.retry.push(diag);
             }
-            if (!dryRun && logStat('RETRY', 'not_right_side')) {
-              debug('[STEP 3] Skipping RETRY button: not on right side (' + Math.round(btnObj.rect.left) + ' < ' + Math.round(window.innerWidth * 0.4) + ')');
-            }
+            if (!dryRun) logSkippedStat('RETRY', 'not_right_side');
+            debug('[STEP 3] Skipping RETRY button: not on right side (' + Math.round(btnObj.rect.left) + ' < ' + Math.round(window.innerWidth * 0.4) + ')');
             continue;
           }
           if (useFallback && !CONFIG.retryContextPatterns.some(p => p.test(getSurroundingText(btnObj.el)))) {
@@ -746,9 +737,8 @@ function getInjectionScript(userConfig = {}) {
               diag.reason = 'contextMismatch';
               containerReport.buttons.retry.push(diag);
             }
-            if (!dryRun && logStat('RETRY', 'context_mismatch')) {
-              debug(\`[STEP 3.1] Skipping RETRY button: context mismatch\`);
-            }
+            if (!dryRun) logSkippedStat('RETRY', 'context_mismatch');
+            debug(\`[STEP 3.1] Skipping RETRY button: context mismatch\`);
             continue;
           }
           if (!useFallback) {
@@ -759,9 +749,8 @@ function getInjectionScript(userConfig = {}) {
                 diag.reason = 'retryContextMismatch';
                 containerReport.buttons.retry.push(diag);
               }
-              if (!dryRun && logStat('RETRY', 'retry_context_mismatch')) {
-                debug('[STEP 3.2] Skipping RETRY button: no retry/error context in container');
-              }
+              if (!dryRun) logSkippedStat('RETRY', 'retry_context_mismatch');
+              debug('[STEP 3.2] Skipping RETRY button: no retry/error context in container');
               continue;
             }
           }
@@ -774,17 +763,18 @@ function getInjectionScript(userConfig = {}) {
           if (!dryRun) {
             const visibility = getVisibilityStatus(btnObj.el, btnObj.rect);
             if (!visibility.ok) {
-              if (!dryRun && logStat('RETRY', 'visibility_' + visibility.reason)) {
-                  if (visibility.reason === 'outOfViewport') {
-                    debug('[STEP 4.5] Visibility check bypassed: point out of viewport bounds');
-                  } else if (visibility.reason === 'noElementAtPoint') {
-                    debug('[STEP 4.5] Visibility check bypassed: no element found at point');
-                    debug(
-                      '[STEP 4.5] Visibility check bypassed for ' + summarizeElement(btnObj.el) + ' rect=' + formatRect(btnObj.rect) + '. ' +
-                      'Top element: ' + visibility.topElement + ' path=' + visibility.topElementPath
-                    );
-                  }
+              if (!dryRun) {
+                logSkippedStat('RETRY', 'visibility_' + visibility.reason);
+                if (visibility.reason === 'outOfViewport') {
+                  debug('[STEP 4.5] Visibility check bypassed: point out of viewport bounds');
+                } else if (visibility.reason === 'noElementAtPoint') {
+                  debug('[STEP 4.5] Visibility check bypassed: no element found at point');
+                  debug(
+                    '[STEP 4.5] Visibility check bypassed for ' + summarizeElement(btnObj.el) + ' rect=' + formatRect(btnObj.rect) + '. ' +
+                    'Top element: ' + visibility.topElement + ' path=' + visibility.topElementPath
+                  );
                 }
+              }
             } else {
               debug('[STEP 4.3] Visibility confirmed: ' + visibility.reason);
             }
@@ -800,9 +790,7 @@ function getInjectionScript(userConfig = {}) {
             report.containerCount = report.containers.length;
             return report;
           }
-          if (logStat('RETRY', 'DETECTED')) {
-            // Log only once per throttle period
-          }
+          logDetectedStat('RETRY');
           if (!canClick('RETRY')) return;
           performClick(btnObj, container, '🔄 RETRY', 'retry');
           return;
@@ -834,9 +822,8 @@ function getInjectionScript(userConfig = {}) {
                   diag.reason = 'notRightSide';
                   containerReport.buttons.accept.push(diag);
                 }
-                if (!dryRun && logStat('ACCEPT', 'not_right_side')) {
-                  debug('[STEP 3] Skipping ACCEPT button: not on right side (' + Math.round(btnObj.rect.left) + ' < ' + Math.round(window.innerWidth * 0.4) + ')');
-                }
+                if (!dryRun) logSkippedStat('ACCEPT', 'not_right_side');
+                debug('[STEP 3] Skipping ACCEPT button: not on right side (' + Math.round(btnObj.rect.left) + ' < ' + Math.round(window.innerWidth * 0.4) + ')');
                 continue;
               }
               if (dryRun && !diag.visibility.ok) {
@@ -848,7 +835,8 @@ function getInjectionScript(userConfig = {}) {
               if (!dryRun) {
                 const visibility = getVisibilityStatus(btnObj.el, btnObj.rect);
                 if (!visibility.ok) {
-                  if (!dryRun && logStat('ACCEPT', 'visibility_' + visibility.reason)) {
+                  if (!dryRun) {
+                    logSkippedStat('ACCEPT', 'visibility_' + visibility.reason);
                     if (visibility.reason === 'outOfViewport') {
                       debug('[STEP 4.5] Visibility check bypassed: point out of viewport bounds');
                     } else if (visibility.reason === 'noElementAtPoint') {
@@ -883,9 +871,7 @@ function getInjectionScript(userConfig = {}) {
                 return report;
               }
 
-              if (logStat('ACCEPT', 'DETECTED:' + matchedCat)) {
-                // Log only một lần mỗi chu kỳ throttle
-              }
+              logDetectedStat('ACCEPT', matchedCat);
               debug('[ACTION] ACCEPT command context for "' + btnObj.text + '": "' + (cmdText || '').substring(0, 200) + '"');
               if (isCommandBlocked(cmdText)) {
                 debug('[ACTION] Command BLOCKED by blacklist: "' + (cmdText || '').substring(0, 50) + '..."');
@@ -893,8 +879,8 @@ function getInjectionScript(userConfig = {}) {
                 if (shouldClick) {
                   if (!btnObj.el.__blocked) {
                     btnObj.el.__blocked = true;
-                    logStat('ACCEPT', 'blacklist');
-                    logStat('ACCEPT', 'blocked');
+                    logSkippedStat('ACCEPT', 'blacklist');
+                    logAcceptBlockedStat(matchedCat);
                     btnObj.el.style.border = '2px solid red';
                     setTimeout(() => { btnObj.el.__blocked = false; }, 5000);
                   }
