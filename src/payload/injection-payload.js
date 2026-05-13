@@ -5,13 +5,16 @@
  * It uses passive polling to scan for error dialogs and auto-click Retry/Accept.
  */
 
-const INJECTION_VERSION = 48;
+const { normalizeConfig } = require('../core/config-schema');
+
+const INJECTION_VERSION = 49;
 
 /**
  * Trả về string JavaScript sẽ được inject vào DOM qua CDP Runtime.evaluate
  */
 function getInjectionScript(userConfig = {}) {
-  const configJson = JSON.stringify(userConfig);
+  const normalizedConfig = normalizeConfig(userConfig);
+  const configJson = JSON.stringify(normalizedConfig);
 
   return `
 (function() {
@@ -41,111 +44,23 @@ function getInjectionScript(userConfig = {}) {
   // ============================================================
   // 2. Configuration & Patterns
   // ============================================================
+  const RETRY_CONFIG = USER_CONFIG.autoRetry || {};
+  const ACCEPT_CONFIG = USER_CONFIG.autoAccept || {};
   const CONFIG = {
-    dialogContainerSelectors: [
-      '.' + MOCK_MARKER_CLASS,
-      '.monaco-dialog-box',
-      '.dialog-shadow',
-      '.notifications-toasts',
-      '.notification-toast-container',
-      '.notification-list-item',
-      '.notification-toast',
-      '.notifications-center',
-      '.jetski-error',
-      '.error-overlay',
-      '.test-dialog',
-      '.test-accept-dialog',
-      '.bg-agent-convo-background',
-      '.antigravity-agent-side-panel',
-      '#antigravity\\.agentSidePanelInputBox',
-      '[role="dialog"]',
-      '[role="alertdialog"]'
-    ],
-
-    errorPatterns: [
-      /high\\s*traffic/i,
-      /server\\s*(is\\s*)?busy/i,
-      /too\\s*many\\s*requests/i,
-      /rate\\s*limit(ed)?/i,
-      /overloaded/i,
-      /temporarily\\s*unavailable/i,
-      /service\\s*unavailable/i,
-      /request\\s*failed/i,
-      /something\\s*went\\s*wrong/i,
-      /agent\\s*terminated/i,
-      /try\\s*again/i
-    ],
-
-    retryButtonPatterns: [
-      /^retry$/i,
-      /^try\\s*again$/i,
-      /^thử\\s*lại$/i,
-      /^reconnect$/i
-    ],
-
-    // actionButtonPatterns (Search Filter): Sẽ được tự động tổng hợp từ actionCategories bên dưới.
-    // Đây là bộ lọc "Phễu" để tìm tất cả các nút có thể click cho việc Auto Accept.
-    // ActionButtonPatterns = 3 loại Category cộng lại.
-    actionButtonPatterns: [], 
-
-    retryContextPatterns: [
-      /high\\s*traffic/i,
-      /server\\s*(is\\s*)?busy/i,
-      /too\\s*many\\s*requests/i,
-      /rate\\s*limit(ed)?/i,
-      /overloaded/i,
-      /unavailable/i,
-      /request\\s*failed/i,
-      /something\\s*went\\s*wrong/i,
-      /agent\\s*terminated/i,
-      /try\\s*again/i,
-      /connection\\s*lost/i
-    ],
-
-    // actionCategories (Labeling Filter): Quy định chi tiết các mẫu cho từng danh mục.
-    // Tách biệt giữa nhãn nút bấm (buttons - khớp nghiêm ngặt) và ngữ cảnh xung quanh (context).
-    actionCategories: {
-      terminal: {
-        buttons: [ /^run$/i, /^run⌥enter$/i, /^execute$/i ],
-        context: [
-          /allow\\s*the\\s*following\\s*command/i,
-          /run\\s*this\\s*command/i,
-          /run\\s*the\\s*command/i,
-          /execute\\s*the\\s*following/i,
-          /do\\s*you\\s*want\\s*to\\s*run/i,
-          /terminal\\s*action/i,
-          /thực\\s*thi\\s*lệnh/i,
-          /chạy\\s*lệnh/i
-        ]
-      },
-      review: {
-        buttons: [ /^proceed$/i, /^accept\\s*all$/i ],
-        context: [
-          /review\\s*the\\s*changes/i,
-          /agent\\s*prompt/i,
-          /approve\\s*request/i,
-          /review\\s*required/i,
-          /proceed\\s*with\\s*changes/i
-        ]
-      },
-      system: {
-        buttons: [
-          
-        ],
-        context: [
-        ]
-      }
-    },
-
-    blacklist: USER_CONFIG.blacklist || [
-      "rm ", "sudo ", "force ", "push ", "delete ", "terminate ", "pkill ", "kill ", "mkfs"
-    ],
-
-    pollInterval: USER_CONFIG.pollInterval || 3000,
-    clickDelay: USER_CONFIG.clickDelay || 800,
-    maxRetriesPerMinute: 15,
-    cooldownMs: 60000,
-    minClickInterval: USER_CONFIG.minClickInterval || 5000
+    dialogContainerSelectors: Array.isArray(RETRY_CONFIG.dialogContainerSelectors)
+      ? ['.' + MOCK_MARKER_CLASS, ...RETRY_CONFIG.dialogContainerSelectors.filter((selector) => selector !== '.' + MOCK_MARKER_CLASS)]
+      : ['.' + MOCK_MARKER_CLASS],
+    errorPatterns: [],
+    retryButtonPatterns: [],
+    actionButtonPatterns: [],
+    retryContextPatterns: [],
+    actionCategories: {},
+    blacklist: Array.isArray(ACCEPT_CONFIG.blacklist) ? ACCEPT_CONFIG.blacklist.slice() : [],
+    pollInterval: RETRY_CONFIG.timing && RETRY_CONFIG.timing.pollInterval || 3000,
+    clickDelay: RETRY_CONFIG.timing && RETRY_CONFIG.timing.clickDelay || 800,
+    maxRetriesPerMinute: RETRY_CONFIG.rateLimit && RETRY_CONFIG.rateLimit.maxRetriesPerMinute || 15,
+    cooldownMs: RETRY_CONFIG.rateLimit && RETRY_CONFIG.rateLimit.cooldownMs || 60000,
+    minClickInterval: RETRY_CONFIG.timing && RETRY_CONFIG.timing.minClickInterval || 5000
   };
 
   const toRegex = (p) => {
@@ -156,19 +71,38 @@ function getInjectionScript(userConfig = {}) {
     } catch(e) { return null; }
   };
 
+  CONFIG.errorPatterns = Array.isArray(RETRY_CONFIG.errorPatterns)
+    ? RETRY_CONFIG.errorPatterns.map(toRegex).filter(Boolean)
+    : [];
+  CONFIG.retryButtonPatterns = Array.isArray(RETRY_CONFIG.retryButtonPatterns)
+    ? RETRY_CONFIG.retryButtonPatterns.map(toRegex).filter(Boolean)
+    : [];
+  CONFIG.retryContextPatterns = Array.isArray(RETRY_CONFIG.retryContextPatterns)
+    ? RETRY_CONFIG.retryContextPatterns.map(toRegex).filter(Boolean)
+    : [];
+
+  const categoryEntries = ACCEPT_CONFIG.categories && typeof ACCEPT_CONFIG.categories === 'object'
+    ? Object.entries(ACCEPT_CONFIG.categories)
+    : [];
+  for (const [categoryName, categoryConfig] of categoryEntries) {
+    CONFIG.actionCategories[categoryName] = {
+      buttons: Array.isArray(categoryConfig.buttons) ? categoryConfig.buttons.map(toRegex).filter(Boolean) : [],
+      context: Array.isArray(categoryConfig.context) ? categoryConfig.context.map(toRegex).filter(Boolean) : []
+    };
+  }
+
   // Tổng hợp actionButtonPatterns từ các category buttons
   // Chỉ những nút được định nghĩa rõ ràng trong phần 'buttons' mới được tìm kiếm.
   CONFIG.actionButtonPatterns = Object.values(CONFIG.actionCategories).flatMap(cat => cat.buttons);
 
-  // Merge custom patterns
-  if (Array.isArray(USER_CONFIG.customRetryPatterns)) {
-    USER_CONFIG.customRetryPatterns.forEach(p => {
+  if (Array.isArray(RETRY_CONFIG.customRetryPatterns)) {
+    RETRY_CONFIG.customRetryPatterns.forEach(p => {
       const re = toRegex(p);
       if (re) CONFIG.retryButtonPatterns.push(re);
     });
   }
-  if (Array.isArray(USER_CONFIG.customAcceptPatterns)) {
-    USER_CONFIG.customAcceptPatterns.forEach(p => {
+  if (Array.isArray(ACCEPT_CONFIG.customAcceptPatterns)) {
+    ACCEPT_CONFIG.customAcceptPatterns.forEach(p => {
       const re = toRegex(p);
       if (re) CONFIG.actionButtonPatterns.push(re);
     });
@@ -212,25 +146,15 @@ function getInjectionScript(userConfig = {}) {
   }
 
   function isAutoAcceptEnabled() {
-    const autoAcceptConfig = USER_CONFIG.autoAccept;
-    return autoAcceptConfig === true || (
-      !!autoAcceptConfig &&
-      typeof autoAcceptConfig === 'object' &&
-      autoAcceptConfig.enabled !== false
-    );
+    return ACCEPT_CONFIG.enabled !== false;
   }
 
   function getAutoAcceptCategories() {
-    const autoAcceptConfig = USER_CONFIG.autoAccept;
     if (!isAutoAcceptEnabled()) return {};
-    if (autoAcceptConfig && typeof autoAcceptConfig === 'object' && autoAcceptConfig.categories) {
-      return autoAcceptConfig.categories;
+    if (ACCEPT_CONFIG && typeof ACCEPT_CONFIG === 'object' && ACCEPT_CONFIG.categories) {
+      return ACCEPT_CONFIG.categories;
     }
-    return {
-      terminal: { enabled: true },
-      review: { enabled: true },
-      system: { enabled: true }
-    };
+    return {};
   }
 
   function getCategoryForButton(btnText) {
@@ -729,7 +653,7 @@ function getInjectionScript(userConfig = {}) {
       timestamp: new Date().toISOString(),
       scriptVersion: SCRIPT_VERSION,
       config: {
-        autoRetry: USER_CONFIG.autoRetry !== false,
+        autoRetry: RETRY_CONFIG.enabled !== false,
         autoAccept: isAutoAcceptEnabled(),
         testMode: !!USER_CONFIG.testMode
       },
@@ -770,7 +694,7 @@ function getInjectionScript(userConfig = {}) {
     const reportSeenButtons = dryRun ? new Set() : null;
 
     let containers = findValidContainers();
-    const useFallback = containers.length === 0 && (isAutoAcceptEnabled() || USER_CONFIG.autoRetry !== false);
+    const useFallback = containers.length === 0 && (isAutoAcceptEnabled() || RETRY_CONFIG.enabled !== false);
     if (useFallback) containers = [document.body];
 
     for (const container of containers) {
@@ -793,7 +717,7 @@ function getInjectionScript(userConfig = {}) {
       // Silent inspection in loops
       
       // Case 1: Auto-Retry
-      if (USER_CONFIG.autoRetry !== false) {
+      if (RETRY_CONFIG.enabled !== false) {
         // debug(\`[STEP 1] Found matching RETRY container: <\${container.tagName.toLowerCase()}> (ID: \${container.id})\`);
         const btns = findButtonsIn(container, CONFIG.retryButtonPatterns, dryRun ? null : 'RETRY');
         btns.sort((a, b) => (a.inFooter !== b.inFooter ? (b.inFooter ? 1 : -1) : b.rect.top - a.rect.top));
@@ -965,7 +889,7 @@ function getInjectionScript(userConfig = {}) {
               debug('[ACTION] ACCEPT command context for "' + btnObj.text + '": "' + (cmdText || '').substring(0, 200) + '"');
               if (isCommandBlocked(cmdText)) {
                 debug('[ACTION] Command BLOCKED by blacklist: "' + (cmdText || '').substring(0, 50) + '..."');
-                const shouldClick = (USER_CONFIG.performClickAutoAccept === true || USER_CONFIG.performClickAutoAccept === 'true');
+                const shouldClick = ACCEPT_CONFIG.performClick === true || ACCEPT_CONFIG.performClick === 'true';
                 if (shouldClick) {
                   if (!btnObj.el.__blocked) {
                     btnObj.el.__blocked = true;
@@ -977,7 +901,7 @@ function getInjectionScript(userConfig = {}) {
                 }
                 continue;
               }
-              const shouldClick = (USER_CONFIG.performClickAutoAccept === true || USER_CONFIG.performClickAutoAccept === 'true');
+              const shouldClick = ACCEPT_CONFIG.performClick === true || ACCEPT_CONFIG.performClick === 'true';
               if (shouldClick) {
                 if (!canClick('ACCEPT')) {
                   debug('[ACTION] Click blocked by rate limit or cooldown for category: ' + matchedCat);
@@ -985,7 +909,7 @@ function getInjectionScript(userConfig = {}) {
                 }
                 performClick(btnObj, container, '⚡ ACTION (' + matchedCat.toUpperCase() + ')', matchedCat);
               } else {
-                debug('[ACTION] performClickAutoAccept is OFF (' + USER_CONFIG.performClickAutoAccept + '), skipping click but logged to statistics.');
+                debug('[ACTION] performClickAutoAccept is OFF (' + ACCEPT_CONFIG.performClick + '), skipping click but logged to statistics.');
               }
               return;
             }
@@ -1124,7 +1048,7 @@ function getInjectionScript(userConfig = {}) {
   // 7. Initialization & Lifecycle
   // ============================================================
   pollIntervalRef = setInterval(scanAndAction, CONFIG.pollInterval);
-  debug('[SCAN] Polling started. interval=' + CONFIG.pollInterval + 'ms, autoRetry=' + (USER_CONFIG.autoRetry !== false) + ', autoAccept=' + isAutoAcceptEnabled());
+  debug('[SCAN] Polling started. interval=' + CONFIG.pollInterval + 'ms, autoRetry=' + (RETRY_CONFIG.enabled !== false) + ', autoAccept=' + isAutoAcceptEnabled());
 
   window.__autoRetryCleanup = function() {
     isActive = false;
@@ -1143,7 +1067,7 @@ function getInjectionScript(userConfig = {}) {
   };
 
   schedule(scanAndAction, 1000);
-  log('v' + SCRIPT_VERSION + ' active. Retry: ' + (USER_CONFIG.autoRetry !== false ? 'ON' : 'OFF') + ', Accept: ' + (isAutoAcceptEnabled() ? 'ON' : 'OFF'));
+  log('v' + SCRIPT_VERSION + ' active. Retry: ' + (RETRY_CONFIG.enabled !== false ? 'ON' : 'OFF') + ', Accept: ' + (isAutoAcceptEnabled() ? 'ON' : 'OFF'));
   return 'injection_success';
 })();
 `;

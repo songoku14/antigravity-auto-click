@@ -1,48 +1,123 @@
 {
-  "blacklist": [
-    "rm ",
-    "sudo ",
-    "force ",
-    "push ",
-    "delete ",
-    "terminate ",
-    "pkill ",
-    "kill ",
-    "mkfs",
-    "format "
-  ],
-  "performClickAutoAccept": true,
+  "debug": true,
+  "autoRetry": {
+    "enabled": true,
+    "dialogContainerSelectors": [
+      ".antigravity-mock-dialog",
+      ".monaco-dialog-box",
+      ".dialog-shadow",
+      ".notifications-toasts",
+      ".notification-toast-container",
+      ".notification-list-item",
+      ".notification-toast",
+      ".notifications-center",
+      ".jetski-error",
+      ".error-overlay",
+      ".test-dialog",
+      ".test-accept-dialog",
+      ".bg-agent-convo-background",
+      ".antigravity-agent-side-panel",
+      "#antigravity\\.agentSidePanelInputBox",
+      "[role=\"dialog\"]",
+      "[role=\"alertdialog\"]"
+    ],
+    "errorPatterns": [
+      "/high\\s*traffic/i",
+      "/server\\s*(is\\s*)?busy/i",
+      "/too\\s*many\\s*requests/i",
+      "/rate\\s*limit(ed)?/i",
+      "/overloaded/i",
+      "/temporarily\\s*unavailable/i",
+      "/service\\s*unavailable/i",
+      "/request\\s*failed/i",
+      "/something\\s*went\\s*wrong/i",
+      "/agent\\s*terminated/i",
+      "/try\\s*again/i"
+    ],
+    "retryButtonPatterns": [
+      "/^retry$/i",
+      "/^try\\s*again$/i",
+      "/^thử\\s*lại$/i",
+      "/^reconnect$/i"
+    ],
+    "retryContextPatterns": [
+      "/high\\s*traffic/i",
+      "/server\\s*(is\\s*)?busy/i",
+      "/too\\s*many\\s*requests/i",
+      "/rate\\s*limit(ed)?/i",
+      "/overloaded/i",
+      "/unavailable/i",
+      "/request\\s*failed/i",
+      "/something\\s*went\\s*wrong/i",
+      "/agent\\s*terminated/i",
+      "/try\\s*again/i",
+      "/connection\\s*lost/i"
+    ],
+    "customRetryPatterns": [],
+    "timing": {
+      "pollInterval": 2000,
+      "clickDelay": 1000,
+      "minClickInterval": 2000
+    },
+    "rateLimit": {
+      "maxRetriesPerMinute": 15,
+      "cooldownMs": 60000
+    }
+  },
   "autoAccept": {
     "enabled": true,
+    "performClick": true,
+    "blacklist": [
+      "rm ",
+      "sudo ",
+      "force ",
+      "push ",
+      "delete ",
+      "terminate ",
+      "pkill ",
+      "kill ",
+      "mkfs",
+      "format "
+    ],
+    "customAcceptPatterns": [],
     "categories": {
       "terminal": {
         "enabled": true,
-        "patterns": [
-          "allow\\s*the\\s*following\\s*command",
-          "run\\s*this\\s*command",
-          "execute\\s*the\\s*following"
+        "buttons": [
+          "/^run$/i",
+          "/^run⌥enter$/i",
+          "/^execute$/i"
+        ],
+        "context": [
+          "/allow\\s*the\\s*following\\s*command/i",
+          "/run\\s*this\\s*command/i",
+          "/run\\s*the\\s*command/i",
+          "/execute\\s*the\\s*following/i",
+          "/do\\s*you\\s*want\\s*to\\s*run/i",
+          "/terminal\\s*action/i",
+          "/thực\\s*thi\\s*lệnh/i",
+          "/chạy\\s*lệnh/i"
         ]
       },
       "review": {
         "enabled": false,
-        "patterns": [
-          "review\\s*the\\s*changes",
-          "agent\\s*prompt",
-          "approve\\s*request"
+        "buttons": [
+          "/^proceed$/i",
+          "/^accept\\s*all$/i"
+        ],
+        "context": [
+          "/review\\s*the\\s*changes/i",
+          "/agent\\s*prompt/i",
+          "/approve\\s*request/i",
+          "/review\\s*required/i",
+          "/proceed\\s*with\\s*changes/i"
         ]
       },
       "system": {
         "enabled": false,
-        "patterns": [
-          "security\\s*confirmation",
-          "allow\\s*this\\s*action"
-        ]
+        "buttons": [],
+        "context": []
       }
     }
-  },
-  "autoRetry": true,
-  "debug": true,
-  "clickDelay": 1000,
-  "minClickInterval": 2000,
-  "pollInterval": 2000
+  }
 }

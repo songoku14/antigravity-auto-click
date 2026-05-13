@@ -12,7 +12,7 @@ Verify your setup via **Test DOM samples** (CLI > Option 2 > Option 3):
 | :--- | :--- |
 | **Vấn đề** | Lỗi "High Traffic" yêu cầu click thủ công hoặc các đề xuất Agent cần Accept liên tục. |
 | **Công nghệ** | Chrome DevTools Protocol (CDP). Daemon tự dò `--remote-debugging-port` từ tiến trình Antigravity đang chạy. |
-| **Cơ chế** | Inject JavaScript (MutationObserver) để phát hiện và click nút. |
+| **Cơ chế** | Inject JavaScript dùng polling theo chu kỳ để phát hiện và click nút. |
 | **Tính năng** | **Auto-Retry**: Click "Retry" khi gặp lỗi High Traffic.<br>**Auto-Accept**: Nhận diện các nút "Run", "Accept", "Proceed"... theo category `terminal` / `review` / `system`. |
 | **Bảo vệ** | Có cơ chế **Blacklist** chặn tự động chạy các lệnh Terminal nguy hiểm. |
 | **Ưu điểm** | Chính xác cao, linh hoạt (tắt/mở riêng biệt), an toàn với blacklist, visibility checks và rate-limit. |
@@ -22,9 +22,9 @@ Verify your setup via **Test DOM samples** (CLI > Option 2 > Option 3):
 
 - **Scoping (Phạm vi):** Quét trực tiếp và toàn diện các container đặc hiệu như `.antigravity-agent-side-panel` (chính) và `.monaco-dialog-box` (phục vụ giả lập/testing).
 - **Phân cấp Nút:** Tự động ưu tiên các nút bấm nằm trong phần `footer` của container để đảm bảo tính chính xác.
-- **Phát hiện Biến động:** Kết hợp `MutationObserver` (phản ứng tức thì) và `Polling` (3s) để đảm bảo độ tin cậy.
+- **Phát hiện Biến động:** Dùng polling thụ động theo chu kỳ để giảm rủi ro race condition khi DOM thay đổi nhanh.
 - **Nhận diện Thông minh:** Loại bỏ cơ chế lọc văn bản cấp container (Gate Logic) để tránh sai sót; sử dụng `TreeWalker` quét sâu Shadow DOM để tìm nút theo Regex pattern.
-- **An toàn cho Auto-Accept:** Có phân loại `terminal` / `review` / `system`, blacklist lệnh nguy hiểm và cờ `performClickAutoAccept` để bật click thực tế khi cần.
+- **An toàn cho Auto-Accept:** Có phân loại `terminal` / `review` / `system`, blacklist lệnh nguy hiểm và cờ `autoAccept.performClick` để bật click thực tế khi cần.
 
 ## 2. Cấu Trúc Dự Án
 
@@ -52,7 +52,7 @@ antigravity-auto-click/
 - **`scripts/menu.sh`**: Entry point chính. Luôn bắt đầu từ đây để quản lý hệ thống.
 - **`src/core/auto-retry.js`**: "Trái tim" của hệ thống, chạy ngầm để theo dõi và điều khiển IDE.
 - **`src/payload/injection-payload.js`**: Chứa logic nhận diện Dialog (Regex, Container Scoping) và xử lý click.
-- **`config.json`**: Cho phép bật/tắt Auto-Retry, Auto-Accept, `performClickAutoAccept`, category của Auto-Accept, blacklist và pattern tùy chỉnh.
+- **`config.json`**: Cho phép bật/tắt Auto-Retry, Auto-Accept, cấu hình selector/pattern/rate-limit/timing của Retry và category/blacklist/perform-click của Accept.
 - **`logs/activity-log.json`**: Lưu trữ lịch sử click để hiển thị thống kê trên Menu.
 
 ## 3. Hướng Dẫn Nhanh
@@ -67,7 +67,7 @@ Từ giờ, luôn mở IDE bằng cách gõ lệnh `antigravity` trong Terminal.
 **Bước 2: Sử dụng & Vận hành**
 - **Chi tiết tính năng:** Xem [tutorial.md](tutorial.md) để biết cách dùng qua CLI hoặc Extension.
 - **Auto-Retry**: Tự động click thử lại khi gặp lỗi "High Traffic".
-- **Auto-Accept**: Nhận diện các đề xuất từ Agent. Click thực tế chỉ xảy ra khi `performClickAutoAccept=true`. Hỗ trợ bật/tắt riêng cho `terminal`, `review`, `system`.
+- **Auto-Accept**: Nhận diện các đề xuất từ Agent. Click thực tế chỉ xảy ra khi `autoAccept.performClick=true`. Hỗ trợ bật/tắt riêng cho `terminal`, `review`, `system`.
 
 **Dành cho Developer:**
 - Cài đặt: `npm install`

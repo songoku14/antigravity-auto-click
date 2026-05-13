@@ -2,15 +2,11 @@ const vscode = require('vscode');
 const cp = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const { DEFAULT_CONFIG, normalizeConfig, isAutoAcceptEnabled, isAutoRetryEnabled } = require('../core/config-schema');
 
 let daemonProcess = null;
 let statusBarItem = null;
 let outputChannel = null;
-
-function isAutoAcceptEnabled(config) {
-    const autoAccept = config && config.autoAccept;
-    return autoAccept === true || (!!autoAccept && typeof autoAccept === 'object' && autoAccept.enabled !== false);
-}
 
 /**
  * @param {vscode.ExtensionContext} context
@@ -46,14 +42,11 @@ function updateStatusBar(running) {
     let activeFeatures = [];
     try {
         const config = readConfig();
-        if (config.autoRetry !== false) activeFeatures.push('R');
-        
-        const autoAccept = config.autoAccept;
-        if (autoAccept === true) {
-            activeFeatures.push('A');
-        } else if (isAutoAcceptEnabled(config)) {
+        if (isAutoRetryEnabled(config)) activeFeatures.push('R');
+
+        if (isAutoAcceptEnabled(config)) {
             let activeCats = [];
-            const cats = autoAccept.categories || {};
+            const cats = config.autoAccept.categories || {};
             if (cats.terminal && cats.terminal.enabled !== false) activeCats.push('t');
             if (cats.review && cats.review.enabled !== false) activeCats.push('r');
             if (cats.system && cats.system.enabled !== false) activeCats.push('s');
@@ -75,14 +68,14 @@ function updateStatusBar(running) {
 function readConfig() {
     const configPath = path.join(__dirname, '..', '..', 'config.json');
     if (fs.existsSync(configPath)) {
-        return JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        return normalizeConfig(JSON.parse(fs.readFileSync(configPath, 'utf8')));
     }
-    return { autoRetry: false, autoAccept: false };
+    return normalizeConfig(DEFAULT_CONFIG);
 }
 
 function writeConfig(config) {
     const configPath = path.join(__dirname, '..', '..', 'config.json');
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+    fs.writeFileSync(configPath, JSON.stringify(normalizeConfig(config), null, 2));
 }
 
 async function showMenu() {
@@ -92,8 +85,8 @@ async function showMenu() {
     // --- Auto-Retry ---
     items.push({ label: '--- Auto-Retry ---', kind: vscode.QuickPickItemKind.Separator });
     items.push({
-        label: `${config.autoRetry !== false ? '$(check)' : '$(circle-slash)'} Enable Auto-Retry`,
-        description: config.autoRetry !== false ? 'Currently Enabled' : 'Currently Disabled',
+        label: `${isAutoRetryEnabled(config) ? '$(check)' : '$(circle-slash)'} Enable Auto-Retry`,
+        description: isAutoRetryEnabled(config) ? 'Currently Enabled' : 'Currently Disabled',
         action: () => toggleFeature('autoRetry')
     });
 
@@ -182,22 +175,15 @@ async function showMenu() {
 
 function toggleFeature(feature) {
     const config = readConfig();
-    if (feature === 'autoAccept' && typeof config.autoAccept === 'object') {
+    if (feature === 'autoRetry') {
+        config.autoRetry.enabled = config.autoRetry.enabled === false ? true : false;
+    } else if (feature === 'autoAccept') {
         config.autoAccept.enabled = config.autoAccept.enabled === false ? true : false;
-    } else {
-        config[feature] = config[feature] === false ? true : false;
     }
     writeConfig(config);
     
-    let label = feature;
-    let isEnabled = false;
-    if (feature === 'autoAccept' && typeof config.autoAccept === 'object') {
-        label = 'Auto-Accept';
-        isEnabled = config.autoAccept.enabled;
-    } else {
-        label = feature === 'autoRetry' ? 'Auto-Retry' : 'Auto-Accept';
-        isEnabled = config[feature];
-    }
+    const label = feature === 'autoRetry' ? 'Auto-Retry' : 'Auto-Accept';
+    const isEnabled = feature === 'autoRetry' ? config.autoRetry.enabled : config.autoAccept.enabled;
 
     vscode.window.showInformationMessage(`${label} is now ${isEnabled ? 'ENABLED' : 'DISABLED'}`);
     updateStatusBar(!!daemonProcess);
@@ -205,14 +191,8 @@ function toggleFeature(feature) {
 
 function toggleCategory(category) {
     const config = readConfig();
-    if (!config.autoAccept || typeof config.autoAccept !== 'object') {
-        config.autoAccept = { enabled: false, categories: {} };
-    }
-    if (!config.autoAccept.categories) {
-        config.autoAccept.categories = {};
-    }
     if (!config.autoAccept.categories[category]) {
-        config.autoAccept.categories[category] = { enabled: false, patterns: [] };
+        config.autoAccept.categories[category] = { enabled: false, buttons: [], context: [] };
     }
     
     config.autoAccept.categories[category].enabled = config.autoAccept.categories[category].enabled === false ? true : false;

@@ -36,8 +36,20 @@ if ! command -v jq &> /dev/null; then
 fi
 
 # Check config
-AUTO_RETRY=$(jq -r 'if .autoRetry == null then true else .autoRetry end' "$CONFIG_FILE" 2>/dev/null || echo "true")
-AUTO_ACCEPT=$(jq -r 'if .autoAccept | type == "boolean" then .autoAccept else (if .autoAccept.enabled == null then true else .autoAccept.enabled end) end' "$CONFIG_FILE" 2>/dev/null || echo "true")
+AUTO_RETRY=$(jq -r '
+  if (.autoRetry | type) == "object" then
+    (if .autoRetry.enabled == null then true else .autoRetry.enabled end)
+  else
+    (if .autoRetry == null then true else .autoRetry end)
+  end
+' "$CONFIG_FILE" 2>/dev/null || echo "true")
+AUTO_ACCEPT=$(jq -r '
+  if (.autoAccept | type) == "object" then
+    (if .autoAccept.enabled == null then true else .autoAccept.enabled end)
+  else
+    (if .autoAccept == null then true else .autoAccept end)
+  end
+' "$CONFIG_FILE" 2>/dev/null || echo "true")
 
 # Check Node process
 NODE_RUNNING=$(pgrep -f "node.*src/core/auto-retry.js" > /dev/null && echo "yes" || echo "no")

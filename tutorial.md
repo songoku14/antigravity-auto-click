@@ -52,7 +52,7 @@ Giao diện Menu thực tế sẽ trông như thế này:
 
 | Mục | Chức năng | Chi tiết |
 |:---:|:---|:---|
-| **1** | **Settings** | Bật/tắt Auto-Retry, Auto-Accept, cài tự khởi động cùng macOS và bật `performClickAutoAccept`. |
+| **1** | **Settings** | Bật/tắt Auto-Retry, Auto-Accept, cài tự khởi động cùng macOS và bật `autoAccept.performClick`. |
 | **2** | **Dev Tools** | Xem log, Dump DOM, Chạy Regression Test hoặc Phân tích Live DOM. |
 | **3** | **Thống kê** | Xem skip reasons, thống kê Accept theo category và reset bộ đếm. |
 | **4** | **Start/Restart** | Kích hoạt hoặc khởi động lại toàn bộ tính năng chạy ngầm. |
@@ -95,24 +95,28 @@ Bạn có thể tùy chỉnh hành vi của công cụ trong file `config.json` 
 
 ```json
 {
-  "autoRetry": true,
-  "performClickAutoAccept": false,
-  "autoAccept": {
+  "autoRetry": {
     "enabled": true,
-    "categories": {
-      "terminal": { "enabled": true, "patterns": ["run\\s*this\\s*command"] },
-      "review": { "enabled": true, "patterns": ["agent\\s*prompt"] },
-      "system": { "enabled": true, "patterns": ["security\\s*confirmation"] }
+    "timing": {
+      "clickDelay": 800
     }
   },
-  "blacklist": ["rm ", "sudo ", "delete "],
-  "clickDelay": 800
+  "autoAccept": {
+    "enabled": true,
+    "performClick": false,
+    "blacklist": ["rm ", "sudo ", "delete "],
+    "categories": {
+      "terminal": { "enabled": true, "context": ["run\\s*this\\s*command"] },
+      "review": { "enabled": true, "context": ["agent\\s*prompt"] },
+      "system": { "enabled": true, "context": ["security\\s*confirmation"] }
+    }
+  }
 }
 ```
 
-- **performClickAutoAccept**: Nếu `false`, hệ thống vẫn nhận diện và ghi thống kê Auto-Accept theo Category nhưng không click thực tế. Đây là trạng thái an toàn để kiểm tra độ chính xác của việc phân loại trước khi bật hẳn.
-- **Blacklist**: Danh sách các lệnh **không bao giờ** được tự động click "Accept". Công cụ sẽ bỏ qua nếu phát hiện nội dung lệnh chứa các từ khóa này.
-- **clickDelay**: Khoảng thời gian chờ (ms) trước khi thực hiện cú click để đảm bảo an toàn.
+- **autoAccept.performClick**: Nếu `false`, hệ thống vẫn nhận diện và ghi thống kê Auto-Accept theo Category nhưng không click thực tế. Đây là trạng thái an toàn để kiểm tra độ chính xác của việc phân loại trước khi bật hẳn.
+- **autoAccept.blacklist**: Danh sách các lệnh **không bao giờ** được tự động click "Accept". Công cụ sẽ bỏ qua nếu phát hiện nội dung lệnh chứa các từ khóa này.
+- **autoRetry.timing.clickDelay**: Khoảng thời gian chờ (ms) trước khi thực hiện cú click để đảm bảo an toàn.
 
 ---
 
@@ -121,7 +125,7 @@ Bạn có thể tùy chỉnh hành vi của công cụ trong file `config.json` 
 | Vấn đề | Nguyên nhân | Cách xử lý |
 |:---|:---|:---|
 | **Status báo "Lỗi/Chưa sẵn sàng"** | IDE chưa bật chế độ hỗ trợ (CDP). | Dùng chức năng trong **Developer Tools** (Menu CLI) hoặc Extension. |
-| **Không tự click "Accept"** | Lệnh nằm trong Blacklist. | Kiểm tra mục `blacklist` trong `config.json`. |
+| **Không tự click "Accept"** | Lệnh nằm trong Blacklist. | Kiểm tra mục `autoAccept.blacklist` trong `config.json`. |
 | **Extension không hiện** | Link extension bị sai. | Chạy lại lệnh `ln -s` với đường dẫn tuyệt đối. |
 | **Công cụ không tự chạy khi login** | Chưa cài LaunchAgent. | Vào `CLI > Cài đặt > Toggle Khởi động cùng macOS`. |
 

@@ -1,12 +1,5 @@
 const fs = require('fs');
-const path = require('path');
-
-const DEFAULT_CONFIG = {
-  blacklist: [],
-  autoAccept: false,
-  autoRetry: false,
-  performClickAutoAccept: false
-};
+const { DEFAULT_CONFIG, normalizeConfig } = require('./config-schema');
 
 class ConfigStore {
   constructor(configPath) {
@@ -20,7 +13,7 @@ class ConfigStore {
     try {
       if (fs.existsSync(this.configPath)) {
         const data = fs.readFileSync(this.configPath, 'utf8');
-        return { ...DEFAULT_CONFIG, ...JSON.parse(data) };
+        return normalizeConfig(JSON.parse(data));
       }
     } catch (e) {
       console.error(`[ConfigStore] Failed to load: ${e.message}`);
