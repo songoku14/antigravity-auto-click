@@ -1,7 +1,7 @@
 {
   "debug": true,
   "autoRetry": {
-    "enabled": true,
+    "enabled": false,
     "dialogContainerSelectors": [
       ".antigravity-mock-dialog",
       ".monaco-dialog-box",
@@ -35,10 +35,7 @@
       "/try\\s*again/i"
     ],
     "retryButtonPatterns": [
-      "/^retry$/i",
-      "/^try\\s*again$/i",
-      "/^thử\\s*lại$/i",
-      "/^reconnect$/i"
+      "/^retry$/i"
     ],
     "retryContextPatterns": [
       "/high\\s*traffic/i",
@@ -84,23 +81,15 @@
       "terminal": {
         "enabled": true,
         "buttons": [
-          "/^run$/i",
-          "/^run⌥enter$/i",
-          "/^execute$/i"
+          "/^run\\s*\\(?⌥enter\\)?$/i"
         ],
         "context": [
-          "/allow\\s*the\\s*following\\s*command/i",
-          "/run\\s*this\\s*command/i",
-          "/run\\s*the\\s*command/i",
-          "/execute\\s*the\\s*following/i",
-          "/do\\s*you\\s*want\\s*to\\s*run/i",
-          "/terminal\\s*action/i",
-          "/thực\\s*thi\\s*lệnh/i",
-          "/chạy\\s*lệnh/i"
+          "/reject/i",
+          "/run/i"
         ]
       },
       "review": {
-        "enabled": true,
+        "enabled": false,
         "buttons": [
           "/^proceed$/i",
           "/^accept\\s*all$/i"
@@ -109,14 +98,17 @@
           "/review\\s*the\\s*changes/i",
           "/agent\\s*prompt/i",
           "/approve\\s*request/i",
-          "/review\\s*required/i",
-          "/proceed\\s*with\\s*changes/i"
+          "/review\\s*required/i"
         ]
       },
       "system": {
-        "enabled": true,
-        "buttons": [],
-        "context": []
+        "enabled": false,
+        "buttons": [
+          "/^proceed$/i"
+        ],
+        "context": [
+          "/proceed\\s*with\\s*changes/i"
+        ]
       }
     }
   }
