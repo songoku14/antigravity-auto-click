@@ -964,7 +964,9 @@ function getInjectionScript(userConfig = {}) {
               }
               debug('[ACTION] ACCEPT command context for "' + btnObj.text + '": "' + (cmdText || '').substring(0, 200) + '"');
               if (isCommandBlocked(cmdText)) {
-                if (USER_CONFIG.performClickAutoAccept === true) {
+                debug('[ACTION] Command BLOCKED by blacklist: "' + (cmdText || '').substring(0, 50) + '..."');
+                const shouldClick = (USER_CONFIG.performClickAutoAccept === true || USER_CONFIG.performClickAutoAccept === 'true');
+                if (shouldClick) {
                   if (!btnObj.el.__blocked) {
                     btnObj.el.__blocked = true;
                     logStat('ACCEPT', 'blacklist');
@@ -975,11 +977,15 @@ function getInjectionScript(userConfig = {}) {
                 }
                 continue;
               }
-              if (USER_CONFIG.performClickAutoAccept === true) {
-                if (!canClick('ACCEPT')) return;
+              const shouldClick = (USER_CONFIG.performClickAutoAccept === true || USER_CONFIG.performClickAutoAccept === 'true');
+              if (shouldClick) {
+                if (!canClick('ACCEPT')) {
+                  debug('[ACTION] Click blocked by rate limit or cooldown for category: ' + matchedCat);
+                  return;
+                }
                 performClick(btnObj, container, '⚡ ACTION (' + matchedCat.toUpperCase() + ')', matchedCat);
               } else {
-                debug('[ACTION] performClickAutoAccept is false, skipping click but logged to statistics.');
+                debug('[ACTION] performClickAutoAccept is OFF (' + USER_CONFIG.performClickAutoAccept + '), skipping click but logged to statistics.');
               }
               return;
             }

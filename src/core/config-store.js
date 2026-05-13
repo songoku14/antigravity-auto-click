@@ -36,6 +36,7 @@ class ConfigStore {
         // Small delay to ensure file is written
         setTimeout(() => {
           this.config = this.load(this.config);
+          console.log(`[AutoRetry] [ConfigStore] Config reloaded from ${this.configPath}`);
           this.watchCallbacks.forEach(cb => cb(this.config));
         }, 500);
       }

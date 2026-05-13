@@ -24,7 +24,7 @@
         ]
       },
       "review": {
-        "enabled": true,
+        "enabled": false,
         "patterns": [
           "review\\s*the\\s*changes",
           "agent\\s*prompt",
@@ -32,7 +32,7 @@
         ]
       },
       "system": {
-        "enabled": true,
+        "enabled": false,
         "patterns": [
           "security\\s*confirmation",
           "allow\\s*this\\s*action"
