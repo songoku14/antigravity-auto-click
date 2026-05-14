@@ -1,281 +1,206 @@
-const vscode = require('vscode');
-const cp = require('child_process');
 const path = require('path');
-const fs = require('fs');
-const { DEFAULT_CONFIG, normalizeConfig, isAutoAcceptEnabled, isAutoRetryEnabled } = require('../core/config-schema');
+const vscode = require('vscode');
+const { COMMANDS, STATUS_BAR_PRIORITY } = require('./constants');
+const { readConfig, updateConfig, inspectConfig, openConfigFile, getContractSummary } = require('./config-service');
+const { createDaemonService } = require('./daemon-service');
+const { buildFeatureSummary, buildStatusBarState } = require('./status-service');
+const { readActivityLog, summarizeActivity } = require('./activity-service');
 
-let daemonProcess = null;
-let statusBarItem = null;
-let outputChannel = null;
+let extensionState = null;
 
-/**
- * @param {vscode.ExtensionContext} context
- */
 function activate(context) {
-    console.log('Antigravity Auto-Click extension is now active');
+  const outputChannel = vscode.window.createOutputChannel('Antigravity Auto-Click');
+  const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, STATUS_BAR_PRIORITY);
+  const daemonService = createDaemonService(outputChannel);
+  const extensionConfig = vscode.workspace.getConfiguration('antigravityAutoClick.extension');
 
-    outputChannel = vscode.window.createOutputChannel('Antigravity Auto-Click');
+  statusBarItem.command = COMMANDS.openControlCenter;
+  context.subscriptions.push(outputChannel, statusBarItem);
 
-    // Create a single status bar item for a seamless look
-    statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-    statusBarItem.command = 'antigravity-auto-retry.showMenu';
-    context.subscriptions.push(statusBarItem);
+  extensionState = {
+    context,
+    daemonService,
+    outputChannel,
+    statusBarItem
+  };
 
-    updateStatusBar(false);
-    statusBarItem.show();
+  registerCommands(context);
+  if (extensionConfig.get('showConfigWarningsOnStartup', true)) {
+    logContractAndWarnings(outputChannel);
+  }
+  refreshStatusBar();
 
-    // Register commands
-    context.subscriptions.push(vscode.commands.registerCommand('antigravity-auto-retry.showMenu', showMenu));
-    context.subscriptions.push(vscode.commands.registerCommand('antigravity-auto-retry.start', startDaemon));
-    context.subscriptions.push(vscode.commands.registerCommand('antigravity-auto-retry.stop', stopDaemon));
-    context.subscriptions.push(vscode.commands.registerCommand('antigravity-auto-retry.restartIDE', restartIDE));
-    context.subscriptions.push(vscode.commands.registerCommand('antigravity-auto-retry.editConfig', editConfig));
+  statusBarItem.show();
 
-    // Auto-start (Optional: could be a setting)
-    startDaemon();
+  if (extensionConfig.get('autoStartDaemon', true)) {
+    daemonService.start();
+    refreshStatusBar();
+  }
 }
 
-function updateStatusBar(running) {
-    const icon = running ? '$(check)' : '$(circle-slash)';
-    const statusText = running ? 'RUNNING' : 'STOPPED';
+function registerCommands(context) {
+  const commandHandlers = [
+    [COMMANDS.openControlCenter, openControlCenter],
+    [COMMANDS.startDaemon, startDaemon],
+    [COMMANDS.stopDaemon, stopDaemon],
+    [COMMANDS.reloadDaemon, reloadDaemon],
+    [COMMANDS.toggleAutoRetry, toggleAutoRetry],
+    [COMMANDS.toggleAutoAccept, toggleAutoAccept],
+    [COMMANDS.openConfig, openConfig],
+    [COMMANDS.openLogs, openLogs],
+    [COMMANDS.showActivitySummary, showActivitySummary]
+  ];
+  const legacyCommandHandlers = [
+    ['antigravity-auto-retry.showMenu', openControlCenter],
+    ['antigravity-auto-retry.start', startDaemon],
+    ['antigravity-auto-retry.stop', stopDaemon],
+    ['antigravity-auto-retry.editConfig', openConfig]
+  ];
 
-    let activeFeatures = [];
-    try {
-        const config = readConfig();
-        if (isAutoRetryEnabled(config)) activeFeatures.push('R');
-
-        if (isAutoAcceptEnabled(config)) {
-            let activeCats = [];
-            const cats = config.autoAccept.categories || {};
-            if (cats.terminal && cats.terminal.enabled !== false) activeCats.push('t');
-            if (cats.review && cats.review.enabled !== false) activeCats.push('r');
-            if (cats.system && cats.system.enabled !== false) activeCats.push('s');
-            
-            if (activeCats.length > 0) {
-                activeFeatures.push(`A[${activeCats.join('')}]`);
-            } else {
-                activeFeatures.push('A');
-            }
-        }
-    } catch (e) { }
-
-    const featuresText = activeFeatures.length > 0 ? ` (${activeFeatures.join('/')})` : ' (OFF)';
-    statusBarItem.text = `${icon} Auto-Click${running ? featuresText : ''}`;
-    statusBarItem.tooltip = `Antigravity Auto-Click: ${statusText}${running ? featuresText : ''}`;
-    statusBarItem.color = undefined;
+  for (const [command, handler] of [...commandHandlers, ...legacyCommandHandlers]) {
+    context.subscriptions.push(vscode.commands.registerCommand(command, handler));
+  }
 }
 
-function readConfig() {
-    const configPath = path.join(__dirname, '..', '..', 'config.json');
-    if (fs.existsSync(configPath)) {
-        return normalizeConfig(JSON.parse(fs.readFileSync(configPath, 'utf8')));
-    }
-    return normalizeConfig(DEFAULT_CONFIG);
+function logContractAndWarnings(outputChannel) {
+  const inspection = inspectConfig();
+  outputChannel.appendLine('[Extension] Contract summary loaded.');
+  outputChannel.appendLine(JSON.stringify(getContractSummary(), null, 2));
+
+  for (const warning of inspection.warnings) {
+    outputChannel.appendLine(`[Config Warning] ${warning}`);
+  }
 }
 
-function writeConfig(config) {
-    const configPath = path.join(__dirname, '..', '..', 'config.json');
-    fs.writeFileSync(configPath, JSON.stringify(normalizeConfig(config), null, 2));
+function refreshStatusBar() {
+  if (!extensionState) return;
+
+  const { daemonService, statusBarItem } = extensionState;
+  const config = readConfig();
+  const status = buildStatusBarState({
+    config,
+    daemonState: daemonService.getState()
+  });
+
+  statusBarItem.text = status.text;
+  statusBarItem.tooltip = status.tooltip;
 }
 
-async function showMenu() {
-    const config = readConfig();
-    const items = [];
+async function openControlCenter() {
+  const config = readConfig();
+  const daemonState = extensionState.daemonService.getState();
+  const inspection = inspectConfig();
+  const activitySummary = summarizeActivity(readActivityLog());
+  const featureSummary = buildFeatureSummary(config);
 
-    // --- Auto-Retry ---
-    items.push({ label: '--- Auto-Retry ---', kind: vscode.QuickPickItemKind.Separator });
-    items.push({
-        label: `${isAutoRetryEnabled(config) ? '$(check)' : '$(circle-slash)'} Enable Auto-Retry`,
-        description: isAutoRetryEnabled(config) ? 'Currently Enabled' : 'Currently Disabled',
-        action: () => toggleFeature('autoRetry')
-    });
-
-
-    // --- Auto-Accept ---
-    items.push({ label: '--- Auto-Accept ---', kind: vscode.QuickPickItemKind.Separator });
-    
-    const autoAcceptEnabled = isAutoAcceptEnabled(config);
-    
-    items.push({
-        label: `${autoAcceptEnabled ? '$(check)' : '$(circle-slash)'} Enable Auto-Accept (Master)`,
-        description: autoAcceptEnabled ? 'Currently Enabled' : 'Currently Disabled',
-        action: () => toggleFeature('autoAccept')
-    });
-
-    if (autoAcceptEnabled && typeof config.autoAccept === 'object') {
-        const cats = config.autoAccept.categories || {};
-        
-        items.push({
-            label: `   ${(cats.terminal && cats.terminal.enabled !== false) ? '$(check)' : '$(circle-slash)'} Terminal Commands`,
-            description: (cats.terminal && cats.terminal.enabled !== false) ? 'Auto-runs safe terminal commands' : 'Disabled',
-            action: () => toggleCategory('terminal')
-        });
-
-        items.push({
-            label: `   ${(cats.review && cats.review.enabled !== false) ? '$(check)' : '$(circle-slash)'} Review / Agent Prompts`,
-            description: (cats.review && cats.review.enabled !== false) ? 'Auto-accepts review requests' : 'Disabled',
-            action: () => toggleCategory('review')
-        });
-
-        items.push({
-            label: `   ${(cats.system && cats.system.enabled !== false) ? '$(check)' : '$(circle-slash)'} System / Security`,
-            description: (cats.system && cats.system.enabled !== false) ? 'Auto-accepts security dialogs' : 'Disabled',
-            action: () => toggleCategory('system')
-        });
+  const items = [
+    {
+      label: `Daemon: ${daemonState.running ? 'Running' : 'Stopped'}`,
+      description: `Features: ${featureSummary}`,
+      detail: `Warnings: ${inspection.warnings.length} | Activity entries: ${activitySummary.total}`
+    },
+    {
+      label: 'Open Raw Config',
+      description: 'Inspect normalized config file',
+      action: openConfig
+    },
+    {
+      label: daemonState.running ? 'Stop Daemon' : 'Start Daemon',
+      description: daemonState.running ? 'Stop background automation process' : 'Start background automation process',
+      action: daemonState.running ? stopDaemon : startDaemon
+    },
+    {
+      label: 'Reload Daemon',
+      description: 'Restart process with latest config',
+      action: reloadDaemon
+    },
+    {
+      label: 'Show Activity Summary',
+      description: 'View current activity counters from log',
+      action: showActivitySummary
+    },
+    {
+      label: 'Open Logs',
+      description: 'Open daemon log file',
+      action: openLogs
     }
+  ];
 
+  const selected = await vscode.window.showQuickPick(items, {
+    placeHolder: 'Antigravity Control Center (Phase 1 bootstrap)'
+  });
 
-    // --- System ---
-    items.push({ label: '--- System ---', kind: vscode.QuickPickItemKind.Separator });
-    if (!daemonProcess) {
-        items.push({
-            label: '$(play) Start All Features',
-            description: 'Start background automation process',
-            command: 'antigravity-auto-retry.start'
-        });
-    } else {
-        items.push({
-            label: '$(stop) Stop All Features',
-            description: 'Stop background automation process',
-            command: 'antigravity-auto-retry.stop'
-        });
-    }
-
-    items.push({
-        label: '$(settings-gear) Edit Blacklist / Settings',
-        description: 'Cấu hình các lệnh terminal bị chặn',
-        command: 'antigravity-auto-retry.editConfig'
-    });
-
-    items.push({
-        label: '$(sync) Restart Antigravity (Debug Mode)',
-        description: 'Kill IDE, copy command & open Terminal',
-        command: 'antigravity-auto-retry.restartIDE'
-    });
-
-    items.push({ label: '', kind: vscode.QuickPickItemKind.Separator });
-
-    items.push({
-        label: '$(extensions) Reload Extension',
-        action: () => vscode.commands.executeCommand('workbench.action.reloadWindow')
-    });
-
-    const selected = await vscode.window.showQuickPick(items, {
-        placeHolder: 'Antigravity Auto-Click Management'
-    });
-
-    if (selected) {
-        if (selected.command) {
-            vscode.commands.executeCommand(selected.command);
-        } else if (selected.action) {
-            selected.action();
-        }
-    }
-}
-
-function toggleFeature(feature) {
-    const config = readConfig();
-    if (feature === 'autoRetry') {
-        config.autoRetry.enabled = config.autoRetry.enabled === false ? true : false;
-    } else if (feature === 'autoAccept') {
-        config.autoAccept.enabled = config.autoAccept.enabled === false ? true : false;
-    }
-    writeConfig(config);
-    
-    const label = feature === 'autoRetry' ? 'Auto-Retry' : 'Auto-Accept';
-    const isEnabled = feature === 'autoRetry' ? config.autoRetry.enabled : config.autoAccept.enabled;
-
-    vscode.window.showInformationMessage(`${label} is now ${isEnabled ? 'ENABLED' : 'DISABLED'}`);
-    updateStatusBar(!!daemonProcess);
-}
-
-function toggleCategory(category) {
-    const config = readConfig();
-    if (!config.autoAccept.categories[category]) {
-        config.autoAccept.categories[category] = { enabled: false, buttons: [], context: [] };
-    }
-    
-    config.autoAccept.categories[category].enabled = config.autoAccept.categories[category].enabled === false ? true : false;
-    writeConfig(config);
-    
-    vscode.window.showInformationMessage(`Auto-Accept [${category.toUpperCase()}] is now ${config.autoAccept.categories[category].enabled ? 'ENABLED' : 'DISABLED'}`);
-    updateStatusBar(!!daemonProcess);
+  if (selected && typeof selected.action === 'function') {
+    await selected.action();
+  }
 }
 
 function startDaemon() {
-    if (daemonProcess) {
-        vscode.window.showInformationMessage('Antigravity Auto-Click is already running.');
-        return;
-    }
-
-    const scriptPath = path.join(__dirname, '..', 'core', 'auto-retry.js');
-    outputChannel.appendLine(`[Extension] Starting: node ${scriptPath}`);
-
-    daemonProcess = cp.spawn('node', [scriptPath], {
-        env: { ...process.env, DEBUG: '1' }
-    });
-
-    daemonProcess.stdout.on('data', (data) => {
-        outputChannel.append(data.toString());
-    });
-
-    daemonProcess.stderr.on('data', (data) => {
-        outputChannel.append(`[ERROR] ${data.toString()}`);
-    });
-
-    daemonProcess.on('close', (code) => {
-        outputChannel.appendLine(`[Extension] Process exited with code ${code}`);
-        daemonProcess = null;
-        updateStatusBar(false);
-    });
-
-    updateStatusBar(true);
-    vscode.window.showInformationMessage('Antigravity Auto-Click started.');
+  extensionState.daemonService.start();
+  refreshStatusBar();
+  return vscode.window.showInformationMessage('Antigravity Auto-Click started.');
 }
 
-function stopDaemon() {
-    const stopScript = path.join(__dirname, '..', '..', 'scripts', 'core', 'stop.sh');
-    cp.execFile('bash', [stopScript], (error, stdout, stderr) => {
-        if (stdout) outputChannel.append(stdout);
-        if (stderr) outputChannel.append(`[ERROR] ${stderr}`);
-        if (error) outputChannel.appendLine(`[Extension] Stop warning: ${error.message}`);
-
-        if (daemonProcess) daemonProcess.kill();
-        daemonProcess = null;
-        updateStatusBar(false);
-        vscode.window.showInformationMessage('Antigravity Auto-Click stopped.');
-    });
+async function stopDaemon() {
+  await extensionState.daemonService.stop();
+  refreshStatusBar();
+  return vscode.window.showInformationMessage('Antigravity Auto-Click stopped.');
 }
 
-function restartIDE() {
-    const cmd = 'open -a Antigravity --args --remote-debugging-port=31905';
-    vscode.env.clipboard.writeText(cmd).then(() => {
-        vscode.window.showInformationMessage('Đã copy lệnh vào Clipboard. Đang đóng IDE...');
-        cp.exec('open -a Terminal', () => {
-            setTimeout(() => {
-                cp.exec('pkill -f "Antigravity.app" || pkill -f "Antigravity"');
-            }, 1500);
-        });
-    });
+async function reloadDaemon() {
+  await extensionState.daemonService.reload();
+  refreshStatusBar();
+  return vscode.window.showInformationMessage('Antigravity Auto-Click reloaded.');
 }
 
-async function editConfig() {
-    const configPath = path.join(__dirname, '..', '..', 'config.json');
-    const uri = vscode.Uri.file(configPath);
-    try {
-        await vscode.window.showTextDocument(uri);
-    } catch (e) {
-        vscode.window.showErrorMessage(`Không thể mở file cấu hình: ${e.message}`);
-    }
+function toggleAutoRetry() {
+  const updated = updateConfig((config) => {
+    config.autoRetry.enabled = config.autoRetry.enabled === false;
+    return config;
+  });
+
+  refreshStatusBar();
+  return vscode.window.showInformationMessage(`Auto Retry is now ${updated.autoRetry.enabled ? 'ENABLED' : 'DISABLED'}.`);
+}
+
+function toggleAutoAccept() {
+  const updated = updateConfig((config) => {
+    config.autoAccept.enabled = config.autoAccept.enabled === false;
+    return config;
+  });
+
+  refreshStatusBar();
+  return vscode.window.showInformationMessage(`Auto Accept is now ${updated.autoAccept.enabled ? 'ENABLED' : 'DISABLED'}.`);
+}
+
+function openConfig() {
+  return openConfigFile();
+}
+
+async function openLogs() {
+  const logPath = path.join(__dirname, '..', '..', 'logs', 'daemon.log');
+  const uri = vscode.Uri.file(logPath);
+  try {
+    return await vscode.window.showTextDocument(uri);
+  } catch (error) {
+    return vscode.window.showWarningMessage(`Không thể mở log file: ${error.message}`);
+  }
+}
+
+function showActivitySummary() {
+  const summary = summarizeActivity(readActivityLog());
+  return vscode.window.showInformationMessage(
+    `Activity: total=${summary.total}, retry=${summary.retryClicks}, accept=${summary.acceptClicks}.`
+  );
 }
 
 function deactivate() {
-    if (daemonProcess) {
-        daemonProcess.kill();
-    }
+  if (!extensionState) return;
+  extensionState.daemonService.dispose();
+  extensionState = null;
 }
 
 module.exports = {
-    activate,
-    deactivate
+  activate,
+  deactivate
 };

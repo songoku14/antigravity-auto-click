@@ -9,31 +9,71 @@
     "Other"
   ],
   "activationEvents": [
-    "onStartupFinished"
+    "onStartupFinished",
+    "onCommand:antigravity-auto-click.openControlCenter",
+    "onCommand:antigravity-auto-click.startDaemon",
+    "onCommand:antigravity-auto-click.stopDaemon",
+    "onCommand:antigravity-auto-click.reloadDaemon",
+    "onCommand:antigravity-auto-click.toggleAutoRetry",
+    "onCommand:antigravity-auto-click.toggleAutoAccept",
+    "onCommand:antigravity-auto-click.openConfig",
+    "onCommand:antigravity-auto-click.openLogs",
+    "onCommand:antigravity-auto-click.showActivitySummary"
   ],
   "contributes": {
     "commands": [
       {
-        "command": "antigravity-auto-retry.showMenu",
-        "title": "Antigravity: Show Menu"
+        "command": "antigravity-auto-click.openControlCenter",
+        "title": "Antigravity: Open Control Center"
       },
       {
-        "command": "antigravity-auto-retry.start",
+        "command": "antigravity-auto-click.startDaemon",
         "title": "Antigravity: Start Auto-Click"
       },
       {
-        "command": "antigravity-auto-retry.stop",
+        "command": "antigravity-auto-click.stopDaemon",
         "title": "Antigravity: Stop Auto-Click"
       },
       {
-        "command": "antigravity-auto-retry.restartIDE",
-        "title": "Antigravity: Restart IDE (Debug Mode)"
+        "command": "antigravity-auto-click.reloadDaemon",
+        "title": "Antigravity: Reload Auto-Click"
       },
       {
-        "command": "antigravity-auto-retry.editConfig",
-        "title": "Antigravity: Edit Config"
+        "command": "antigravity-auto-click.toggleAutoRetry",
+        "title": "Antigravity: Toggle Auto Retry"
+      },
+      {
+        "command": "antigravity-auto-click.toggleAutoAccept",
+        "title": "Antigravity: Toggle Auto Accept"
+      },
+      {
+        "command": "antigravity-auto-click.openConfig",
+        "title": "Antigravity: Open Config"
+      },
+      {
+        "command": "antigravity-auto-click.openLogs",
+        "title": "Antigravity: Open Logs"
+      },
+      {
+        "command": "antigravity-auto-click.showActivitySummary",
+        "title": "Antigravity: Show Activity Summary"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Antigravity Auto-Click Extension",
+      "properties": {
+        "antigravityAutoClick.extension.autoStartDaemon": {
+          "type": "boolean",
+          "default": true,
+          "description": "Tự động start daemon khi extension activate."
+        },
+        "antigravityAutoClick.extension.showConfigWarningsOnStartup": {
+          "type": "boolean",
+          "default": true,
+          "description": "Ghi cảnh báo migration/config vào Output Channel khi extension khởi động."
+        }
+      }
+    }
   },
   "scripts": {
     "start": "node src/core/auto-retry.js",

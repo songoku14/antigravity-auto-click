@@ -98,6 +98,17 @@ const DEFAULT_ACTION_CATEGORIES = {
   }
 };
 
+const CANONICAL_AUTO_ACCEPT_CATEGORIES = [
+  'terminal',
+  'reviewChange',
+  'systemReview'
+];
+
+const AUTO_ACCEPT_CATEGORY_ALIASES = {
+  review: 'reviewChange',
+  system: 'systemReview'
+};
+
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
@@ -129,6 +140,61 @@ function normalizeNumber(value, fallback) {
 
 function ensureObject(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+function normalizeCategoryName(name) {
+  if (!name) return '';
+  return AUTO_ACCEPT_CATEGORY_ALIASES[name] || name;
+}
+
+function mergeUniqueStrings(primary, secondary) {
+  const result = [];
+  for (const entry of [...primary, ...secondary]) {
+    if (entry == null) continue;
+    const value = regexToString(entry);
+    if (!result.includes(value)) result.push(value);
+  }
+  return result;
+}
+
+function mergeCategorySources(primaryCategory, secondaryCategory) {
+  const primary = ensureObject(primaryCategory);
+  const secondary = ensureObject(secondaryCategory);
+
+  return {
+    ...secondary,
+    ...primary,
+    buttons: mergeUniqueStrings(
+      Array.isArray(primary.buttons) ? primary.buttons : [],
+      Array.isArray(secondary.buttons) ? secondary.buttons : []
+    ),
+    context: mergeUniqueStrings(
+      Array.isArray(primary.context) ? primary.context : (Array.isArray(primary.patterns) ? primary.patterns : []),
+      Array.isArray(secondary.context) ? secondary.context : (Array.isArray(secondary.patterns) ? secondary.patterns : [])
+    )
+  };
+}
+
+function normalizeRawCategories(rawCategories) {
+  const source = ensureObject(rawCategories);
+  const normalized = {};
+
+  for (const [rawName, rawCategory] of Object.entries(source)) {
+    const normalizedName = normalizeCategoryName(rawName);
+    if (!normalizedName) continue;
+
+    if (!normalized[normalizedName]) {
+      normalized[normalizedName] = ensureObject(rawCategory);
+      continue;
+    }
+
+    normalized[normalizedName] = mergeCategorySources(
+      normalized[normalizedName],
+      rawCategory
+    );
+  }
+
+  return normalized;
 }
 
 function normalizeCategoryConfig(categoryName, rawCategory, fallbackCategory) {
@@ -260,7 +326,7 @@ function normalizeConfig(rawConfig = {}) {
     []
   );
 
-  const rawCategories = ensureObject(autoAcceptSource.categories);
+  const rawCategories = normalizeRawCategories(autoAcceptSource.categories);
   for (const [name, fallbackCategory] of Object.entries(defaults.autoAccept.categories)) {
     normalized.autoAccept.categories[name] = normalizeCategoryConfig(name, rawCategories[name], fallbackCategory);
   }
@@ -286,7 +352,10 @@ function isAutoAcceptEnabled(config) {
 }
 
 module.exports = {
+  AUTO_ACCEPT_CATEGORY_ALIASES,
+  CANONICAL_AUTO_ACCEPT_CATEGORIES,
   DEFAULT_CONFIG,
+  normalizeCategoryName,
   normalizeConfig,
   isAutoRetryEnabled,
   isAutoAcceptEnabled
