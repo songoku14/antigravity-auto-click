@@ -815,16 +815,16 @@ function getInjectionScript(userConfig = {}) {
       
       // Case 1: Auto-Retry
       if (RETRY_CONFIG.enabled !== false) {
-        // debug(\`[STEP 1] Found matching RETRY container: <\${container.tagName.toLowerCase()}> (ID: \${container.id})\`);
+        // debug(`[STEP 1] Found matching RETRY container: <${container.tagName.toLowerCase()}> (ID: ${container.id})`);
         const btns = findButtonsIn(container, CONFIG.retryButtonPatterns, dryRun ? null : 'RETRY');
         btns.sort((a, b) => (a.inFooter !== b.inFooter ? (b.inFooter ? 1 : -1) : b.rect.top - a.rect.top));
-        // debug('[SCAN] RETRY candidates in container: ' + btns.length);
-
         for (const btnObj of btns) {
           if (dryRun && !rememberUniqueButton(reportSeenButtons, btnObj)) continue;
           if (dryRun) report.totalButtons++;
           const diag = dryRun ? buttonDiagnostic(btnObj, container, 'retry') : null;
-          // debug('[STEP 2] Found matching RETRY button: "' + btnObj.text + '"...');
+
+          if (!dryRun) logDetectedStat('RETRY');
+
           const isRightSide = btnObj.rect.left > window.innerWidth * 0.4;
           if (!USER_CONFIG.testMode && !isAgentWindow && !isRightSide) {
             if (dryRun) {
@@ -836,6 +836,13 @@ function getInjectionScript(userConfig = {}) {
             debug('[STEP 3] Skipping RETRY button: not on right side (' + Math.round(btnObj.rect.left) + ' < ' + Math.round(window.innerWidth * 0.4) + ')');
             continue;
           }
+
+          if (!dryRun && !canClick('RETRY')) {
+            logSkippedStat('RETRY', 'rate_limit_min_interval');
+            debug('[STEP 3.0] Skipping RETRY button: rate limit or cooldown');
+            continue;
+          }
+
           if (useFallback && !CONFIG.retryContextPatterns.some(p => p.test(getSurroundingText(btnObj.el)))) {
             if (dryRun) {
               diag.decision = 'skip';
@@ -843,7 +850,7 @@ function getInjectionScript(userConfig = {}) {
               containerReport.buttons.retry.push(diag);
             }
             if (!dryRun) logSkippedStat('RETRY', 'context_mismatch');
-            debug(\`[STEP 3.1] Skipping RETRY button: context mismatch\`);
+            debug(`[STEP 3.1] Skipping RETRY button: context mismatch`);
             continue;
           }
           if (!useFallback) {
@@ -895,8 +902,6 @@ function getInjectionScript(userConfig = {}) {
             report.containerCount = report.containers.length;
             return report;
           }
-          logDetectedStat('RETRY');
-          if (!canClick('RETRY')) return;
           performClick(btnObj, container, '🔄 RETRY', 'retry');
           return;
         }
@@ -920,6 +925,8 @@ function getInjectionScript(userConfig = {}) {
             if (dryRun && !rememberUniqueButton(reportSeenButtons, btnObj)) continue;
             if (dryRun) report.totalButtons++;
             const diag = dryRun ? buttonDiagnostic(btnObj, container, 'accept', matchedCat) : null;
+
+            if (!dryRun) logDetectedStat('ACCEPT', matchedCat);
 
             if (dryRun && !categoryEnabled && ignoreCategoryConfig) {
               diag.decision = 'skip';
@@ -987,7 +994,7 @@ function getInjectionScript(userConfig = {}) {
               return report;
             }
 
-            logDetectedStat('ACCEPT', matchedCat);
+            logDetectedStat('ACCEPT', matchedCat); // Note: already logged above, but keeping for safety if loop structure changes
             debug('[ACTION] ACCEPT command context for "' + btnObj.text + '": "' + (cmdText || '').substring(0, 200) + '"');
             if (isCommandBlocked(cmdText)) {
               debug('[ACTION] Command BLOCKED by blacklist: "' + (cmdText || '').substring(0, 50) + '..."');
@@ -1006,6 +1013,7 @@ function getInjectionScript(userConfig = {}) {
             const shouldClick = ACCEPT_CONFIG.performClick === true || ACCEPT_CONFIG.performClick === 'true';
             if (shouldClick) {
               if (!canClick('ACCEPT')) {
+                logSkippedStat('ACCEPT', 'rate_limit_min_interval');
                 debug('[ACTION] Click blocked by rate limit or cooldown for category: ' + matchedCat);
                 return;
               }

@@ -128,6 +128,55 @@ function getContractSummary() {
   }));
 }
 
+function validateConfigField(path, value) {
+  const { FIELD_DEFINITIONS } = require('./config-contract');
+  const field = FIELD_DEFINITIONS.find(f => f.path === path);
+  
+  if (!field) return; // Field unknown, skip validation
+
+  if (field.type === 'number') {
+    const num = Number(value);
+    if (isNaN(num) || num < 0) {
+      throw new Error(`Field "${field.label}" must be a positive number.`);
+    }
+    if (path.includes('pollInterval') && num < 100) {
+      throw new Error(`Field "${field.label}" must be at least 100ms.`);
+    }
+  }
+
+  if (field.type === 'pattern-list') {
+    if (!Array.isArray(value)) {
+      throw new Error(`Field "${field.label}" must be an array of patterns.`);
+    }
+    for (const pattern of value) {
+      try {
+        new RegExp(pattern);
+      } catch (e) {
+        throw new Error(`Invalid regular expression in "${field.label}": ${e.message}`);
+      }
+    }
+  }
+
+  if (field.type === 'string-list') {
+    if (!Array.isArray(value)) {
+      throw new Error(`Field "${field.label}" must be an array of strings.`);
+    }
+    for (const item of value) {
+      if (typeof item !== 'string') {
+        throw new Error(`Every item in "${field.label}" must be a string.`);
+      }
+    }
+  }
+}
+
+function resetConfigBlock(blockName) {
+  const currentConfig = readRawConfig();
+  if (DEFAULT_CONFIG[blockName]) {
+    currentConfig[blockName] = structuredClone(DEFAULT_CONFIG[blockName]);
+    writeConfig(currentConfig);
+  }
+}
+
 async function openConfigFile() {
   const vscode = require('vscode');
   const uri = vscode.Uri.file(getConfigPath());
@@ -141,5 +190,7 @@ module.exports = {
   openConfigFile,
   readConfig,
   writeConfig,
-  updateConfig
+  updateConfig,
+  validateConfigField,
+  resetConfigBlock
 };

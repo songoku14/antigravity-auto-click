@@ -24,7 +24,11 @@ function summarizeActivity(data = readActivityLog()) {
     total: 0,
     retryClicks: 0,
     acceptClicks: 0,
-    byCategory: {},
+    byCategory: {
+      terminal: 0,
+      reviewChange: 0,
+      systemReview: 0
+    },
     skipReasons: {}
   };
 
@@ -33,7 +37,21 @@ function summarizeActivity(data = readActivityLog()) {
   summary.retryClicks = data.retry?.clicked || 0;
   summary.acceptClicks = data.accept?.clicked || 0;
   summary.total = summary.retryClicks + summary.acceptClicks;
-  summary.byCategory = data.accept?.clickedByCategory || {};
+  
+  // Normalize categories
+  const rawCategories = data.accept?.clickedByCategory || {};
+  for (const [key, value] of Object.entries(rawCategories)) {
+    const normalizedKey = key.toLowerCase() === 'reviewchange' ? 'reviewChange' :
+                         key.toLowerCase() === 'systemreview' ? 'systemReview' :
+                         key.toLowerCase() === 'terminal' ? 'terminal' : key;
+    
+    if (summary.byCategory[normalizedKey] !== undefined) {
+      summary.byCategory[normalizedKey] += value;
+    } else {
+      summary.byCategory[normalizedKey] = value;
+    }
+  }
+
   summary.skipReasons = data.skipReasons || {};
 
   return summary;

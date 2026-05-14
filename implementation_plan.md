@@ -95,6 +95,10 @@
   - không dùng lại `system`
 - Không đổi contract config hiện có theo kiểu phá CLI.
 
+### 5.4 Quy tắc cập nhật Plan
+- **BẮT BUỘC**: Không được thay đổi nội dung các Phase trong `implementation_plan.md` sau khi đã chốt roadmap.
+- Nếu cần bổ sung chi tiết triển khai hoặc chia nhỏ bước, phải cập nhật vào `TASK.md`.
+
 ## 6. Rủi ro chính cần kiểm soát
 
 - Extension cũ đang lệch tên category với config hiện tại.
@@ -265,18 +269,7 @@ Mục tiêu:
 - Quản trị đầy đủ `Auto Retry` trong extension.
 
 Việc cần làm:
-- Thêm UI chỉnh:
-  - `enabled`
-  - `errorPatterns`
-  - `retryButtonPatterns`
-  - `retryContextPatterns`
-  - `customRetryPatterns`
-  - `pollInterval`
-  - `clickDelay`
-  - `minClickInterval`
-  - `maxRetriesPerMinute`
-  - `cooldownMs`
-- Xác định field advanced nào chỉ hiển thị trong “Advanced”.
+- Thêm UI chỉnh các field: `enabled`, `patterns`, `timing`, `rateLimit`.
 - Thêm validate input số và regex string list.
 - Thêm action restore defaults cho Retry block.
 
@@ -287,9 +280,9 @@ Deliverables:
 Checklist verify:
 - [ ] Bật/tắt Retry từ UI ghi đúng `config.json`.
 - [ ] Regex list hợp lệ được lưu nguyên vẹn.
-- [ ] Regex lỗi không làm văng extension; có thông báo rõ.
+- [ ] Regex lỗi không làm hỏng extension; có thông báo rõ.
 - [ ] Numeric fields không nhận giá trị âm/NaN nếu không hợp lệ.
-- [ ] Restore defaults chỉ reset block Retry, không ảnh hưởng Accept.
+- [ ] Restore defaults chỉ reset block Retry.
 
 ### Phase 4. Auto Accept Settings + per-category control
 

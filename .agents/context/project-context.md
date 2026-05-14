@@ -34,13 +34,18 @@ The project originally exposed its operational UX primarily through a CLI menu. 
 - **Extension module split**:
   - `src/extension/extension.js`: top-level bootstrap and command wiring
   - `src/extension/config-service.js`: config read/write/inspect gateway
-  - `src/extension/daemon-service.js`: start/stop/reload orchestration
+  - `src/extension/daemon-service.js`: start/stop/reload orchestration with state management (`starting`, `running`, `stopping`, `reloading`)
   - `src/extension/status-service.js`: status-bar summary formatting
-  - `src/extension/activity-service.js`: activity-log summary layer
+  - `src/extension/activity-service.js`: activity-log summary layer with category normalization
+  - `src/extension/diagnostics-service.js`: system health diagnostics (CDP, Config, Files, Logs)
   - `src/extension/config-contract.js`: config-to-UI field contract and migration metadata
 - **Current UI maturity**:
-  - Phase 0/1 completed: foundation, command surface, migration-safe config handling
-  - Control Center and settings UX are still being expanded in the next phases
+  - Phase 0/1: Foundation, command surface, migration-safe config handling.
+  - Phase 2: Control Center UI (Codicons, Quick Toggles, Status Bar badges).
+  - Phase 3/4: Detailed Settings UI for Auto Retry and Auto Accept (per-category controls, validation, safety warnings).
+  - Phase 5: Activity & Diagnostics UI (detailed stats, skip reasons, system health check).
+  - Phase 6: Robust Daemon Orchestration (pgrep protection, state transitions, stop.sh integration).
+  - Phase 7/8: Regression, compatibility validation, and documentation rollout.
 
 ## Operational Boundaries
 - **Do not move detection logic into the extension layer** unless a change is strictly required by product behavior.
@@ -57,3 +62,6 @@ The project originally exposed its operational UX primarily through a CLI menu. 
 - **Passive Polling Detection**: Detection is interval-based (defined by `pollInterval`) rather than event-driven (`MutationObserver`). This reduces CPU overhead and avoids race conditions during rapid DOM mutations.
 - **Versioned Injection**: The injected script uses a version marker and cleanup hook so newer payloads can disable old timers and avoid duplicate clicks or leaks during reinjection.
 - **Config Compatibility First**: New extension work must normalize and preserve existing user config instead of forcing a breaking config rewrite.
+- **Daemon Orchestration Protection**: The extension uses `pgrep` to detect existing daemon processes before starting new ones, ensuring compatibility with LaunchAgent and CLI-initiated sessions.
+- **Category Normalization**: Activity logs may contain legacy or lowercase category keys; the extension layer (`activity-service.js`) is responsible for normalizing these to the canonical camelCase format (`terminal`, `reviewChange`, `systemReview`) for UI display.
+- **Diagnostics Layer**: System health is proactively monitored via `diagnostics-service.js`, which checks for active CDP ports, configuration schema violations, and log accessibility.

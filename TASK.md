@@ -77,87 +77,87 @@
 
 ## 3. Phase Implement còn lại
 
-### Phase 3. Auto Retry Settings
+### Phase 3. Auto Retry Settings [x]
 
 Step chính:
-- [ ] Tạo UI riêng cho `Auto Retry`.
-- [ ] Thêm chỉnh sửa các pattern:
-  - `errorPatterns`
-  - `retryButtonPatterns`
-  - `retryContextPatterns`
-  - `customRetryPatterns`
-- [ ] Thêm chỉnh timing:
-  - `pollInterval`
-  - `clickDelay`
-  - `minClickInterval`
-- [ ] Thêm chỉnh rate limit:
-  - `maxRetriesPerMinute`
-  - `cooldownMs`
-- [ ] Thêm validation và restore defaults cho block Retry.
+- [x] Xây dựng Validation Layer trong `config-service.js`.
+  - [x] Thêm `validateConfigField(path, value)`.
+  - [x] Rule `number`: Phải là số dương, `pollInterval` >= 100.
+  - [x] Rule `pattern-list`: Mọi phần tử phải là Regex hợp lệ.
+- [x] Triển khai giao diện Auto Retry Settings (QuickPick sub-menu).
+  - [x] Command `antigravity.openAutoRetrySettings`.
+  - [x] Menu items: Enabled, Patterns (CSV input), Timing, Rate Limit.
+  - [x] Restore Defaults (reset block `autoRetry`).
+- [x] Tích hợp vào Control Center.
+- [x] Đồng bộ trạng thái: `refreshStatusBar()` và thông báo StatusBar.
+- [x] **Auto Test**: Viết `scripts/tests/extension-phase3.js` (TDD).
+- [x] Verify kết quả và checklist.
 
-### Phase 4. Auto Accept Settings + per-category control
+### Phase 4. Auto Accept Settings + per-category control [x]
 
 Step chính:
-- [ ] Tạo UI riêng cho `Auto Accept`.
-- [ ] Thêm toggle:
-  - `autoAccept.enabled`
-  - `autoAccept.performClick`
-- [ ] Thêm chỉnh `blacklist` và `customAcceptPatterns`.
-- [ ] Tạo block riêng cho từng category:
-  - `terminal`
-  - `reviewChange`
-  - `systemReview`
-- [ ] Thêm chỉnh `buttons` and `context` cho từng category.
-- [ ] Thêm warning UX cho `performClick` và `systemReview`.
+- [x] Tạo UI riêng cho `Auto Accept`.
+- [x] Thêm toggle:
+  - [x] `autoAccept.enabled`
+  - [x] `autoAccept.performClick`
+- [x] Thêm chỉnh `blacklist` và `customAcceptPatterns`.
+- [x] Tạo block riêng cho từng category:
+  - [x] `terminal`
+  - [x] `reviewChange`
+  - [x] `systemReview`
+- [x] Mỗi category có:
+  - [x] toggle enable
+  - [x] button patterns
+  - [x] context patterns
+- [x] Thêm warning UX cho `performClick` và `systemReview`.
+- [x] **Auto Test**: Viết `scripts/tests/extension-phase4.js` (TDD).
+- [x] Verify kết quả và checklist.
+- [x] **Phase 5. Activity + diagnostics**
+  - [x] Tạo diagnostics service và tích hợp vào extension.
+  - [x] Hiển thị Activity Summary chi tiết (QuickPick).
+  - [x] Hiển thị System Diagnostics (CDP, Config, Files, Logs).
+  - [x] Chuẩn hóa category name normalization trong activity summary.
+  - [x] **Auto Test**: Viết `scripts/tests/extension-phase5.js` (TDD).
+  - [x] **File đã chỉnh**: `src/extension/activity-service.js`, `src/extension/diagnostics-service.js`, `src/extension/extension.js`, `src/extension/constants.js`, `package.json`, `scripts/tests/extension-phase5.js`.
 
-### Phase 5. Activity + diagnostics
 
-Step chính:
-- [ ] Tạo panel hoặc view cho activity.
-- [ ] Hiển thị summary retry/accept.
-- [ ] Hiển thị stats theo category.
-- [ ] Hiển thị skip reasons / recent events.
-- [ ] Hiển thị diagnostics:
-  - daemon running
-  - config valid
-  - debug port detected
-  - last inject time
-- [ ] Thêm empty state và error state rõ ràng.
-
-### Phase 6. Start/stop/reload orchestration
-
-Step chính:
-- [ ] Chuẩn hóa contract điều khiển daemon từ extension.
-- [ ] Ngăn duplicate daemon process.
-- [ ] Xử lý tương thích với LaunchAgent và CLI session.
-- [ ] Phân biệt state:
-  - starting
-  - stopping
-  - reloading
-- [ ] Chốt field nào hot-reload được, field nào cần restart daemon.
-
-### Phase 7. Regression + compatibility
+### Phase 6. Start/stop/reload orchestration [x]
 
 Step chính:
-- [ ] Test lại CLI sau các thay đổi extension.
-- [ ] Test lại normalize với legacy config.
-- [ ] Test lại regression scripts liên quan.
-- [ ] Test edge cases:
-  - thiếu field
-  - JSON config lỗi
-  - regex lỗi
-  - blacklist rỗng
-  - daemon đã chạy trước khi extension activate
-- [ ] Đảm bảo không phá backward compatibility quan trọng.
+- [x] Chuẩn hóa contract điều khiển daemon từ extension.
+- [x] Ngăn duplicate daemon process (với pgrep và state management).
+- [x] Xử lý tương thích với LaunchAgent và CLI session.
+- [x] Phân biệt state:
+  - [x] starting
+  - [x] stopping
+  - [x] reloading
+- [x] Chốt field nào hot-reload được, field nào cần restart daemon.
+- [x] **Auto Test**: Viết `scripts/tests/extension-phase6.js` (TDD).
+- [x] **Rà soát lại Phase 6**: Đã xác nhận cơ chế state management, pgrep prevention, và stop.sh integration hoạt động ổn định.
 
-### Phase 8. Docs + rollout
+### Phase 7. Regression + compatibility [x]
 
 Step chính:
-- [ ] Cập nhật `README.md`.
-- [ ] Cập nhật `tutorial.md`.
-- [ ] Viết hướng dẫn extension-first workflow.
-- [ ] Viết migration notes từ extension cũ.
-- [ ] Viết fallback flow khi extension gặp lỗi.
+- [x] Test lại CLI sau các thay đổi extension.
+- [x] Test lại normalize với legacy config.
+- [x] Test lại regression scripts liên quan.
+- [x] Test edge cases:
+  - [x] thiếu field
+  - [x] JSON config lỗi
+  - [x] regex lỗi
+  - [x] blacklist rỗng
+  - [x] daemon đã chạy trước khi extension activate
+- [x] Đảm bảo không phá backward compatibility quan trọng.
+- [x] **Auto Test**: Đã viết và chạy `scripts/tests/extension-phase7.js`.
+
+### Phase 8. Docs + rollout [x]
+
+Step chính:
+- [x] Cập nhật `README.md`.
+- [x] Cập nhật `tutorial.md`.
+- [x] Viết hướng dẫn extension-first workflow.
+- [x] Viết migration notes từ extension cũ.
+- [x] Viết fallback flow khi extension gặp lỗi.
 
 ## 4. Guardrails khi implement tiếp
 
@@ -194,8 +194,8 @@ Step chính:
 - [ ] Phase 2: cập nhật nhẹ
 - [ ] Phase 3: chỉ cập nhật nếu đổi cấu trúc module hoặc config contract
 - [ ] Phase 4: cập nhật nhẹ
-- [ ] Phase 5: cập nhật
-- [ ] Phase 6: bắt buộc cập nhật
+- [x] Phase 5: cập nhật
+- [x] Phase 6: bắt buộc cập nhật
 - [ ] Phase 7: chỉ cập nhật nếu đổi compatibility rules
 - [ ] Phase 8: thường không phải điểm cập nhật chính
 

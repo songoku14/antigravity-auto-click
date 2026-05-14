@@ -7,7 +7,10 @@ const COMMANDS = {
   toggleAutoAccept: 'antigravity-auto-click.toggleAutoAccept',
   openConfig: 'antigravity-auto-click.openConfig',
   openLogs: 'antigravity-auto-click.openLogs',
-  showActivitySummary: 'antigravity-auto-click.showActivitySummary'
+  showActivitySummary: 'antigravity-auto-click.showActivitySummary',
+  showDiagnostics: 'antigravity-auto-click.showDiagnostics',
+  openAutoRetrySettings: 'antigravity-auto-click.openAutoRetrySettings',
+  openAutoAcceptSettings: 'antigravity-auto-click.openAutoAcceptSettings'
 };
 
 const STATUS_BAR_PRIORITY = 100;

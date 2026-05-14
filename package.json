@@ -18,7 +18,10 @@
     "onCommand:antigravity-auto-click.toggleAutoAccept",
     "onCommand:antigravity-auto-click.openConfig",
     "onCommand:antigravity-auto-click.openLogs",
-    "onCommand:antigravity-auto-click.showActivitySummary"
+    "onCommand:antigravity-auto-click.showActivitySummary",
+    "onCommand:antigravity-auto-click.showDiagnostics",
+    "onCommand:antigravity-auto-click.openAutoRetrySettings",
+    "onCommand:antigravity-auto-click.openAutoAcceptSettings"
   ],
   "contributes": {
     "commands": [
@@ -57,6 +60,18 @@
       {
         "command": "antigravity-auto-click.showActivitySummary",
         "title": "Antigravity: Show Activity Summary"
+      },
+      {
+        "command": "antigravity-auto-click.showDiagnostics",
+        "title": "Antigravity: Run System Diagnostics"
+      },
+      {
+        "command": "antigravity-auto-click.openAutoRetrySettings",
+        "title": "Antigravity: Open Auto Retry Settings"
+      },
+      {
+        "command": "antigravity-auto-click.openAutoAcceptSettings",
+        "title": "Antigravity: Open Auto Accept Settings"
       }
     ],
     "configuration": {

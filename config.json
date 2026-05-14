@@ -35,7 +35,10 @@
       "/try\\s*again/i"
     ],
     "retryButtonPatterns": [
-      "/^retry$/i"
+      "/^retry$/i",
+      "/^try\\s*again$/i",
+      "/^thử\\s*lại$/i",
+      "/^reconnect$/i"
     ],
     "retryContextPatterns": [
       "/high\\s*traffic/i",
@@ -52,9 +55,9 @@
     ],
     "customRetryPatterns": [],
     "timing": {
-      "pollInterval": 2000,
-      "clickDelay": 1000,
-      "minClickInterval": 2000
+      "pollInterval": 3000,
+      "clickDelay": 800,
+      "minClickInterval": 5000
     },
     "rateLimit": {
       "maxRetriesPerMinute": 15,
@@ -63,7 +66,7 @@
   },
   "autoAccept": {
     "enabled": true,
-    "performClick": true,
+    "performClick": false,
     "blacklist": [
       "rm ",
       "sudo ",
@@ -73,41 +76,46 @@
       "terminate ",
       "pkill ",
       "kill ",
-      "mkfs",
-      "format "
+      "mkfs"
     ],
     "customAcceptPatterns": [],
     "categories": {
       "terminal": {
         "enabled": true,
         "buttons": [
-          "/^run\\s*\\(?⌥enter\\)?$/i"
+          "/^run$/i",
+          "/^run⌥enter$/i",
+          "/^execute$/i"
         ],
         "context": [
-          "/reject/i",
-          "/run/i"
+          "/allow\\s*the\\s*following\\s*command/i",
+          "/run\\s*this\\s*command/i",
+          "/run\\s*the\\s*command/i",
+          "/execute\\s*the\\s*following/i",
+          "/do\\s*you\\s*want\\s*to\\s*run/i",
+          "/terminal\\s*action/i",
+          "/thực\\s*thi\\s*lệnh/i",
+          "/chạy\\s*lệnh/i"
         ]
       },
       "reviewChange": {
         "enabled": true,
         "buttons": [
-          "/^accept$/i",
+          "/^proceed$/i",
           "/^accept\\s*all$/i"
         ],
         "context": [
           "/review\\s*the\\s*changes/i",
-          "/reject\\s*all/i",
-          "/^reject$/i"
+          "/agent\\s*prompt/i",
+          "/approve\\s*request/i",
+          "/review\\s*required/i",
+          "/proceed\\s*with\\s*changes/i"
         ]
       },
       "systemReview": {
-        "enabled": false,
-        "buttons": [
-          "/^proceed$/i"
-        ],
-        "context": [
-          "/proceed\\s*with\\s*changes/i"
-        ]
+        "enabled": true,
+        "buttons": [],
+        "context": []
       }
     }
   }

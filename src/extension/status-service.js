@@ -29,9 +29,14 @@ function buildFeatureSummary(config) {
 
 function buildStatusBarState({ config, daemonState, activitySummary }) {
   const running = !!(daemonState && daemonState.running);
-  const icon = running ? '$(check)' : '$(circle-slash)';
+  const status = daemonState ? daemonState.status.toUpperCase() : 'STOPPED';
+  
+  let icon = '$(circle-slash)';
+  if (status === 'RUNNING') icon = '$(check)';
+  else if (status === 'STARTING' || status === 'RELOADING') icon = '$(sync~spin)';
+  else if (status === 'STOPPING') icon = '$(loading~spin)';
+
   const summary = buildFeatureSummary(config);
-  const status = running ? 'RUNNING' : 'STOPPED';
 
   let tooltip = `Antigravity Auto-Click: ${status}\nFeatures: ${summary}`;
   if (activitySummary && activitySummary.total > 0) {
