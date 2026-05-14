@@ -76,13 +76,20 @@ pad_text() {
     local text="$1"
     local width="$2"
     local align="${3:-left}"
-    local len=${#text}
+    
+    # Tính độ dài hiển thị (loại bỏ mã màu ANSI)
+    local visible_text=$(echo -e "$text" | sed 's/\x1B\[[0-9;]*[mK]//g')
+    local len=${#visible_text}
 
     if [ "$len" -gt "$width" ]; then
-        if [ "$width" -le 3 ]; then
-            printf '%s' "${text:0:width}"
+        if [ "$len" -eq ${#text} ]; then
+            if [ "$width" -le 3 ]; then
+                printf '%s' "${text:0:width}"
+            else
+                printf '%s...' "${text:0:$((width - 3))}"
+            fi
         else
-            printf '%s...' "${text:0:$((width - 3))}"
+            printf '%s' "$text"
         fi
         return
     fi
@@ -96,6 +103,10 @@ pad_text() {
 
     if [ "$align" = "right" ]; then
         printf '%*s%s' "$pad" "" "$text"
+    elif [ "$align" = "center" ]; then
+        local left=$((pad / 2))
+        local right=$((pad - left))
+        printf '%*s%s%*s' "$left" "" "$text" "$right" ""
     else
         printf '%s%*s' "$text" "$pad" ""
     fi
@@ -190,14 +201,15 @@ fi
 
 # Chi tiết trạng thái hệ thống
 echo "   🔎 Trạng thái hệ thống:"
-printf '   ┌──────────────────┬────────────────────────────┐\n'
-printf '   │ %s │ %s │\n' "$(pad_text "Tong quan" "$SUMMARY_LABEL_WIDTH")" "$(status_cell "$STATUS_HEADER_TEXT" "$STATUS_HEADER_COLOR" "$SUMMARY_STATUS_WIDTH")"
-printf '   │ %s │ %s │\n' "$(pad_text "Auto Retry" "$SUMMARY_LABEL_WIDTH")" "$(status_cell "$RETRY_STATUS_TEXT ($RETRY_COUNT)" "$RETRY_STATUS_COLOR" "$SUMMARY_STATUS_WIDTH")"
-printf '   │ %s │ %s │\n' "$(pad_text "Auto Accept" "$SUMMARY_LABEL_WIDTH")" "$(status_cell "$ACCEPT_STATUS_TEXT ($ACCEPT_COUNT)" "$ACCEPT_STATUS_COLOR" "$SUMMARY_STATUS_WIDTH")"
-printf '   │ %s │ %s │\n' "$(pad_text "Node Daemon" "$SUMMARY_LABEL_WIDTH")" "$(status_cell "$([ "$NODE_RUNNING" = "yes" ] && echo ON || echo OFF)" "$( [ "$NODE_RUNNING" = "yes" ] && echo 32 || echo 31 )" "$SUMMARY_STATUS_WIDTH")"
-printf '   │ %s │ %s │\n' "$(pad_text "Antigravity App" "$SUMMARY_LABEL_WIDTH")" "$(status_cell "$([ "$APP_RUNNING" = "yes" ] && echo ON || echo OFF)" "$( [ "$APP_RUNNING" = "yes" ] && echo 32 || echo 31 )" "$SUMMARY_STATUS_WIDTH")"
-printf '   │ %s │ %s │\n' "$(pad_text "CDP" "$SUMMARY_LABEL_WIDTH")" "$(status_cell "$([ "$CDP_ENABLED" = "yes" ] && echo ON || echo OFF)" "$( [ "$CDP_ENABLED" = "yes" ] && echo 32 || echo 31 )" "$SUMMARY_STATUS_WIDTH")"
-printf '   └──────────────────┴────────────────────────────┘\n'
+printf '   ┌────────────────┬────────────────────────────────┐\n'
+printf '   │ %s │ %s │\n' "$(pad_text "Tong quan" 14)" "$(status_cell "$STATUS_HEADER_TEXT" "$STATUS_HEADER_COLOR" 30)"
+printf '   │ %s │ %s │\n' "$(pad_text "Auto Retry" 14)" "$(status_cell "$RETRY_STATUS_TEXT ($RETRY_COUNT)" "$RETRY_STATUS_COLOR" 30)"
+printf '   │ %s │ %s │\n' "$(pad_text "Auto Accept" 14)" "$(status_cell "$ACCEPT_STATUS_TEXT ($ACCEPT_COUNT)" "$ACCEPT_STATUS_COLOR" 30)"
+printf '   │ %s │ %s │\n' "$(pad_text "Node Daemon" 14)" "$(status_cell "$([ "$NODE_RUNNING" = "yes" ] && echo ON || echo OFF)" "$( [ "$NODE_RUNNING" = "yes" ] && echo 32 || echo 31 )" 30)"
+printf '   │ %s │ %s │\n' "$(pad_text "Antigravity App" 14)" "$(status_cell "$([ "$APP_RUNNING" = "yes" ] && echo ON || echo OFF)" "$( [ "$APP_RUNNING" = "yes" ] && echo 32 || echo 31 )" 30)"
+printf '   │ %s │ %s │\n' "$(pad_text "CDP" 14)" "$(status_cell "$([ "$CDP_ENABLED" = "yes" ] && echo ON || echo OFF)" "$( [ "$CDP_ENABLED" = "yes" ] && echo 32 || echo 31 )" 30)"
+printf '   └────────────────┴────────────────────────────────┘\n'
+echo "======================================================"
 
 if [ "$SHOW_ACTIVITY_STATS" = "true" ]; then
     echo ""

@@ -14,7 +14,26 @@ pad_text() {
     local text="$1"
     local width="$2"
     local align="${3:-left}"
-    local len=${#text}
+    
+    # Tính độ dài hiển thị (loại bỏ mã màu ANSI)
+    local visible_text=$(echo -e "$text" | sed 's/\x1B\[[0-9;]*[mK]//g')
+    local len=${#visible_text}
+
+    if [ "$len" -gt "$width" ]; then
+        # Nếu không có mã màu, có thể cắt bớt an toàn
+        if [ "$len" -eq ${#text} ]; then
+            if [ "$width" -le 3 ]; then
+                printf '%s' "${text:0:width}"
+            else
+                printf '%s...' "${text:0:$((width - 3))}"
+            fi
+        else
+            # Nếu có mã màu, trả về nguyên bản để tránh hỏng mã ANSI
+            printf '%s' "$text"
+        fi
+        return
+    fi
+
     local pad=$((width - len))
 
     if [ "$pad" -le 0 ]; then
@@ -24,6 +43,10 @@ pad_text() {
 
     if [ "$align" = "right" ]; then
         printf '%*s%s' "$pad" "" "$text"
+    elif [ "$align" = "center" ]; then
+        local left=$((pad / 2))
+        local right=$((pad - left))
+        printf '%*s%s%*s' "$left" "" "$text" "$right" ""
     else
         printf '%s%*s' "$text" "$pad" ""
     fi
@@ -43,10 +66,90 @@ status_cell() {
     color_text "$color" "$(pad_text "$text" "$width" "$align")"
 }
 
+print_table_border() {
+    printf '   ┌──────┬──────────────────────────────────────────┐\n'
+}
+
+print_table_row() {
+    local label="$1"
+    local value="$2"
+    local align="${3:-center}"
+    printf '   │ %s │ %s │\n' "$(pad_text "$label" 4 "$align")" "$(pad_text "$value" 40)"
+}
+
+print_table_separator() {
+    printf '   ├──────┼──────────────────────────────────────────┤\n'
+}
+
+print_table_bottom() {
+    printf '   └──────┴──────────────────────────────────────────┘\n'
+}
+
+print_two_column_table() {
+    local title="$1"
+    shift
+    echo "$title:"
+    print_table_border
+    while [ "$#" -gt 0 ]; do
+        if [ "$1" = "---" ]; then
+            print_table_separator
+            shift
+        else
+            print_table_row "$1" "$2"
+            shift 2
+        fi
+    done
+    print_table_bottom
+}
+
+print_settings_row() {
+    local id="$1"
+    local label="$2"
+    local status="$3"
+    printf '   │ %s │ %s │ %s │\n' "$(pad_text "$id" 4 "center")" "$(pad_text "$label" 26 "left")" "$(pad_text "$status" 12 "left")"
+}
+
+print_settings_table() {
+    local title="$1"
+    shift
+    echo "$title:"
+    printf '   ┌──────┬────────────────────────────┬──────────────┐\n'
+    printf '   │  ID  │ %s │ %s │\n' "$(pad_text "Tên tính năng" 26 "center")" "$(pad_text "Trạng thái" 12 "center")"
+    printf '   ├──────┼────────────────────────────┼──────────────┤\n'
+    while [ "$#" -gt 0 ]; do
+        if [ "$1" = "---" ]; then
+            printf '   ├──────┼────────────────────────────┼──────────────┤\n'
+            shift
+        else
+            print_settings_row "$1" "$2" "$3"
+            shift 3
+        fi
+    done
+    printf '   └──────┴────────────────────────────┴──────────────┘\n'
+}
+
+print_status_row() {
+    local label="$1"
+    local value="$2"
+    printf '   │ %s │ %s │\n' "$(pad_text "$label" 14 "left")" "$(pad_text "$value" 30)"
+}
+
+print_status_table() {
+    local title="$1"
+    shift
+    echo "$title:"
+    printf '   ┌────────────────┬────────────────────────────────┐\n'
+    while [ "$#" -gt 0 ]; do
+        print_status_row "$1" "$2"
+        shift 2
+    done
+    printf '   └────────────────┴────────────────────────────────┘\n'
+}
+
 show_menu() {
     clear
     echo "======================================================"
-    echo "         🤖 ANTIGRAVITY AUTO-CLICK MENU 🤖          "
+    echo "            🤖 ANTIGRAVITY AUTO-CLICK MENU            "
     echo "======================================================"
     
     # Check current state for header
@@ -118,23 +221,32 @@ show_menu() {
         CDP_STATUS_COLOR="31"
     fi
 
-    printf '   ┌──────────────────┬────────────────────────────┐\n'
-    printf '   │ %s │ %s │\n' "$(pad_text "Tong quan" 16)" "$(status_cell "$STATUS_HEADER_TEXT" "$STATUS_HEADER_COLOR" 26)"
-    printf '   │ %s │ %s │\n' "$(pad_text "Auto Retry" 16)" "$(status_cell "$RETRY_STATUS_TEXT ($RETRY_COUNT)" "$RETRY_STATUS_COLOR" 26)"
-    printf '   │ %s │ %s │\n' "$(pad_text "Auto Accept" 16)" "$(status_cell "$ACCEPT_STATUS_TEXT ($ACCEPT_COUNT)" "$ACCEPT_STATUS_COLOR" 26)"
-    printf '   └──────────────────┴────────────────────────────┘\n'
+    print_status_table "   🔎 Trạng thái hệ thống" \
+        "Tổng quan" "$(status_cell "$STATUS_HEADER_TEXT" "$STATUS_HEADER_COLOR" 30)" \
+        "Node Daemon" "$(status_cell "$([ "$NODE_RUNNING" = "yes" ] && echo ON || echo OFF)" "$( [ "$NODE_RUNNING" = "yes" ] && echo 32 || echo 31 )" 30)" \
+        "Antigravity App" "$(status_cell "$([ "$APP_RUNNING" = "yes" ] && echo ON || echo OFF)" "$( [ "$APP_RUNNING" = "yes" ] && echo 32 || echo 31 )" 30)" \
+        "CDP" "$(status_cell "$CDP_STATUS_TEXT" "$CDP_STATUS_COLOR" 30)" \
+        "Auto Retry" "$(status_cell "$RETRY_STATUS_TEXT ($RETRY_COUNT)" "$RETRY_STATUS_COLOR" 30)" \
+        "Auto Accept" "$(status_cell "$ACCEPT_STATUS_TEXT ($ACCEPT_COUNT)" "$ACCEPT_STATUS_COLOR" 30)"
+    
     if [ "$NODE_RUNNING" = "yes" ] && [ "$CDP_ENABLED" = "no" ]; then
         echo "   Ghi chú: CDP chưa bật"
     fi
     echo "======================================================"
-    echo " 1) ⚙️ Cài đặt"
-    echo " 2) 🛠️ Developer Tools (Debug & Analysis)"
-    echo "------------------------------------------------------"
-    echo " 3) 🚀 Start/Restart All Features (Khởi chạy hệ thống)"
-    echo " 4) 🛑 Stop All Features  (Dừng hoàn toàn)"
-    echo "------------------------------------------------------"
-    echo " 5) 🐛 Bật CDP (Chrome DevTools Protocol)"
-    echo " 0) 🚪 Thoát"
+    print_two_column_table "   🚀 Vận hành hệ thống" \
+        "1)" "Cài đặt tham số hệ thống" \
+        "2)" "Công cụ phát triển (Dev Tools)" \
+        "---" \
+        "3)" "Khởi chạy / Restart hệ thống" \
+        "4)" "Dừng tất cả tính năng" \
+        "---" \
+        "5)" "Bật CDP (Cần Restart Antigravity)" \
+        "---" \
+        "0)" "Thoát chương trình"
+    echo "   CDP (Chrome DevTools Protocol) :"
+    echo "   - Auto Click cần Antigravity chạy ở chế độ Debug để chạy CDP"
+    echo "   - Antigravity sẽ tự động Tắt."
+    echo "   - Bật Terminal và Cmd + V và enter để chạy lại Antigravity"
     echo "======================================================"
     echo ""
 }
@@ -170,14 +282,18 @@ run_regression_suite() {
         echo "         🧪 TEST DOM SAMPLES - KẾT QUẢ TÌM KIẾM        "
         echo "======================================================"
         echo " Từ khóa: '$search_term' (Tìm thấy: ${#FILES[@]} mẫu)"
-        echo "------------------------------------------------------"
-        echo " a) 🏃 Chạy TẤT CẢ các mẫu trong danh sách này"
-        echo " 0) 🔙 Quay lại Menu chính"
-        echo "------------------------------------------------------"
+        
+        printf '   ┌────┬──────────────────────────────────────────┐\n'
+        printf '   │ %s │ %s │\n' "$(pad_text "ID" 2)" "$(pad_text "Tên mẫu (Sample Name)" 40)"
+        printf '   ├────┼──────────────────────────────────────────┤\n'
+        printf '   │ %s │ %s │\n' "$(pad_text "a)" 2)" "$(pad_text "🏃 Chạy TẤT CẢ các mẫu này" 40)"
+        printf '   │ %s │ %s │\n' "$(pad_text "0)" 2)" "$(pad_text "🔙 Quay lại Menu chính" 40)"
+        printf '   ├────┼──────────────────────────────────────────┤\n'
         for i in "${!FILES[@]}"; do
-            echo " $((i+1))) ${FILES[$i]}"
+            printf '   │ %s │ %s │\n' "$(pad_text "$((i+1)))" 2)" "$(pad_text "${FILES[$i]}" 40)"
         done
-        echo "------------------------------------------------------"
+        printf '   └────┴──────────────────────────────────────────┘\n'
+        echo ""
         read -p "Lựa chọn của bạn: " sample_choice
 
         if [[ "$sample_choice" == "0" ]]; then
@@ -207,17 +323,20 @@ show_dev_menu() {
         bash "$SCRIPT_DIR/core/status.sh"
         echo ""
         echo "======================================================"
-        echo "           🛠️ ANTIGRAVITY DEVELOPER TOOLS            "
+        echo "          🛠️ ANTIGRAVITY DEVELOPER TOOLS             "
         echo "======================================================"
-        echo " 1) 📦 Chụp toàn bộ IDE (Dump DOM Snapshot)"
-        echo " 2) 📋 Xem log daemon thời gian thực (tail -f)"
-        echo " 3) 🧪 Test DOM samples (Regression)"
-        echo " 4) 🔍 Phân tích DOM trực tiếp (Live Analysis)"
-        echo "------------------------------------------------------"
-        echo " 5) 📊 Thống kê"
-        echo " 6) 🔄 Load lại dữ liệu"
-        echo " 7) 🗑️ Reset bộ đếm thống kê"
-        echo " 0) 🔙 Quay lại Menu chính"
+        print_two_column_table "   ⚙️ Công cụ phát triển" \
+            "1)" "Phân tích DOM live" \
+            "2)" "Chụp IDE snapshot" \
+            "---" \
+            "3)" "Test DOM samples (Regression)" \
+            "4)" "Xem log daemon (tail)" \
+            "---" \
+            "5)" "Xem thống kê chi tiết" \
+            "6)" "Reset bộ đếm" \
+            "7)" "Load lại dữ liệu" \
+            "---" \
+            "0)" "Quay lại Menu chính"
         echo "======================================================"
         echo ""
         read -p "Lựa chọn của bạn: " dev_choice
@@ -225,11 +344,19 @@ show_dev_menu() {
         
         case $dev_choice in
             1)
+                echo "🔍 Đang phân tích trạng thái Antigravity..."
+                node "$SCRIPT_DIR/tools/analyze-live.js"
+                read -p "Nhấn Enter để tiếp tục..."
+                ;;
+            2)
                 echo "📦 Đang thực hiện dump toàn bộ DOM..."
                 node "$SCRIPT_DIR/tools/dump-dom.js"
                 read -p "Nhấn Enter để tiếp tục..."
                 ;;
-            2)
+            3)
+                run_regression_suite
+                ;;
+            4)
                 LOG_FILE="$PROJECT_ROOT/logs/daemon.log"
                 if [ -f "$LOG_FILE" ]; then
                     echo "Đang theo dõi log (Nhấn Ctrl+C để thoát)..."
@@ -239,25 +366,17 @@ show_dev_menu() {
                     sleep 1
                 fi
                 ;;
-            3)
-                run_regression_suite
-                ;;
-            4)
-                echo "🔍 Đang phân tích trạng thái Antigravity..."
-                node "$SCRIPT_DIR/tools/analyze-live.js"
-                read -p "Nhấn Enter để tiếp tục..."
-                ;;
             5)
                 echo "📊 Đang hiển thị thống kê..."
                 bash "$SCRIPT_DIR/core/status.sh" --activity
                 read -p "Nhấn Enter để tiếp tục..."
                 ;;
             6)
-                echo "🔄 Đang load lại dữ liệu..."
+                bash "$SCRIPT_DIR/core/status.sh" --reset
                 sleep 0.5
                 ;;
             7)
-                bash "$SCRIPT_DIR/core/status.sh" --reset
+                echo "🔄 Đang load lại dữ liệu..."
                 sleep 0.5
                 ;;
             0)
@@ -286,29 +405,57 @@ while true; do
                 CUR_CLICK_ACCEPT=$(jq -r 'if (.autoAccept | type) == "object" then (if .autoAccept.performClick == null then false else .autoAccept.performClick end) else (if .performClickAutoAccept == null then false else .performClickAutoAccept end) end' "$PROJECT_ROOT/config.json" 2>/dev/null || echo "false")
                 CUR_DEBUG=$(jq -r 'if .debug == null then true else .debug end' "$PROJECT_ROOT/config.json" 2>/dev/null || echo "true")
                 
-                [ "$CUR_RETRY" = "true" ] && RETRY_LBL="\033[32mACTIVE\033[0m" || RETRY_LBL="\033[31mOFF\033[0m"
-                [ "$CUR_ACCEPT" = "true" ] && ACCEPT_LBL="\033[32mACTIVE\033[0m" || ACCEPT_LBL="\033[31mOFF\033[0m"
-                [ "$CUR_CLICK_ACCEPT" = "true" ] && CLICK_ACCEPT_LBL="\033[32mACTIVE\033[0m" || CLICK_ACCEPT_LBL="\033[31mOFF\033[0m"
-                [ "$CUR_DEBUG" = "true" ] && DEBUG_LBL="\033[32mACTIVE\033[0m" || DEBUG_LBL="\033[31mOFF\033[0m"
+                [ "$CUR_RETRY" = "true" ] && RETRY_VAL="ACTIVE" || RETRY_VAL="OFF"
+                [ "$CUR_RETRY" = "true" ] && RETRY_CLR="32" || RETRY_CLR="31"
+                
+                [ "$CUR_ACCEPT" = "true" ] && ACCEPT_VAL="ACTIVE" || ACCEPT_VAL="OFF"
+                [ "$CUR_ACCEPT" = "true" ] && ACCEPT_CLR="32" || ACCEPT_CLR="31"
+                
+                [ "$CUR_CLICK_ACCEPT" = "true" ] && CLICK_VAL="ACTIVE" || CLICK_VAL="OFF"
+                [ "$CUR_CLICK_ACCEPT" = "true" ] && CLICK_CLR="32" || CLICK_CLR="31"
+                
+                [ "$CUR_DEBUG" = "true" ] && DEBUG_VAL="ACTIVE" || DEBUG_VAL="OFF"
+                [ "$CUR_DEBUG" = "true" ] && DEBUG_CLR="32" || DEBUG_CLR="31"
 
                 # Check Startup state
-                STARTUP_LBL="\033[31mOFF\033[0m"
+                STARTUP_VAL="OFF"
+                STARTUP_CLR="31"
                 if [ -f "$HOME/Library/LaunchAgents/$PLIST_NAME.plist" ]; then
-                    STARTUP_LBL="\033[32mACTIVE\033[0m"
+                    STARTUP_VAL="ACTIVE"
+                    STARTUP_CLR="32"
                     IS_STARTUP="yes"
                 else
                     IS_STARTUP="no"
                 fi
 
                 echo "======================================================"
-                echo "                ⚙️ CÀI ĐẶT HỆ THỐNG                   "
+                echo "                  ⚙️ CÀI ĐẶT HỆ THỐNG                "
                 echo "======================================================"
-                echo -e " 1) 🔄 Toggle Auto Retry   (Hiện tại: $RETRY_LBL)"
-                echo -e " 2) 🔄 Toggle Auto Accept  (Hiện tại: $ACCEPT_LBL)"
-                echo -e " 3) 🔄 Toggle Khởi động cùng macOS (Hiện tại: $STARTUP_LBL)"
-                echo -e " 4) 🔄 Toggle Auto Accept Perform Click (Hiện tại: $CLICK_ACCEPT_LBL)"
-                echo -e " 5) 🔄 Toggle Debug Mode   (Hiện tại: $DEBUG_LBL)"
-                echo " 0) 🔙 Quay lại Menu chính"
+                
+                # Chuẩn bị label trạng thái có màu
+                RETRY_STATUS="$(status_cell "$( [ "$CUR_RETRY" = "true" ] && echo ACTIVE || echo OFF )" "$RETRY_CLR" 12)"
+                ACCEPT_STATUS="$(status_cell "$( [ "$CUR_ACCEPT" = "true" ] && echo ACTIVE || echo OFF )" "$ACCEPT_CLR" 12)"
+                CLICK_STATUS="$(status_cell "$( [ "$CUR_CLICK_ACCEPT" = "true" ] && echo ACTIVE || echo OFF )" "$CLICK_CLR" 12)"
+                DEBUG_STATUS="$(status_cell "$( [ "$CUR_DEBUG" = "true" ] && echo ACTIVE || echo OFF )" "$DEBUG_CLR" 12)"
+                STARTUP_STATUS="$(status_cell "$STARTUP_VAL" "$STARTUP_CLR" 12)"
+
+                print_settings_table "   ⚙️ Cấu hình hệ thống" \
+                    "1)" "Toggle Auto Retry" "$RETRY_STATUS" \
+                    "---" \
+                    "2)" "Toggle Auto Accept" "$ACCEPT_STATUS" \
+                    "3)" "Toggle Perform Click" "$CLICK_STATUS" \
+                    "---" \
+                    "4)" "Toggle Debug mode của Auto Click" "$DEBUG_STATUS" \
+                    "5)" "Toggle Startup with OS" "$STARTUP_STATUS" \
+                    "---" \
+                    "0)" "Quay lại Menu chính" ""
+                
+                echo "   Ghi chú tính năng:"
+                echo "   - Auto Retry    : Tự động nhấn Thử lại khi gặp lỗi Busy/Traffic."
+                echo "   - Auto Accept   : Tự động chấp nhận Terminal/Review/System."
+                echo "   - Perform Click : Thực hiện Click (nếu OFF sẽ chỉ log kết quả)."
+                echo "   - Debug mode    : Ghi log chi tiết vào logs/daemon.log để debug."
+                echo "   - Startup with OS : Tự động chạy khi khởi động máy tính."
                 echo "======================================================"
                 echo ""
                 read -p "Lựa chọn của bạn: " sub_choice
@@ -327,24 +474,24 @@ while true; do
                         sleep 1
                         ;;
                     3)
+                        if [ "$CUR_CLICK_ACCEPT" = "true" ]; then NEW_VAL="false"; else NEW_VAL="true"; fi
+                        jq 'if (.autoAccept | type) == "object" then .autoAccept.performClick = '"$NEW_VAL"' else .performClickAutoAccept = '"$NEW_VAL"' end' "$PROJECT_ROOT/config.json" > "$PROJECT_ROOT/config.json.tmp" && mv "$PROJECT_ROOT/config.json.tmp" "$PROJECT_ROOT/config.json"
+                        echo -e "✅ Đã chuyển Auto Accept Click sang: $NEW_VAL"
+                        sleep 1
+                        ;;
+                    4)
+                        if [ "$CUR_DEBUG" = "true" ]; then NEW_VAL="false"; else NEW_VAL="true"; fi
+                        jq ".debug = $NEW_VAL" "$PROJECT_ROOT/config.json" > "$PROJECT_ROOT/config.json.tmp" && mv "$PROJECT_ROOT/config.json.tmp" "$PROJECT_ROOT/config.json"
+                        echo -e "✅ Đã chuyển Debug mode của Auto Click sang: $NEW_VAL"
+                        sleep 1
+                        ;;
+                    5)
                         if [ "$IS_STARTUP" = "yes" ]; then
                             bash "$SCRIPT_DIR/uninstall.sh"
                         else
                             bash "$SCRIPT_DIR/install.sh"
                         fi
                         read -p "Nhấn Enter để tiếp tục..."
-                        ;;
-                    4)
-                        if [ "$CUR_CLICK_ACCEPT" = "true" ]; then NEW_VAL="false"; else NEW_VAL="true"; fi
-                        jq 'if (.autoAccept | type) == "object" then .autoAccept.performClick = '"$NEW_VAL"' else .performClickAutoAccept = '"$NEW_VAL"' end' "$PROJECT_ROOT/config.json" > "$PROJECT_ROOT/config.json.tmp" && mv "$PROJECT_ROOT/config.json.tmp" "$PROJECT_ROOT/config.json"
-                        echo -e "✅ Đã chuyển Auto Accept Click sang: $NEW_VAL"
-                        sleep 1
-                        ;;
-                    5)
-                        if [ "$CUR_DEBUG" = "true" ]; then NEW_VAL="false"; else NEW_VAL="true"; fi
-                        jq ".debug = $NEW_VAL" "$PROJECT_ROOT/config.json" > "$PROJECT_ROOT/config.json.tmp" && mv "$PROJECT_ROOT/config.json.tmp" "$PROJECT_ROOT/config.json"
-                        echo -e "✅ Đã chuyển Debug Mode sang: $NEW_VAL"
-                        sleep 1
                         ;;
                     0)
                         break
