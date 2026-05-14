@@ -7,6 +7,15 @@ CONFIG_FILE="$PROJECT_ROOT/config.json"
 ACTIVITY_FILE="$PROJECT_ROOT/logs/activity-log.json"
 
 # Check if reset is requested
+SHOW_ACTIVITY_STATS="false"
+for arg in "$@"; do
+    case "$arg" in
+        --activity|--stats)
+            SHOW_ACTIVITY_STATS="true"
+            ;;
+    esac
+done
+
 if [ "$1" == "--reset" ]; then
     mkdir -p "$(dirname "$ACTIVITY_FILE")"
     echo '{
@@ -62,72 +71,135 @@ APP_RUNNING=$(ps aux | grep "Antigravity.app/Contents/MacOS/Electron" | grep -v 
 # Check CDP Port (remote debugging)
 CDP_ENABLED=$(ps aux | grep -i "Antigravity.app/Contents/MacOS/Electron" | grep -v grep | grep -q "\\-\\-remote-debugging-port=" && echo "yes" || echo "no")
 
-# Check Auto-Start (LaunchAgent)
-AUTO_START_ENABLED=$(launchctl list | grep "com.antigravity.autoretry" > /dev/null && echo "yes" || echo "no")
-PLIST_EXISTS=$([ -f "$HOME/Library/LaunchAgents/com.antigravity.autoretry.plist" ] && echo "yes" || echo "no")
-
 # Function to format status
-get_status() {
-    local val=$1
-    if [ "$val" = "yes" ]; then
-        echo -e "\033[0;32mACTIVE\033[0m" # Green
-    elif [ "$val" = "no" ]; then
-        echo -e "\033[0;31mOFF\033[0m"    # Red
+pad_text() {
+    local text="$1"
+    local width="$2"
+    local align="${3:-left}"
+    local len=${#text}
+
+    if [ "$len" -gt "$width" ]; then
+        if [ "$width" -le 3 ]; then
+            printf '%s' "${text:0:width}"
+        else
+            printf '%s...' "${text:0:$((width - 3))}"
+        fi
+        return
+    fi
+
+    local pad=$((width - len))
+
+    if [ "$pad" -le 0 ]; then
+        printf '%s' "$text"
+        return
+    fi
+
+    if [ "$align" = "right" ]; then
+        printf '%*s%s' "$pad" "" "$text"
     else
-        echo -e "\033[0;31mError\033[0m"  # Red
+        printf '%s%*s' "$text" "$pad" ""
     fi
 }
 
+color_text() {
+    local color="$1"
+    shift
+    printf '\033[%sm%s\033[0m' "$color" "$*"
+}
 
+status_cell() {
+    local text="$1"
+    local color="$2"
+    local width="$3"
+    local align="${4:-left}"
+    color_text "$color" "$(pad_text "$text" "$width" "$align")"
+}
 
-# Activity Stats
-if [ -f "$ACTIVITY_FILE" ]; then
-    RETRY_DET=$(jq -r '.retry.detected // 0' "$ACTIVITY_FILE")
-    RETRY_CLK=$(jq -r '.retry.clicked // 0' "$ACTIVITY_FILE")
-    ACCEPT_DET=$(jq -r '.accept.detected // 0' "$ACTIVITY_FILE")
-    ACCEPT_CLK=$(jq -r '.accept.clicked // 0' "$ACTIVITY_FILE")
-    ACCEPT_BLK=$(jq -r '.accept.blocked // 0' "$ACTIVITY_FILE")
-    RETRY_SKP=$(jq -r '(.retry.skipped // ([.skipReasons // {} | to_entries[]? | select(.key | startswith("retry:")) | (.value // 0)] | add)) // 0' "$ACTIVITY_FILE")
-    ACCEPT_SKP=$(jq -r '(.accept.skipped // ([.skipReasons // {} | to_entries[]? | select(.key | startswith("accept:")) | (.value // 0)] | add)) // 0' "$ACTIVITY_FILE")
-    RETRY_CAN=$(jq -r "(.retry.candidates // ($RETRY_DET + $RETRY_SKP)) // 0" "$ACTIVITY_FILE")
-    ACCEPT_CAN=$(jq -r "(.accept.candidates // ($ACCEPT_DET + $ACCEPT_SKP)) // 0" "$ACTIVITY_FILE")
-
-    echo "📊 Thống kê hoạt động (Toàn thời gian):"
-    echo -e "   [Retry]  Ứng viên: \033[1m$RETRY_CAN\033[0m | Bỏ qua: \033[33m$RETRY_SKP\033[0m | Qua lọc: \033[36m$RETRY_DET\033[0m | Click: \033[32m$RETRY_CLK\033[0m"
-    echo -e "   [Accept] Ứng viên: \033[1m$ACCEPT_CAN\033[0m | Bỏ qua: \033[33m$ACCEPT_SKP\033[0m | Qua lọc: \033[36m$ACCEPT_DET\033[0m | Click: \033[32m$ACCEPT_CLK\033[0m | Chặn: \033[31m$ACCEPT_BLK\033[0m"
-    
-    # Accept breakdown by category (based on actual clicks)
-    ACCEPT_CATS=$(jq -r '.accept.clickedByCategory // {} | to_entries | map(select(.key | test("^[A-Za-z0-9_-]+$"))) | map("\(.key|ascii_upcase): \(.value)") | join(" | ")' "$ACTIVITY_FILE")
-    ACCEPT_INVALID_CAT_CLICKS=$(jq -r '[.accept.clickedByCategory // {} | to_entries[]? | select(.key | test("^[A-Za-z0-9_-]+$") | not) | (.value // 0)] | add // 0' "$ACTIVITY_FILE")
-    if [ -n "$ACCEPT_CATS" ] && [ "$ACCEPT_CATS" != "" ]; then
-        echo -e "            ↳ Chi tiết Click thực tế: \033[32m$ACCEPT_CATS\033[0m"
-    fi
-    if [ "$ACCEPT_INVALID_CAT_CLICKS" -gt 0 ]; then
-        echo -e "            ↳ Bỏ qua \033[33m$ACCEPT_INVALID_CAT_CLICKS\033[0m click category lỗi từ dữ liệu cũ"
-    fi
-    echo "------------------------------------------------"
-fi
-
-# Error details
-ERRORS=""
 if [ "$NODE_RUNNING" = "no" ]; then
-    # Only show hint if user hasn't explicitly disabled both (unlikely)
-    if [ "$AUTO_RETRY" = "true" ] || [ "$AUTO_ACCEPT" = "true" ]; then
-        ERRORS="${ERRORS}ℹ️ Hệ thống đang tắt. Hãy vào menu chọn số 4 để bật lên.\n"
+    STATUS_HEADER_TEXT="[TẮT]"
+    STATUS_HEADER_COLOR="37"
+elif [ "$APP_RUNNING" = "yes" ] && [ "$CDP_ENABLED" = "yes" ]; then
+    STATUS_HEADER_TEXT="[OK]"
+    STATUS_HEADER_COLOR="32"
+elif [ "$APP_RUNNING" = "yes" ] && [ "$CDP_ENABLED" = "no" ]; then
+    STATUS_HEADER_TEXT="[CDP OFF]"
+    STATUS_HEADER_COLOR="33"
+else
+    STATUS_HEADER_TEXT="[CÓ LỖI]"
+    STATUS_HEADER_COLOR="31"
+fi
+
+table_cell() {
+    local text="$1"
+    local width="$2"
+    local align="${3:-left}"
+    pad_text "$text" "$width" "$align"
+}
+
+get_status() {
+    local val=$1
+    if [ "$val" = "yes" ]; then
+        echo "ACTIVE"
+    elif [ "$val" = "no" ]; then
+        echo "OFF"
+    else
+        echo "ERROR"
+    fi
+}
+
+SUMMARY_LABEL_WIDTH=16
+SUMMARY_STATUS_WIDTH=26
+
+RETRY_STATUS_TEXT="---"
+RETRY_STATUS_COLOR="37"
+ACCEPT_STATUS_TEXT="---"
+ACCEPT_STATUS_COLOR="37"
+RETRY_COUNT="0"
+ACCEPT_COUNT="0"
+
+if [ "$NODE_RUNNING" = "yes" ]; then
+    if [ "$AUTO_RETRY" = "true" ]; then
+        RETRY_STATUS_TEXT="ACTIVE"
+        RETRY_STATUS_COLOR="32"
+    else
+        RETRY_STATUS_TEXT="OFF"
+        RETRY_STATUS_COLOR="31"
+    fi
+
+    if [ "$AUTO_ACCEPT" = "true" ]; then
+        ACCEPT_CATEGORY_TAGS=$(jq -r '
+          if (.autoAccept | type) == "object" then
+            [(.autoAccept.categories // {}) | to_entries[] | select(.value.enabled != false) | .key | {terminal: "t", review: "r", system: "s"}[.]]
+            | join("")
+          else
+            ""
+          end
+        ' "$CONFIG_FILE" 2>/dev/null)
+        if [ -n "$ACCEPT_CATEGORY_TAGS" ]; then
+            ACCEPT_STATUS_TEXT="ACTIVE [$ACCEPT_CATEGORY_TAGS]"
+        else
+            ACCEPT_STATUS_TEXT="ACTIVE"
+        fi
+        ACCEPT_STATUS_COLOR="32"
+    else
+        ACCEPT_STATUS_TEXT="OFF"
+        ACCEPT_STATUS_COLOR="31"
     fi
 fi
 
-if [ "$APP_RUNNING" = "no" ]; then
-    ERRORS="${ERRORS}❌ Antigravity chưa mở -> Vui lòng mở Antigravity\n"
-elif [ "$CDP_ENABLED" = "no" ]; then
-    ERRORS="${ERRORS}❌ Antigravity chưa bật CDP -> Cần chạy lại Antigravity (Debug Mode)\n"
-fi
 
-if [ "$PLIST_EXISTS" = "yes" ] && [ "$AUTO_START_ENABLED" = "no" ]; then
-    ERRORS="${ERRORS}⚠️ Tự động khởi động đã cài nhưng chưa được load.\n"
-fi
+# Chi tiết trạng thái hệ thống
+echo "   🔎 Trạng thái hệ thống:"
+printf '   ┌──────────────────┬────────────────────────────┐\n'
+printf '   │ %s │ %s │\n' "$(pad_text "Tong quan" "$SUMMARY_LABEL_WIDTH")" "$(status_cell "$STATUS_HEADER_TEXT" "$STATUS_HEADER_COLOR" "$SUMMARY_STATUS_WIDTH")"
+printf '   │ %s │ %s │\n' "$(pad_text "Auto Retry" "$SUMMARY_LABEL_WIDTH")" "$(status_cell "$RETRY_STATUS_TEXT ($RETRY_COUNT)" "$RETRY_STATUS_COLOR" "$SUMMARY_STATUS_WIDTH")"
+printf '   │ %s │ %s │\n' "$(pad_text "Auto Accept" "$SUMMARY_LABEL_WIDTH")" "$(status_cell "$ACCEPT_STATUS_TEXT ($ACCEPT_COUNT)" "$ACCEPT_STATUS_COLOR" "$SUMMARY_STATUS_WIDTH")"
+printf '   │ %s │ %s │\n' "$(pad_text "Node Daemon" "$SUMMARY_LABEL_WIDTH")" "$(status_cell "$([ "$NODE_RUNNING" = "yes" ] && echo ON || echo OFF)" "$( [ "$NODE_RUNNING" = "yes" ] && echo 32 || echo 31 )" "$SUMMARY_STATUS_WIDTH")"
+printf '   │ %s │ %s │\n' "$(pad_text "Antigravity App" "$SUMMARY_LABEL_WIDTH")" "$(status_cell "$([ "$APP_RUNNING" = "yes" ] && echo ON || echo OFF)" "$( [ "$APP_RUNNING" = "yes" ] && echo 32 || echo 31 )" "$SUMMARY_STATUS_WIDTH")"
+printf '   │ %s │ %s │\n' "$(pad_text "CDP" "$SUMMARY_LABEL_WIDTH")" "$(status_cell "$([ "$CDP_ENABLED" = "yes" ] && echo ON || echo OFF)" "$( [ "$CDP_ENABLED" = "yes" ] && echo 32 || echo 31 )" "$SUMMARY_STATUS_WIDTH")"
+printf '   └──────────────────┴────────────────────────────┘\n'
 
-if [ -n "$ERRORS" ]; then
-    echo -e "$ERRORS"
-    echo "------------------------------------------------"
+if [ "$SHOW_ACTIVITY_STATS" = "true" ]; then
+    echo ""
+    node "$SCRIPT_DIR/../tools/list-activity-stats.js"
 fi

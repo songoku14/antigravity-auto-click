@@ -17,6 +17,13 @@ function formatKindAndCategory(button) {
   return `${kind}/${category}`;
 }
 
+function padText(text, width, align = 'left') {
+  const str = String(text);
+  const pad = Math.max(0, width - str.length);
+  if (pad === 0) return str;
+  return align === 'right' ? `${' '.repeat(pad)}${str}` : `${str}${' '.repeat(pad)}`;
+}
+
 async function analyzeLive() {
   const port = findCDPPort();
   if (!port) {
@@ -47,14 +54,27 @@ async function analyzeLive() {
       const data = JSON.parse(fs.readFileSync(activityFile, 'utf8'));
       const retryClicked = data.retry?.clicked || 0;
       const acceptClicked = data.accept?.clicked || 0;
-      statsSummary = `\x1b[32mRetry Clicked: ${retryClicked}\x1b[0m | \x1b[36mAccept Clicked: ${acceptClicked}\x1b[0m`;
+      statsSummary = {
+        retryClicked,
+        acceptClicked
+      };
     }
   } catch (e) {}
 
   for (const target of pageTargets) {
     console.log('\x1b[36m======================================================\x1b[0m');
     console.log(`\x1b[36m🔍 PHÂN TÍCH TRỰC TIẾP TARGET: "${target.title}"\x1b[0m`);
-    console.log(`📊 Thống kê hiện tại: ${statsSummary}`);
+    if (typeof statsSummary === 'object') {
+      console.log('📊 Thống kê hiện tại:');
+      console.log('   ┌──────────────────┬──────────┐');
+      console.log('   │ ' + padText('METRIC', 16) + ' │ ' + padText('COUNT', 8, 'right') + ' │');
+      console.log('   ├──────────────────┼──────────┤');
+      console.log(`   │ ${padText('Retry Clicked', 16)} │ ${padText(String(statsSummary.retryClicked), 8, 'right')} │`);
+      console.log(`   │ ${padText('Accept Clicked', 16)} │ ${padText(String(statsSummary.acceptClicked), 8, 'right')} │`);
+      console.log('   └──────────────────┴──────────┘');
+    } else {
+      console.log(`📊 Thống kê hiện tại: ${statsSummary}`);
+    }
     console.log('\x1b[36m======================================================\x1b[0m');
     await runAnalysis(target);
   }

@@ -1,7 +1,7 @@
 {
   "debug": true,
   "autoRetry": {
-    "enabled": false,
+    "enabled": true,
     "dialogContainerSelectors": [
       ".antigravity-mock-dialog",
       ".monaco-dialog-box",
@@ -63,7 +63,7 @@
   },
   "autoAccept": {
     "enabled": true,
-    "performClick": true,
+    "performClick": false,
     "blacklist": [
       "rm ",
       "sudo ",

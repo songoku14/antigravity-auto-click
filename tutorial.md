@@ -40,12 +40,11 @@ Giao diện Menu thực tế sẽ trông như thế này:
 ======================================================
  1) ⚙️ Cài đặt
  2) 🛠️ Developer Tools (Debug & Analysis)
- 3) 📊 Thống kê
+ 3) 🚀 Start/Restart All Features (Khởi chạy hệ thống)
 ------------------------------------------------------
- 4) 🚀 Start/Restart All Features (Khởi chạy hệ thống)
- 5) 🛑 Stop All Features  (Dừng hoàn toàn)
+ 4) 🛑 Stop All Features  (Dừng hoàn toàn)
 ------------------------------------------------------
- 6) 🐛 Bật CDP (Chrome DevTools Protocol)
+ 5) 🐛 Bật CDP (Chrome DevTools Protocol)
  0) 🚪 Thoát
 ======================================================
 ```
@@ -54,10 +53,9 @@ Giao diện Menu thực tế sẽ trông như thế này:
 |:---:|:---|:---|
 | **1** | **Settings** | Bật/tắt Auto-Retry, Auto-Accept, cài tự khởi động cùng macOS và bật `autoAccept.performClick`. |
 | **2** | **Dev Tools** | Xem log, Dump DOM, Chạy Regression Test (Retry/Accept/All) hoặc Phân tích Live DOM. |
-| **3** | **Thống kê** | Xem skip reasons, thống kê Accept theo category và reset bộ đếm. |
-| **4** | **Start/Restart** | Kích hoạt hoặc khởi động lại toàn bộ tính năng chạy ngầm. |
-| **5** | **Stop All** | Dừng toàn bộ tiến trình daemon ngay lập tức. |
-| **6** | **Bật CDP** | Tự động copy lệnh và hướng dẫn bạn mở IDE ở chế độ Debug. |
+| **3** | **Start/Restart** | Kích hoạt hoặc khởi động lại toàn bộ tính năng chạy ngầm. |
+| **4** | **Stop All** | Dừng toàn bộ tiến trình daemon ngay lập tức. |
+| **5** | **Bật CDP** | Tự động copy lệnh và hướng dẫn bạn mở IDE ở chế độ Debug. |
 
 > [!TIP]
 > Khi chạy **Regression Test** (từ menu hoặc CLI), bạn có thể dùng các pattern lọc:

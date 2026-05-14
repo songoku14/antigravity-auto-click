@@ -10,6 +10,39 @@ ACTIVITY_FILE="$PROJECT_ROOT/logs/activity-log.json"
 echo "🚀 Đang tự động kiểm tra và khởi chạy hệ thống..."
 bash "$SCRIPT_DIR/core/restart.sh"
 
+pad_text() {
+    local text="$1"
+    local width="$2"
+    local align="${3:-left}"
+    local len=${#text}
+    local pad=$((width - len))
+
+    if [ "$pad" -le 0 ]; then
+        printf '%s' "$text"
+        return
+    fi
+
+    if [ "$align" = "right" ]; then
+        printf '%*s%s' "$pad" "" "$text"
+    else
+        printf '%s%*s' "$text" "$pad" ""
+    fi
+}
+
+color_text() {
+    local color="$1"
+    shift
+    printf '\033[%sm%s\033[0m' "$color" "$*"
+}
+
+status_cell() {
+    local text="$1"
+    local color="$2"
+    local width="$3"
+    local align="${4:-left}"
+    color_text "$color" "$(pad_text "$text" "$width" "$align")"
+}
+
 show_menu() {
     clear
     echo "======================================================"
@@ -24,18 +57,32 @@ show_menu() {
     CDP_ENABLED=$(ps aux | grep -i "Antigravity.app/Contents/MacOS/Electron" | grep -v grep | grep -q "\\-\\-remote-debugging-port=" && echo "yes" || echo "no")
 
     if [ "$NODE_RUNNING" = "no" ]; then
-        STATUS_HEADER="\033[37m[⚪ HỆ THỐNG ĐANG TẮT]\033[0m"
+        STATUS_HEADER_TEXT="[TẮT]"
+        STATUS_HEADER_COLOR="37"
     elif [ "$APP_RUNNING" = "yes" ] && [ "$CDP_ENABLED" = "yes" ]; then
-        STATUS_HEADER="\033[32m[✅ HỆ THỐNG ĐANG HOẠT ĐỘNG]\033[0m"
+        STATUS_HEADER_TEXT="[OK]"
+        STATUS_HEADER_COLOR="32"
+    elif [ "$APP_RUNNING" = "yes" ] && [ "$CDP_ENABLED" = "no" ]; then
+        STATUS_HEADER_TEXT="[CDP OFF]"
+        STATUS_HEADER_COLOR="33"
     else
-        STATUS_HEADER="\033[31m[❌ HỆ THỐNG CÓ LỖI / CHƯA SẴN SÀNG]\033[0m"
+        STATUS_HEADER_TEXT="[CÓ LỖI]"
+        STATUS_HEADER_COLOR="31"
     fi
 
     # Feature Status
-    RETRY_STATUS="---"
-    ACCEPT_STATUS="---"
+    RETRY_STATUS_TEXT="---"
+    RETRY_STATUS_COLOR="37"
+    ACCEPT_STATUS_TEXT="---"
+    ACCEPT_STATUS_COLOR="37"
     if [ "$NODE_RUNNING" = "yes" ]; then
-        [ "$AUTO_RETRY" = "true" ] && RETRY_STATUS="\033[32mACTIVE\033[0m" || RETRY_STATUS="\033[31mOFF\033[0m"
+        if [ "$AUTO_RETRY" = "true" ]; then
+            RETRY_STATUS_TEXT="ACTIVE"
+            RETRY_STATUS_COLOR="32"
+        else
+            RETRY_STATUS_TEXT="OFF"
+            RETRY_STATUS_COLOR="31"
+        fi
         
         if [ "$AUTO_ACCEPT_ENABLED" = "true" ]; then
             # Get active categories
@@ -43,12 +90,15 @@ show_menu() {
                 [.autoAccept.categories | to_entries[] | select(.value.enabled != false) | .key | {terminal: "t", review: "r", system: "s"}[.]] | join("")
                 else "" end' "$PROJECT_ROOT/config.json" 2>/dev/null)
             if [ -n "$CATS" ]; then
-                ACCEPT_STATUS="\033[32mACTIVE\033[0m [\033[36m$CATS\033[0m]"
+                ACCEPT_STATUS_TEXT="ACTIVE [$CATS]"
+                ACCEPT_STATUS_COLOR="32"
             else
-                ACCEPT_STATUS="\033[32mACTIVE\033[0m"
+                ACCEPT_STATUS_TEXT="ACTIVE"
+                ACCEPT_STATUS_COLOR="32"
             fi
         else
-            ACCEPT_STATUS="\033[31mOFF\033[0m"
+            ACCEPT_STATUS_TEXT="OFF"
+            ACCEPT_STATUS_COLOR="31"
         fi
     fi
 
@@ -60,10 +110,22 @@ show_menu() {
         ACCEPT_COUNT=$(jq -r '.accept.clicked' "$ACTIVITY_FILE" 2>/dev/null || echo "0")
     fi
 
-    [ "$CDP_ENABLED" = "yes" ] && CDP_STATUS_LABEL="\033[32mACTIVE\033[0m" || CDP_STATUS_LABEL="\033[31mOFF\033[0m"
+    if [ "$CDP_ENABLED" = "yes" ]; then
+        CDP_STATUS_TEXT="ACTIVE"
+        CDP_STATUS_COLOR="32"
+    else
+        CDP_STATUS_TEXT="OFF"
+        CDP_STATUS_COLOR="31"
+    fi
 
-    echo -e "   Tổng quan:  $STATUS_HEADER    |    CDP Debug:  $CDP_STATUS_LABEL"
-    echo -e "   Auto Retry: $RETRY_STATUS ($RETRY_COUNT)    |    Auto Accept: $ACCEPT_STATUS ($ACCEPT_COUNT)"
+    printf '   ┌──────────────────┬────────────────────────────┐\n'
+    printf '   │ %s │ %s │\n' "$(pad_text "Tong quan" 16)" "$(status_cell "$STATUS_HEADER_TEXT" "$STATUS_HEADER_COLOR" 26)"
+    printf '   │ %s │ %s │\n' "$(pad_text "Auto Retry" 16)" "$(status_cell "$RETRY_STATUS_TEXT ($RETRY_COUNT)" "$RETRY_STATUS_COLOR" 26)"
+    printf '   │ %s │ %s │\n' "$(pad_text "Auto Accept" 16)" "$(status_cell "$ACCEPT_STATUS_TEXT ($ACCEPT_COUNT)" "$ACCEPT_STATUS_COLOR" 26)"
+    printf '   └──────────────────┴────────────────────────────┘\n'
+    if [ "$NODE_RUNNING" = "yes" ] && [ "$CDP_ENABLED" = "no" ]; then
+        echo "   Ghi chú: CDP chưa bật"
+    fi
     echo "======================================================"
     echo " 1) ⚙️ Cài đặt"
     echo " 2) 🛠️ Developer Tools (Debug & Analysis)"
@@ -152,10 +214,9 @@ show_dev_menu() {
         echo " 3) 🧪 Test DOM samples (Regression)"
         echo " 4) 🔍 Phân tích DOM trực tiếp (Live Analysis)"
         echo "------------------------------------------------------"
-        echo " 5) 📊 Thống kê lý do bỏ qua (Skip Reasons)"
-        echo " 6) 📊 Thống kê Accept (Chi tiết Category)"
-        echo " 7) 🔄 Load lại dữ liệu"
-        echo " 8) 🗑️ Reset bộ đếm thống kê"
+        echo " 5) 📊 Thống kê"
+        echo " 6) 🔄 Load lại dữ liệu"
+        echo " 7) 🗑️ Reset bộ đếm thống kê"
         echo " 0) 🔙 Quay lại Menu chính"
         echo "======================================================"
         echo ""
@@ -187,21 +248,17 @@ show_dev_menu() {
                 read -p "Nhấn Enter để tiếp tục..."
                 ;;
             5)
-                echo "📊 Đang hiển thị thống kê lý do skip..."
-                node "$SCRIPT_DIR/tools/list-skip-reasons.js"
+                echo "📊 Đang hiển thị thống kê..."
+                bash "$SCRIPT_DIR/core/status.sh" --activity
                 read -p "Nhấn Enter để tiếp tục..."
                 ;;
             6)
-                node "$SCRIPT_DIR/tools/list-accept-stats.js"
-                read -p "Nhấn Enter để tiếp tục..."
-                ;;
-            7)
                 echo "🔄 Đang load lại dữ liệu..."
                 sleep 0.5
                 ;;
-            8)
+            7)
                 bash "$SCRIPT_DIR/core/status.sh" --reset
-                sleep 1
+                sleep 0.5
                 ;;
             0)
                 return

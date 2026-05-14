@@ -1,100 +1,17 @@
+#!/usr/bin/env node
 /**
- * scripts/tools/list-skip-reasons.js
- * 
- * Phân tích lý do tại sao Daemon phát hiện ra nút bấm nhưng lại bỏ qua
- * không click (vd: do nằm sai vị trí, do bị che khuất, do rate limit).
+ * Backward-compatible wrapper.
+ *
+ * Old entry point for skip-reason statistics. The consolidated activity
+ * report now lives in `list-activity-stats.js`.
  */
 
-const fs = require('fs');
 const path = require('path');
+const { spawnSync } = require('child_process');
 
-const PROJECT_ROOT = path.join(__dirname, '..', '..');
-const ACTIVITY_FILE = path.join(PROJECT_ROOT, 'logs', 'activity-log.json');
+const script = path.join(__dirname, 'list-activity-stats.js');
+const result = spawnSync(process.execPath, [script, ...process.argv.slice(2)], {
+  stdio: 'inherit'
+});
 
-function main() {
-  console.log('\x1b[36m======================================================\x1b[0m');
-  console.log('\x1b[36m📊 THỐNG KÊ LÝ DO BỎ QUA (SKIP REASONS)\x1b[0m');
-  console.log('\x1b[36m======================================================\x1b[0m');
-
-  if (!fs.existsSync(ACTIVITY_FILE)) {
-    console.log('   ❌ Chưa có dữ liệu thống kê (activity-log.json không tồn tại).');
-    return;
-  }
-
-  let activity;
-  try {
-    activity = JSON.parse(fs.readFileSync(ACTIVITY_FILE, 'utf8'));
-  } catch (e) {
-    console.error(`   ❌ Lỗi đọc file activity: ${e.message}`);
-    return;
-  }
-
-  const reasons = activity.skipReasons || {};
-  const entries = Object.entries(reasons);
-  const retrySkippedFromReasons = entries
-    .filter(([k]) => k.startsWith('retry:'))
-    .reduce((sum, [, count]) => sum + (Number(count) || 0), 0);
-  const acceptSkippedFromReasons = entries
-    .filter(([k]) => k.startsWith('accept:'))
-    .reduce((sum, [, count]) => sum + (Number(count) || 0), 0);
-  const retryDetected = activity.retry?.detected || 0;
-  const acceptDetected = activity.accept?.detected || 0;
-  const retryStats = {
-    skipped: activity.retry?.skipped ?? retrySkippedFromReasons,
-    candidates: activity.retry?.candidates ?? (retryDetected + (activity.retry?.skipped ?? retrySkippedFromReasons))
-  };
-  const acceptStats = {
-    skipped: activity.accept?.skipped ?? acceptSkippedFromReasons,
-    candidates: activity.accept?.candidates ?? (acceptDetected + (activity.accept?.skipped ?? acceptSkippedFromReasons))
-  };
-
-  if (entries.length === 0) {
-    console.log('   ℹ️ Chưa có trường hợp nào bị bỏ qua được ghi nhận.');
-    return;
-  }
-
-  // Phân loại
-  const retryReasons = entries.filter(([k]) => k.startsWith('retry:'));
-  const acceptReasons = entries.filter(([k]) => k.startsWith('accept:'));
-
-  console.log('\n \x1b[1m🔄 AUTO RETRY SKIPS:\x1b[0m');
-  console.log(`   Tổng skip: \x1b[1m${retryStats.skipped}\x1b[0m / Ứng viên: \x1b[1m${retryStats.candidates}\x1b[0m`);
-  if (retryReasons.length === 0) {
-    console.log('   (Không có)');
-  } else {
-    displayTable(retryReasons, retryStats.skipped);
-  }
-
-  console.log('\n \x1b[1m⚡ AUTO ACCEPT SKIPS:\x1b[0m');
-  console.log(`   Tổng skip: \x1b[1m${acceptStats.skipped}\x1b[0m / Ứng viên: \x1b[1m${acceptStats.candidates}\x1b[0m`);
-  if (acceptReasons.length === 0) {
-    console.log('   (Không có)');
-  } else {
-    displayTable(acceptReasons, acceptStats.skipped);
-  }
-
-  console.log('\x1b[36m------------------------------------------------------\x1b[0m');
-}
-
-function displayTable(items, totalSkips) {
-  // Sort by count descending
-  items.sort((a, b) => b[1] - a[1]);
-
-  items.forEach(([key, count]) => {
-    const reason = key.split(':')[1];
-    let color = '';
-    
-    // Highlight important reasons
-    if (reason.includes('rate_limit')) color = '\x1b[33m'; // Yellow
-    else if (reason.includes('visibility_covered')) color = '\x1b[31m'; // Red
-    else if (reason.includes('not_right_side')) color = '\x1b[2m'; // Dim
-    
-    const label = reason.padEnd(30, ' ');
-    const countStr = count.toString().padStart(5, ' ');
-    const pct = totalSkips > 0 ? ((count / totalSkips) * 100).toFixed(1) : '0.0';
-    
-    console.log(`   - ${color}${label}\x1b[0m : \x1b[1m${countStr}\x1b[0m lần (${pct}%)`);
-  });
-}
-
-main();
+process.exit(result.status ?? 1);
