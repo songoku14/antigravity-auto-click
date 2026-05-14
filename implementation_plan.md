@@ -145,6 +145,14 @@
 - Xem recent skip reasons
 - Open raw config / logs
 
+### 8.3 Quy định về Kiểm thử (AutoTest)
+
+> [!IMPORTANT]
+> **Từ Phase 3 trở đi, quy trình bắt buộc là: Viết AutoTest TRƯỚC khi implement logic (Test-Driven Development style).**
+> - Phải tạo/cập nhật file test trong `scripts/tests/` phản ánh các yêu cầu của phase.
+> - Chạy test (kỳ vọng fail) sau đó mới viết logic để test pass.
+> - Đảm bảo không có hồi quy (regression) cho các service đã ổn định.
+
 ## 9. Kế hoạch triển khai theo phase
 
 ### Phase 0. Discovery + thiết kế contract

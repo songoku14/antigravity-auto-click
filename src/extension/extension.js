@@ -77,9 +77,12 @@ function refreshStatusBar() {
 
   const { daemonService, statusBarItem } = extensionState;
   const config = readConfig();
+  const activitySummary = summarizeActivity(readActivityLog());
+  
   const status = buildStatusBarState({
     config,
-    daemonState: daemonService.getState()
+    daemonState: daemonService.getState(),
+    activitySummary
   });
 
   statusBarItem.text = status.text;
@@ -95,62 +98,89 @@ async function openControlCenter() {
 
   const items = [
     {
-      label: `Daemon: ${daemonState.running ? 'Running' : 'Stopped'}`,
+      label: `$(info) Status: ${daemonState.running ? 'Running' : 'Stopped'}`,
       description: `Features: ${featureSummary}`,
-      detail: `Warnings: ${inspection.warnings.length} | Activity entries: ${activitySummary.total}`
+      detail: `Warnings: ${inspection.warnings.length} | Total activity: ${activitySummary.total}`,
+      alwaysShow: true
     },
     {
-      label: 'Open Raw Config',
-      description: 'Inspect normalized config file',
-      action: openConfig
+      label: '--- Actions ---',
+      kind: vscode.QuickPickItemKind.Separator
     },
     {
-      label: daemonState.running ? 'Stop Daemon' : 'Start Daemon',
+      label: daemonState.running ? '$(stop-circle) Stop Daemon' : '$(play-circle) Start Daemon',
       description: daemonState.running ? 'Stop background automation process' : 'Start background automation process',
       action: daemonState.running ? stopDaemon : startDaemon
     },
     {
-      label: 'Reload Daemon',
+      label: '$(refresh) Reload Daemon',
       description: 'Restart process with latest config',
       action: reloadDaemon
     },
     {
-      label: 'Show Activity Summary',
+      label: '--- Quick Toggles ---',
+      kind: vscode.QuickPickItemKind.Separator
+    },
+    {
+      label: `${config.autoRetry.enabled ? '$(check)' : '$(circle-slash)'} Auto Retry`,
+      description: config.autoRetry.enabled ? 'Enabled' : 'Disabled',
+      action: toggleAutoRetry
+    },
+    {
+      label: `${config.autoAccept.enabled ? '$(check)' : '$(circle-slash)'} Auto Accept`,
+      description: config.autoAccept.enabled ? 'Enabled' : 'Disabled',
+      action: toggleAutoAccept
+    },
+    {
+      label: '--- Diagnostics & Config ---',
+      kind: vscode.QuickPickItemKind.Separator
+    },
+    {
+      label: '$(graph) Show Activity Summary',
       description: 'View current activity counters from log',
       action: showActivitySummary
     },
     {
-      label: 'Open Logs',
+      label: '$(output) Open Logs',
       description: 'Open daemon log file',
       action: openLogs
+    },
+    {
+      label: '$(settings-gear) Open Raw Config',
+      description: 'Inspect normalized config file',
+      action: openConfig
     }
   ];
 
   const selected = await vscode.window.showQuickPick(items, {
-    placeHolder: 'Antigravity Control Center (Phase 1 bootstrap)'
+    placeHolder: 'Antigravity Control Center'
   });
 
   if (selected && typeof selected.action === 'function') {
     await selected.action();
+    // After action, re-open control center to show updated state
+    if (selected.label.includes('Toggle') || selected.label.includes('Daemon')) {
+      await openControlCenter();
+    }
   }
 }
 
 function startDaemon() {
   extensionState.daemonService.start();
   refreshStatusBar();
-  return vscode.window.showInformationMessage('Antigravity Auto-Click started.');
+  vscode.window.setStatusBarMessage('Antigravity Auto-Click started', 3000);
 }
 
 async function stopDaemon() {
   await extensionState.daemonService.stop();
   refreshStatusBar();
-  return vscode.window.showInformationMessage('Antigravity Auto-Click stopped.');
+  vscode.window.setStatusBarMessage('Antigravity Auto-Click stopped', 3000);
 }
 
 async function reloadDaemon() {
   await extensionState.daemonService.reload();
   refreshStatusBar();
-  return vscode.window.showInformationMessage('Antigravity Auto-Click reloaded.');
+  vscode.window.setStatusBarMessage('Antigravity Auto-Click reloaded', 3000);
 }
 
 function toggleAutoRetry() {
@@ -160,7 +190,7 @@ function toggleAutoRetry() {
   });
 
   refreshStatusBar();
-  return vscode.window.showInformationMessage(`Auto Retry is now ${updated.autoRetry.enabled ? 'ENABLED' : 'DISABLED'}.`);
+  vscode.window.setStatusBarMessage(`Auto Retry ${updated.autoRetry.enabled ? 'ENABLED' : 'DISABLED'}`, 3000);
 }
 
 function toggleAutoAccept() {
@@ -170,7 +200,7 @@ function toggleAutoAccept() {
   });
 
   refreshStatusBar();
-  return vscode.window.showInformationMessage(`Auto Accept is now ${updated.autoAccept.enabled ? 'ENABLED' : 'DISABLED'}.`);
+  vscode.window.setStatusBarMessage(`Auto Accept ${updated.autoAccept.enabled ? 'ENABLED' : 'DISABLED'}`, 3000);
 }
 
 function openConfig() {
@@ -189,8 +219,21 @@ async function openLogs() {
 
 function showActivitySummary() {
   const summary = summarizeActivity(readActivityLog());
+  const categories = Object.entries(summary.byCategory)
+    .map(([cat, count]) => `${cat}: ${count}`)
+    .join(', ') || 'none';
+  
+  const skipReasons = Object.entries(summary.skipReasons)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([reason, count]) => `${reason}: ${count}`)
+    .join(', ') || 'none';
+
   return vscode.window.showInformationMessage(
-    `Activity: total=${summary.total}, retry=${summary.retryClicks}, accept=${summary.acceptClicks}.`
+    `Activity Summary:\n` +
+    `- Total Clicks: ${summary.total} (Retry: ${summary.retryClicks}, Accept: ${summary.acceptClicks})\n` +
+    `- By Category: ${categories}\n` +
+    `- Top Skip Reasons: ${skipReasons}`
   );
 }
 

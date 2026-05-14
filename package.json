@@ -82,7 +82,8 @@
     "install-agent": "bash scripts/install.sh",
     "uninstall-agent": "bash scripts/uninstall.sh",
     "menu": "bash scripts/menu.sh",
-    "test": "node scripts/tests/regression.js"
+    "test": "node scripts/tests/regression.js",
+    "test:extension": "node scripts/tests/extension-phase2.js"
   },
   "dependencies": {
     "jsdom": "^29.1.1",

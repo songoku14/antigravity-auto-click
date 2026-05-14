@@ -2,41 +2,39 @@ const fs = require('fs');
 const path = require('path');
 
 function getActivityLogPath() {
-  return path.join(__dirname, '..', '..', 'activity-log.json');
+  return path.join(__dirname, '..', '..', 'logs', 'activity-log.json');
 }
 
 function readActivityLog() {
   const logPath = getActivityLogPath();
-  if (!fs.existsSync(logPath)) return [];
+  if (!fs.existsSync(logPath)) return null;
 
   const rawText = fs.readFileSync(logPath, 'utf8').trim();
-  if (!rawText) return [];
+  if (!rawText) return null;
 
   try {
-    const parsed = JSON.parse(rawText);
-    return Array.isArray(parsed) ? parsed : [];
+    return JSON.parse(rawText);
   } catch (error) {
-    return [];
+    return null;
   }
 }
 
-function summarizeActivity(entries = readActivityLog()) {
+function summarizeActivity(data = readActivityLog()) {
   const summary = {
-    total: entries.length,
+    total: 0,
     retryClicks: 0,
     acceptClicks: 0,
-    byCategory: {}
+    byCategory: {},
+    skipReasons: {}
   };
 
-  for (const entry of entries) {
-    const action = String(entry.action || '').toLowerCase();
-    const category = entry.category || 'unknown';
+  if (!data) return summary;
 
-    if (action.includes('retry')) summary.retryClicks += 1;
-    if (action.includes('accept') || action.includes('click')) summary.acceptClicks += 1;
-
-    summary.byCategory[category] = (summary.byCategory[category] || 0) + 1;
-  }
+  summary.retryClicks = data.retry?.clicked || 0;
+  summary.acceptClicks = data.accept?.clicked || 0;
+  summary.total = summary.retryClicks + summary.acceptClicks;
+  summary.byCategory = data.accept?.clickedByCategory || {};
+  summary.skipReasons = data.skipReasons || {};
 
   return summary;
 }

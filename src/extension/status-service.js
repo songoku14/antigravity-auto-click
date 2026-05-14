@@ -27,15 +27,20 @@ function buildFeatureSummary(config) {
   return activeFeatures.length > 0 ? activeFeatures.join(' / ') : 'OFF';
 }
 
-function buildStatusBarState({ config, daemonState }) {
+function buildStatusBarState({ config, daemonState, activitySummary }) {
   const running = !!(daemonState && daemonState.running);
   const icon = running ? '$(check)' : '$(circle-slash)';
   const summary = buildFeatureSummary(config);
   const status = running ? 'RUNNING' : 'STOPPED';
 
+  let tooltip = `Antigravity Auto-Click: ${status}\nFeatures: ${summary}`;
+  if (activitySummary && activitySummary.total > 0) {
+    tooltip += `\nRecent Activity: ${activitySummary.retryClicks} retries, ${activitySummary.acceptClicks} accepts`;
+  }
+
   return {
     text: `${icon} AG Auto ${running ? summary : ''}`.trim(),
-    tooltip: `Antigravity Auto-Click: ${status} | ${summary}`
+    tooltip
   };
 }
 
