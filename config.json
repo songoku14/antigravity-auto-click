@@ -65,7 +65,7 @@
     }
   },
   "autoAccept": {
-    "enabled": false,
+    "enabled": true,
     "performClick": false,
     "blacklist": [
       "rm ",
@@ -113,7 +113,7 @@
         ]
       },
       "systemReview": {
-        "enabled": true,
+        "enabled": false,
         "buttons": [],
         "context": []
       }

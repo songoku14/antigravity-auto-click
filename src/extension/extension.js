@@ -14,6 +14,7 @@ const { createDaemonService } = require('./daemon-service');
 const { createDiagnosticsService } = require('./diagnostics-service');
 const { buildFeatureSummary, buildStatusBarState } = require('./status-service');
 const { readActivityLog, summarizeActivity } = require('./activity-service');
+const { isAutoRetryEnabled, isAutoAcceptEnabled } = require('../core/config-schema');
 
 let extensionState = null;
 
@@ -43,8 +44,32 @@ function activate(context) {
 
   statusBarItem.show();
 
-  if (extensionConfig.get('autoStartDaemon', true)) {
+  syncDaemonWithConfig({ isInitial: true });
+}
+
+async function syncDaemonWithConfig(options = {}) {
+  if (!extensionState) return;
+  
+  const { daemonService, outputChannel } = extensionState;
+  const extensionConfig = vscode.workspace.getConfiguration('antigravityAutoClick.extension');
+  const config = readConfig();
+  const shouldRun = isAutoRetryEnabled(config) || isAutoAcceptEnabled(config);
+  const daemonState = daemonService.getState();
+  
+  if (shouldRun && !daemonState.running) {
+    const autoStartSetting = extensionConfig.get('autoStartDaemon', true);
+    // Only skip auto-start if it's the initial activation AND the setting is false
+    if (options.isInitial && !autoStartSetting) {
+      outputChannel.appendLine('[Extension] Daemon auto-start skipped (setting is false).');
+      return;
+    }
+    
+    outputChannel.appendLine('[Extension] Auto-starting daemon based on config...');
     daemonService.start();
+    refreshStatusBar();
+  } else if (!shouldRun && daemonState.running) {
+    outputChannel.appendLine('[Extension] Auto-stopping daemon as all features are disabled...');
+    await daemonService.stop();
     refreshStatusBar();
   }
 }
@@ -112,74 +137,24 @@ async function openControlCenter() {
 
   const items = [
     {
-      label: `$(info) Status: ${daemonState.running ? 'Running' : 'Stopped'}`,
-      description: `Features: ${featureSummary}`,
-      detail: `Warnings: ${inspection.warnings.length} | Total activity: ${activitySummary.total}`,
+      label: `$(info) Trạng thái: ${daemonState.running ? 'Đang chạy' : 'Đã dừng'}`,
+      description: `Tính năng: ${featureSummary}`,
+      detail: `Cảnh báo: ${inspection.warnings.length} | Tổng hoạt động: ${activitySummary.total}`,
       alwaysShow: true
     },
     {
-      label: '--- Actions ---',
+      label: '--- Cấu hình ---',
       kind: vscode.QuickPickItemKind.Separator
     },
     {
-      label: daemonState.running ? '$(stop-circle) Stop Daemon' : '$(play-circle) Start Daemon',
-      description: daemonState.running ? 'Stop background automation process' : 'Start background automation process',
-      action: daemonState.running ? stopDaemon : startDaemon
-    },
-    {
-      label: '$(refresh) Reload Daemon',
-      description: 'Restart process with latest config',
-      action: reloadDaemon
-    },
-    {
-      label: '--- Configuration ---',
-      kind: vscode.QuickPickItemKind.Separator
-    },
-    {
-      label: '$(sync) Auto Retry Settings',
-      description: `Enabled: ${config.autoRetry.enabled}`,
+      label: '$(sync) Cài đặt Auto Retry',
+      description: `Trạng thái: ${config.autoRetry.enabled ? 'Bật' : 'Tắt'}`,
       action: openAutoRetrySettings
     },
     {
-      label: '$(check-all) Auto Accept Settings',
-      description: `Enabled: ${config.autoAccept.enabled}`,
+      label: '$(check-all) Cài đặt Auto Accept',
+      description: `Trạng thái: ${config.autoAccept.enabled ? 'Bật' : 'Tắt'}`,
       action: () => vscode.commands.executeCommand(COMMANDS.openAutoAcceptSettings)
-    },
-    {
-      label: '--- Quick Toggles ---',
-      kind: vscode.QuickPickItemKind.Separator
-    },
-    {
-      label: `${config.autoRetry.enabled ? '$(check)' : '$(circle-slash)'} Toggle Auto Retry`,
-      action: toggleAutoRetry
-    },
-    {
-      label: `${config.autoAccept.enabled ? '$(check)' : '$(circle-slash)'} Toggle Auto Accept`,
-      action: toggleAutoAccept
-    },
-    {
-      label: '--- Diagnostics ---',
-      kind: vscode.QuickPickItemKind.Separator
-    },
-    {
-      label: '$(graph) Show Activity Summary',
-      description: 'View current activity counters from log',
-      action: showActivitySummary
-    },
-    {
-      label: '$(debug-console) Run System Diagnostics',
-      description: 'Check CDP, config, and file health',
-      action: showDiagnostics
-    },
-    {
-      label: '$(output) Open Logs',
-      description: 'Open daemon log file',
-      action: openLogs
-    },
-    {
-      label: '$(settings-gear) Open Raw Config',
-      description: 'Inspect normalized config file',
-      action: openConfig
     }
   ];
 
@@ -189,10 +164,6 @@ async function openControlCenter() {
 
   if (selected && typeof selected.action === 'function') {
     await selected.action();
-    // After action, re-open control center if it's a toggle
-    if (selected.label.includes('Toggle')) {
-      await openControlCenter();
-    }
   }
 }
 
@@ -247,6 +218,7 @@ async function openAutoRetrySettings() {
           resetConfigBlock('autoRetry');
           refreshStatusBar();
           vscode.window.setStatusBarMessage('Auto Retry settings reset to defaults', 3000);
+          await syncDaemonWithConfig();
         }
       }
     }
@@ -347,6 +319,7 @@ async function editNumericField(path, label) {
     });
     refreshStatusBar();
     vscode.window.setStatusBarMessage(`${label} updated to ${input}`, 3000);
+    await syncDaemonWithConfig();
   }
 }
 
@@ -380,6 +353,7 @@ async function editPatternList(path, label) {
     });
     refreshStatusBar();
     vscode.window.setStatusBarMessage(`${label} updated`, 3000);
+    await syncDaemonWithConfig();
   }
 }
 
@@ -411,6 +385,7 @@ async function openAutoAcceptSettings() {
           return cfg;
         });
         refreshStatusBar();
+        await syncDaemonWithConfig();
       }
     },
     {
@@ -457,6 +432,7 @@ async function openAutoAcceptSettings() {
           resetConfigBlock('autoAccept');
           refreshStatusBar();
           vscode.window.setStatusBarMessage('Auto Accept settings reset to defaults', 3000);
+          await syncDaemonWithConfig();
         }
       }
     }
@@ -500,6 +476,7 @@ async function openCategorySettings(categoryName) {
           return cfg;
         });
         refreshStatusBar();
+        await syncDaemonWithConfig();
       }
     },
     {
@@ -556,6 +533,7 @@ async function editStringList(path, label) {
     });
     refreshStatusBar();
     vscode.window.setStatusBarMessage(`${label} updated`, 3000);
+    await syncDaemonWithConfig();
   }
 }
 
@@ -577,7 +555,7 @@ async function reloadDaemon() {
   vscode.window.setStatusBarMessage('Antigravity Auto-Click reloaded', 3000);
 }
 
-function toggleAutoRetry() {
+async function toggleAutoRetry() {
   const updated = updateConfig((config) => {
     config.autoRetry.enabled = config.autoRetry.enabled === false;
     return config;
@@ -585,9 +563,10 @@ function toggleAutoRetry() {
 
   refreshStatusBar();
   vscode.window.setStatusBarMessage(`Auto Retry ${updated.autoRetry.enabled ? 'ENABLED' : 'DISABLED'}`, 3000);
+  await syncDaemonWithConfig();
 }
 
-function toggleAutoAccept() {
+async function toggleAutoAccept() {
   const updated = updateConfig((config) => {
     config.autoAccept.enabled = config.autoAccept.enabled === false;
     return config;
@@ -595,6 +574,7 @@ function toggleAutoAccept() {
 
   refreshStatusBar();
   vscode.window.setStatusBarMessage(`Auto Accept ${updated.autoAccept.enabled ? 'ENABLED' : 'DISABLED'}`, 3000);
+  await syncDaemonWithConfig();
 }
 
 function openConfig() {
