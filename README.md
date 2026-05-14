@@ -13,7 +13,7 @@ Verify your setup via **Test DOM samples** (CLI > Option 2 > Option 3):
 | **Vấn đề** | Lỗi "High Traffic" yêu cầu click thủ công hoặc các đề xuất Agent cần Accept liên tục. |
 | **Công nghệ** | Chrome DevTools Protocol (CDP). Daemon tự dò `--remote-debugging-port` từ tiến trình Antigravity đang chạy. |
 | **Cơ chế** | Inject JavaScript dùng polling theo chu kỳ để phát hiện và click nút. |
-| **Tính năng** | **Auto-Retry**: Click "Retry" khi gặp lỗi High Traffic.<br>**Auto-Accept**: Nhận diện các nút "Run", "Accept", "Proceed"... theo category `terminal` / `review` / `system`. |
+| **Tính năng** | **Auto-Retry**: Click "Retry" khi gặp lỗi High Traffic.<br>**Auto-Accept**: Nhận diện các nút "Run", "Accept", "Proceed"... theo category `terminal` (Terminal), `reviewChange` (Review Change), `systemReview` (System Review). |
 | **Bảo vệ** | Có cơ chế **Blacklist** chặn tự động chạy các lệnh Terminal nguy hiểm. |
 | **Ưu điểm** | Chính xác cao, linh hoạt (tắt/mở riêng biệt), an toàn với blacklist, visibility checks và rate-limit. |
 | **Vị trí UI** | Ưu tiên khu vực bên phải (Agent Side Panel) và các nút nằm trong phần footer. |
@@ -24,7 +24,7 @@ Verify your setup via **Test DOM samples** (CLI > Option 2 > Option 3):
 - **Phân cấp Nút:** Tự động ưu tiên các nút bấm nằm trong phần `footer` của container để đảm bảo tính chính xác.
 - **Phát hiện Biến động:** Dùng polling thụ động theo chu kỳ để giảm rủi ro race condition khi DOM thay đổi nhanh.
 - **Nhận diện Thông minh:** Loại bỏ cơ chế lọc văn bản cấp container (Gate Logic) để tránh sai sót; sử dụng `TreeWalker` quét sâu Shadow DOM để tìm nút theo Regex pattern.
-- **An toàn cho Auto-Accept:** Có phân loại `terminal` / `review` / `system`, blacklist lệnh nguy hiểm và cờ `autoAccept.performClick` để bật click thực tế khi cần.
+- **An toàn cho Auto-Accept:** Có phân loại `terminal` / `reviewChange` / `systemReview`, blacklist lệnh nguy hiểm và cờ `autoAccept.performClick` để bật click thực tế khi cần.
 
 ## 2. Cấu Trúc Dự Án
 
@@ -67,7 +67,7 @@ Từ giờ, luôn mở IDE bằng cách gõ lệnh `antigravity` trong Terminal.
 **Bước 2: Sử dụng & Vận hành**
 - **Chi tiết tính năng:** Xem [tutorial.md](tutorial.md) để biết cách dùng qua CLI hoặc Extension.
 - **Auto-Retry**: Tự động click thử lại khi gặp lỗi "High Traffic".
-- **Auto-Accept**: Nhận diện các đề xuất từ Agent. Click thực tế chỉ xảy ra khi `autoAccept.performClick=true`. Hỗ trợ bật/tắt riêng cho `terminal`, `review`, `system`.
+- **Auto-Accept**: Nhận diện các đề xuất từ Agent. Click thực tế chỉ xảy ra khi `autoAccept.performClick=true`. Hỗ trợ bật/tắt riêng cho `terminal` (Terminal), `reviewChange` (Review Change), `systemReview` (System Review).
 
 **Dành cho Developer:**
 - Cài đặt: `npm install`
@@ -82,15 +82,15 @@ Hệ thống cung cấp bộ công cụ mạnh mẽ để đảm bảo tính ổ
 Dùng để kiểm tra độ tin cậy của logic nhận diện dựa trên dữ liệu thực tế.
 - **Test DOM samples (Regression)**: `node scripts/tests/regression.js [pattern]` - Chạy logic trên các mẫu Full-DOM Snapshot (SAMPLES).
     - `Retry`: Test các mẫu Retry/High Traffic.
-    - `Run` / `Proceed` / `Accept_all` / `System`: Test theo category Auto-Accept.
+    - `Run` / `Proceed` / `Accept_all` / `System`: Test theo category Auto-Accept (`terminal`, `reviewChange`, `systemReview`).
     - Không tham số: Chạy toàn bộ (All).
 
 ### 🛠️ Developer Tools (CLI > Option 2)
 - **Dump DOM Snapshot**: `node scripts/tools/dump-dom.js` - Chụp lại toàn bộ cấu trúc HTML của IDE và lưu vào thư mục `samples/`. Đây là bước duy nhất để tạo một ca kiểm thử mới (Test Case).
 - **Phân tích DOM trực tiếp (Live Analysis)**: `node scripts/tools/analyze-live.js` - Phân tích thời gian thực trạng thái DOM và lý do daemon sẽ click hoặc không click.
 - **Thống kê hoạt động** (CLI > Option 2 > Option 5): Gộp bảng Skip Reasons và thống kê Auto-Accept theo category trong cùng một màn hình, kèm bảng tổng hợp Retry/Accept.
-- **Load lại dữ liệu** (CLI > Option 2 > Option 6).
-- **Reset bộ đếm thống kê** (CLI > Option 2 > Option 7).
+- **Reset bộ đếm thống kê** (CLI > Option 2 > Option 6).
+- **Load lại dữ liệu** (CLI > Option 2 > Option 7 hoặc nhấn **Enter** trống).
 
 ## 5. Hệ Thống AI Agents
 

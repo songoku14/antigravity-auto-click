@@ -58,6 +58,22 @@ color_text() {
     printf '\033[%sm%s\033[0m' "$color" "$*"
 }
 
+clean_regex_for_display() {
+    local input="$1"
+    # 1. Remove /^ and $/i or /i or $/
+    local clean=$(echo "$input" | sed -E 's/\/\^//g; s/\$\/i//g; s/\/i//g; s/\$\///g; s/\///g')
+    # 2. Replace \s* with space
+    clean=$(echo "$clean" | sed 's/\\s\*/ /g')
+    # 3. Replace \(? and \)? with ( and )
+    clean=$(echo "$clean" | sed 's/\\(?/(/g; s/\\)?/)/g')
+    # 4. Handle ⌥ (option symbol) -> optionally replace or keep
+    clean=$(echo "$clean" | sed 's/⌥/ /g') # Theo yêu cầu user: run (enter)
+    # 5. Remove any other backslashes
+    clean=$(echo "$clean" | sed 's/\\//g')
+    # 6. Trim whitespace
+    echo "$clean" | xargs
+}
+
 status_cell() {
     local text="$1"
     local color="$2"
@@ -109,13 +125,28 @@ print_settings_row() {
     printf '   │ %s │ %s │ %s │\n' "$(pad_text "$id" 4 "center")" "$(pad_text "$label" 26 "left")" "$(pad_text "$status" 12 "left")"
 }
 
-print_settings_table() {
+print_settings_details() {
+    local text="$1"
+    # Format: │      │ └─ text                     │              │
+    printf '   │      │   \033[90m└─ %s\033[0m │              │\n' "$(pad_text "$text" 23 "left")"
+}
+
+print_settings_table_header() {
     local title="$1"
-    shift
     echo "$title:"
     printf '   ┌──────┬────────────────────────────┬──────────────┐\n'
     printf '   │  ID  │ %s │ %s │\n' "$(pad_text "Tên tính năng" 26 "center")" "$(pad_text "Trạng thái" 12 "center")"
     printf '   ├──────┼────────────────────────────┼──────────────┤\n'
+}
+
+print_settings_table_footer() {
+    printf '   └──────┴────────────────────────────┴──────────────┘\n'
+}
+
+print_settings_table() {
+    local title="$1"
+    shift
+    print_settings_table_header "$title"
     while [ "$#" -gt 0 ]; do
         if [ "$1" = "---" ]; then
             printf '   ├──────┼────────────────────────────┼──────────────┤\n'
@@ -125,25 +156,30 @@ print_settings_table() {
             shift 3
         fi
     done
-    printf '   └──────┴────────────────────────────┴──────────────┘\n'
+    print_settings_table_footer
 }
 
 print_status_row() {
     local label="$1"
     local value="$2"
-    printf '   │ %s │ %s │\n' "$(pad_text "$label" 14 "left")" "$(pad_text "$value" 30)"
+    printf '   │ %s │ %s │\n' "$(pad_text "$label" 18 "left")" "$(pad_text "$value" 26)"
 }
 
 print_status_table() {
     local title="$1"
     shift
     echo "$title:"
-    printf '   ┌────────────────┬────────────────────────────────┐\n'
+    printf '   ┌────────────────────┬────────────────────────────┐\n'
     while [ "$#" -gt 0 ]; do
-        print_status_row "$1" "$2"
-        shift 2
+        if [ "$1" = "---" ]; then
+            printf '   ├────────────────────┼────────────────────────────┤\n'
+            shift
+        else
+            print_status_row "$1" "$2"
+            shift 2
+        fi
     done
-    printf '   └────────────────┴────────────────────────────────┘\n'
+    printf '   └────────────────────┴────────────────────────────┘\n'
 }
 
 show_menu() {
@@ -158,6 +194,7 @@ show_menu() {
     NODE_RUNNING=$(pgrep -f "node.*src/core/auto-retry.js" > /dev/null && echo "yes" || echo "no")
     APP_RUNNING=$(ps aux | grep "Antigravity.app/Contents/MacOS/Electron" | grep -v grep > /dev/null && echo "yes" || echo "no")
     CDP_ENABLED=$(ps aux | grep -i "Antigravity.app/Contents/MacOS/Electron" | grep -v grep | grep -q "\\-\\-remote-debugging-port=" && echo "yes" || echo "no")
+    PERFORM_CLICK=$(jq -r 'if (.autoAccept | type) == "object" then (if .autoAccept.performClick == null then false else .autoAccept.performClick end) else (if .performClickAutoAccept == null then false else .performClickAutoAccept end) end' "$PROJECT_ROOT/config.json" 2>/dev/null || echo "false")
 
     if [ "$NODE_RUNNING" = "no" ]; then
         STATUS_HEADER_TEXT="[TẮT]"
@@ -190,7 +227,7 @@ show_menu() {
         if [ "$AUTO_ACCEPT_ENABLED" = "true" ]; then
             # Get active categories
             CATS=$(jq -r 'if .autoAccept | type == "object" then 
-                [.autoAccept.categories | to_entries[] | select(.value.enabled != false) | .key | {terminal: "t", review: "r", system: "s"}[.]] | join("")
+                [.autoAccept.categories | to_entries[] | select(.value.enabled != false) | .key | {terminal: "t", reviewChange: "r", systemReview: "s"}[.]] | join("")
                 else "" end' "$PROJECT_ROOT/config.json" 2>/dev/null)
             if [ -n "$CATS" ]; then
                 ACCEPT_STATUS_TEXT="ACTIVE [$CATS]"
@@ -222,12 +259,16 @@ show_menu() {
     fi
 
     print_status_table "   🔎 Trạng thái hệ thống" \
-        "Tổng quan" "$(status_cell "$STATUS_HEADER_TEXT" "$STATUS_HEADER_COLOR" 30)" \
-        "Node Daemon" "$(status_cell "$([ "$NODE_RUNNING" = "yes" ] && echo ON || echo OFF)" "$( [ "$NODE_RUNNING" = "yes" ] && echo 32 || echo 31 )" 30)" \
-        "Antigravity App" "$(status_cell "$([ "$APP_RUNNING" = "yes" ] && echo ON || echo OFF)" "$( [ "$APP_RUNNING" = "yes" ] && echo 32 || echo 31 )" 30)" \
-        "CDP" "$(status_cell "$CDP_STATUS_TEXT" "$CDP_STATUS_COLOR" 30)" \
-        "Auto Retry" "$(status_cell "$RETRY_STATUS_TEXT ($RETRY_COUNT)" "$RETRY_STATUS_COLOR" 30)" \
-        "Auto Accept" "$(status_cell "$ACCEPT_STATUS_TEXT ($ACCEPT_COUNT)" "$ACCEPT_STATUS_COLOR" 30)"
+        "Tổng quan" "$(status_cell "$STATUS_HEADER_TEXT" "$STATUS_HEADER_COLOR" 26)" \
+        "---" \
+        "Auto Retry" "$(status_cell "$RETRY_STATUS_TEXT ($RETRY_COUNT)" "$RETRY_STATUS_COLOR" 26)" \
+        "---" \
+        "Auto Accept" "$(status_cell "$ACCEPT_STATUS_TEXT ($ACCEPT_COUNT)" "$ACCEPT_STATUS_COLOR" 26)" \
+        "Perform Click" "$(status_cell "$([ "$PERFORM_CLICK" = "true" ] && echo ACTIVE || echo OFF)" "$([ "$PERFORM_CLICK" = "true" ] && echo 32 || echo 31)" 26)"
+    
+    if [ -n "$CATS" ]; then
+        echo "   (t: Terminal, r: Review Change, s: System Review)"
+    fi
     
     if [ "$NODE_RUNNING" = "yes" ] && [ "$CDP_ENABLED" = "no" ]; then
         echo "   Ghi chú: CDP chưa bật"
@@ -375,8 +416,106 @@ show_dev_menu() {
                 bash "$SCRIPT_DIR/core/status.sh" --reset
                 sleep 0.5
                 ;;
-            7)
+            7|"")
                 echo "🔄 Đang load lại dữ liệu..."
+                sleep 0.5
+                ;;
+            0)
+                return
+                ;;
+            *)
+                echo "❌ Lựa chọn không hợp lệ."
+                sleep 1
+                ;;
+        esac
+    done
+}
+
+show_auto_accept_settings() {
+    while true; do
+        clear
+        # Get current settings for Auto Accept
+        CUR_ACCEPT=$(jq -r 'if (.autoAccept | type) == "object" then (if .autoAccept.enabled == null then true else .autoAccept.enabled end) else (if .autoAccept == null then true else .autoAccept end) end' "$PROJECT_ROOT/config.json" 2>/dev/null || echo "true")
+        CUR_TERM=$(jq -r '.autoAccept.categories.terminal.enabled // true' "$PROJECT_ROOT/config.json" 2>/dev/null)
+        CUR_REV=$(jq -r '.autoAccept.categories.reviewChange.enabled // false' "$PROJECT_ROOT/config.json" 2>/dev/null)
+        CUR_SYS=$(jq -r '.autoAccept.categories.systemReview.enabled // false' "$PROJECT_ROOT/config.json" 2>/dev/null)
+
+        # Get buttons for each category and clean them
+        TERM_RAW=$(jq -r '.autoAccept.categories.terminal.buttons | join(", ")' "$PROJECT_ROOT/config.json" 2>/dev/null)
+        REV_RAW=$(jq -r '.autoAccept.categories.reviewChange.buttons | join(", ")' "$PROJECT_ROOT/config.json" 2>/dev/null)
+        SYS_RAW=$(jq -r '.autoAccept.categories.systemReview.buttons | join(", ")' "$PROJECT_ROOT/config.json" 2>/dev/null)
+
+        TERM_BTNS=$(clean_regex_for_display "$TERM_RAW")
+        REV_BTNS=$(clean_regex_for_display "$REV_RAW")
+        SYS_BTNS=$(clean_regex_for_display "$SYS_RAW")
+
+        [ "$CUR_ACCEPT" = "true" ] && ACC_VAL="ACTIVE" || ACC_VAL="OFF"
+        [ "$CUR_ACCEPT" = "true" ] && ACC_CLR="32" || ACC_CLR="31"
+        
+        [ "$CUR_TERM" = "true" ] && TERM_VAL="ACTIVE" || TERM_VAL="OFF"
+        [ "$CUR_TERM" = "true" ] && TERM_CLR="32" || TERM_CLR="31"
+        
+        [ "$CUR_REV" = "true" ] && REV_VAL="ACTIVE" || REV_VAL="OFF"
+        [ "$CUR_REV" = "true" ] && REV_CLR="32" || REV_CLR="31"
+        
+        [ "$CUR_SYS" = "true" ] && SYS_VAL="ACTIVE" || SYS_VAL="OFF"
+        [ "$CUR_SYS" = "true" ] && SYS_CLR="32" || SYS_CLR="31"
+
+        echo "======================================================"
+        echo "               🛡️ AUTO ACCEPT SETTINGS               "
+        echo "======================================================"
+        
+        print_settings_table "   🛡️ Cấu hình Auto Accept" \
+            "1)" "Master Switch (All)" "$(status_cell "$ACC_VAL" "$ACC_CLR" 12)" \
+            "---" \
+            "2)" "Terminal prompts" "$(status_cell "$TERM_VAL" "$TERM_CLR" 12)" \
+            "3)" "Review Change prompts" "$(status_cell "$REV_VAL" "$REV_CLR" 12)" \
+            "4)" "System Review prompts" "$(status_cell "$SYS_VAL" "$SYS_CLR" 12)" \
+            "---" \
+            "0)" "Quay lại menu trước" ""
+
+        echo ""
+        echo "   🔍 Danh sách các button:"
+        printf '   ┌──────────────────┬────────────────────────────────────┐\n'
+        printf '   │ %s │ %s │\n' "$(pad_text "Category" 16 "center")" "$(pad_text "Regex Patterns" 34 "center")"
+        printf '   ├──────────────────┼────────────────────────────────────┤\n'
+        printf '   │ %s │ %s │\n' "$(pad_text "Terminal" 16 "left")" "$(pad_text "$TERM_BTNS" 34 "left")"
+        printf '   │ %s │ %s │\n' "$(pad_text "Review Change" 16 "left")" "$(pad_text "$REV_BTNS" 34 "left")"
+        printf '   │ %s │ %s │\n' "$(pad_text "System Review" 16 "left")" "$(pad_text "$SYS_BTNS" 34 "left")"
+        printf '   └──────────────────┴────────────────────────────────────┘\n'
+        
+        echo "   Ghi chú:"
+        echo "   - Master Switch: Bật/Tắt toàn bộ tính năng Auto Accept."
+        echo "   - Terminal     : Tự nhấn các lệnh trong Terminal (trừ các lệnh trong BlackList)"
+        echo "   - Review Change : Tự nhấn các thay đổi về Code"
+        echo "   - System Review : Tự nhấn các thay đổi ở mức System, như Implement Plan"
+        echo "======================================================"
+        echo ""
+        read -p "Lựa chọn của bạn: " aa_choice
+        
+        case $aa_choice in
+            1)
+                if [ "$CUR_ACCEPT" = "true" ]; then NEW_VAL="false"; else NEW_VAL="true"; fi
+                jq 'if (.autoAccept | type) == "object" then .autoAccept.enabled = '"$NEW_VAL"' else .autoAccept = '"$NEW_VAL"' end' "$PROJECT_ROOT/config.json" > "$PROJECT_ROOT/config.json.tmp" && mv "$PROJECT_ROOT/config.json.tmp" "$PROJECT_ROOT/config.json"
+                echo -e "✅ Đã chuyển Master Switch sang: $NEW_VAL"
+                sleep 0.5
+                ;;
+            2)
+                if [ "$CUR_TERM" = "true" ]; then NEW_VAL="false"; else NEW_VAL="true"; fi
+                jq '.autoAccept.categories.terminal.enabled = '"$NEW_VAL" "$PROJECT_ROOT/config.json" > "$PROJECT_ROOT/config.json.tmp" && mv "$PROJECT_ROOT/config.json.tmp" "$PROJECT_ROOT/config.json"
+                echo -e "✅ Đã chuyển Terminal prompts sang: $NEW_VAL"
+                sleep 0.5
+                ;;
+            3)
+                if [ "$CUR_REV" = "true" ]; then NEW_VAL="false"; else NEW_VAL="true"; fi
+                jq '.autoAccept.categories.reviewChange.enabled = '"$NEW_VAL" "$PROJECT_ROOT/config.json" > "$PROJECT_ROOT/config.json.tmp" && mv "$PROJECT_ROOT/config.json.tmp" "$PROJECT_ROOT/config.json"
+                echo -e "✅ Đã chuyển Review Change prompts sang: $NEW_VAL"
+                sleep 0.5
+                ;;
+            4)
+                if [ "$CUR_SYS" = "true" ]; then NEW_VAL="false"; else NEW_VAL="true"; fi
+                jq '.autoAccept.categories.systemReview.enabled = '"$NEW_VAL" "$PROJECT_ROOT/config.json" > "$PROJECT_ROOT/config.json.tmp" && mv "$PROJECT_ROOT/config.json.tmp" "$PROJECT_ROOT/config.json"
+                echo -e "✅ Đã chuyển System Review prompts sang: $NEW_VAL"
                 sleep 0.5
                 ;;
             0)
@@ -442,7 +581,7 @@ while true; do
                 print_settings_table "   ⚙️ Cấu hình hệ thống" \
                     "1)" "Toggle Auto Retry" "$RETRY_STATUS" \
                     "---" \
-                    "2)" "Toggle Auto Accept" "$ACCEPT_STATUS" \
+                    "2)" "Auto Accept Settings" "> Vào menu" \
                     "3)" "Toggle Perform Click" "$CLICK_STATUS" \
                     "---" \
                     "4)" "Toggle Debug mode của Auto Click" "$DEBUG_STATUS" \
@@ -468,10 +607,7 @@ while true; do
                         sleep 1
                         ;;
                     2)
-                        if [ "$CUR_ACCEPT" = "true" ]; then NEW_VAL="false"; else NEW_VAL="true"; fi
-                        jq 'if (.autoAccept | type) == "object" then .autoAccept.enabled = '"$NEW_VAL"' else .autoAccept = '"$NEW_VAL"' end' "$PROJECT_ROOT/config.json" > "$PROJECT_ROOT/config.json.tmp" && mv "$PROJECT_ROOT/config.json.tmp" "$PROJECT_ROOT/config.json"
-                        echo -e "✅ Đã chuyển Auto Accept sang: $NEW_VAL"
-                        sleep 1
+                        show_auto_accept_settings
                         ;;
                     3)
                         if [ "$CUR_CLICK_ACCEPT" = "true" ]; then NEW_VAL="false"; else NEW_VAL="true"; fi

@@ -86,8 +86,12 @@ function printCategoryTable(entries, totalClicked) {
       const normalizedCount = Number(count) || 0;
       const pct = totalClicked > 0 ? ((normalizedCount / totalClicked) * 100).toFixed(1) : '0.0';
 
+      let displayName = cat.toUpperCase();
+      if (cat === 'review' || cat === 'system' || cat === 'systemreview') displayName = 'SYSTEM REVIEW';
+      else if (cat === 'reviewchange') displayName = 'REVIEW CHANGE';
+
       console.log(
-        `   │ ${color(padText(cat.toUpperCase(), 14), colorCode)} │ ${color(padText(normalizedCount, 8, 'right'), '1')} │ ${color(padText(`${pct}%`, 8, 'right'), '2')} │`
+        `   │ ${color(padText(displayName, 14), colorCode)} │ ${color(padText(normalizedCount, 8, 'right'), '1')} │ ${color(padText(`${pct}%`, 8, 'right'), '2')} │`
       );
     });
 

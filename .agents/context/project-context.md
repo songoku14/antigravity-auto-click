@@ -3,7 +3,7 @@
 ## Overview
 This project provides a background daemon for macOS that connects to a local Antigravity instance (Electron-based IDE) via the Chrome DevTools Protocol (CDP) and injects a DOM automation payload. The payload currently supports two flows:
 - **Auto-Retry**: detect error dialogs such as "High Traffic" / overloaded / rate-limited states and click retry-style actions.
-- **Auto-Accept**: detect selected Agent confirmation dialogs and optionally click action buttons such as `Run`, `Accept`, or `Proceed`, with category-based controls and a terminal-command blacklist.
+- **Auto-Accept**: detect selected Agent confirmation dialogs and optionally click action buttons such as `Run`, `Accept`, or `Proceed`, with category-based controls (`terminal`, `reviewChange`, `systemReview`) and a terminal-command blacklist.
 
 ## Tech Stack
 - **Node.js**: The daemon that orchestrates the CDP connection and payload injection.

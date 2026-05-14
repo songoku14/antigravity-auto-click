@@ -80,7 +80,7 @@ const DEFAULT_ACTION_CATEGORIES = {
       /chạy\s*lệnh/i
     ]
   },
-  review: {
+  reviewChange: {
     enabled: true,
     buttons: [/^proceed$/i, /^accept\s*all$/i],
     context: [
@@ -91,7 +91,7 @@ const DEFAULT_ACTION_CATEGORIES = {
       /proceed\s*with\s*changes/i
     ]
   },
-  system: {
+  systemReview: {
     enabled: true,
     buttons: [],
     context: []

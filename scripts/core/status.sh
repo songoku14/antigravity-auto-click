@@ -61,6 +61,14 @@ AUTO_ACCEPT=$(jq -r '
     (if .autoAccept == null then true else .autoAccept end)
   end
 ' "$CONFIG_FILE" 2>/dev/null || echo "true")
+AUTO_ACCEPT_PERFORM_CLICK=$(jq -r '
+  if (.autoAccept | type) == "object" then
+    (if .autoAccept.performClick == null then false else .autoAccept.performClick end)
+  else
+    (if .performClickAutoAccept == null then false else .performClickAutoAccept end)
+  end
+' "$CONFIG_FILE" 2>/dev/null || echo "false")
+
 
 # Check Node process
 NODE_RUNNING=$(pgrep -f "node.*src/core/auto-retry.js" > /dev/null && echo "yes" || echo "no")
@@ -168,6 +176,11 @@ ACCEPT_STATUS_COLOR="37"
 RETRY_COUNT="0"
 ACCEPT_COUNT="0"
 
+if [ -f "$ACTIVITY_FILE" ]; then
+    RETRY_COUNT=$(jq -r '.retry.clicked // 0' "$ACTIVITY_FILE" 2>/dev/null || echo "0")
+    ACCEPT_COUNT=$(jq -r '.accept.clicked // 0' "$ACTIVITY_FILE" 2>/dev/null || echo "0")
+fi
+
 if [ "$NODE_RUNNING" = "yes" ]; then
     if [ "$AUTO_RETRY" = "true" ]; then
         RETRY_STATUS_TEXT="ACTIVE"
@@ -180,7 +193,7 @@ if [ "$NODE_RUNNING" = "yes" ]; then
     if [ "$AUTO_ACCEPT" = "true" ]; then
         ACCEPT_CATEGORY_TAGS=$(jq -r '
           if (.autoAccept | type) == "object" then
-            [(.autoAccept.categories // {}) | to_entries[] | select(.value.enabled != false) | .key | {terminal: "t", review: "r", system: "s"}[.]]
+            [(.autoAccept.categories // {}) | to_entries[] | select(.value.enabled != false) | .key | {terminal: "t", reviewChange: "r", systemReview: "s"}[.]]
             | join("")
           else
             ""
@@ -201,14 +214,20 @@ fi
 
 # Chi tiết trạng thái hệ thống
 echo "   🔎 Trạng thái hệ thống:"
-printf '   ┌────────────────┬────────────────────────────────┐\n'
-printf '   │ %s │ %s │\n' "$(pad_text "Tong quan" 14)" "$(status_cell "$STATUS_HEADER_TEXT" "$STATUS_HEADER_COLOR" 30)"
-printf '   │ %s │ %s │\n' "$(pad_text "Auto Retry" 14)" "$(status_cell "$RETRY_STATUS_TEXT ($RETRY_COUNT)" "$RETRY_STATUS_COLOR" 30)"
-printf '   │ %s │ %s │\n' "$(pad_text "Auto Accept" 14)" "$(status_cell "$ACCEPT_STATUS_TEXT ($ACCEPT_COUNT)" "$ACCEPT_STATUS_COLOR" 30)"
-printf '   │ %s │ %s │\n' "$(pad_text "Node Daemon" 14)" "$(status_cell "$([ "$NODE_RUNNING" = "yes" ] && echo ON || echo OFF)" "$( [ "$NODE_RUNNING" = "yes" ] && echo 32 || echo 31 )" 30)"
-printf '   │ %s │ %s │\n' "$(pad_text "Antigravity App" 14)" "$(status_cell "$([ "$APP_RUNNING" = "yes" ] && echo ON || echo OFF)" "$( [ "$APP_RUNNING" = "yes" ] && echo 32 || echo 31 )" 30)"
-printf '   │ %s │ %s │\n' "$(pad_text "CDP" 14)" "$(status_cell "$([ "$CDP_ENABLED" = "yes" ] && echo ON || echo OFF)" "$( [ "$CDP_ENABLED" = "yes" ] && echo 32 || echo 31 )" 30)"
-printf '   └────────────────┴────────────────────────────────┘\n'
+printf '   ┌────────────────────┬────────────────────────────┐\n'
+printf '   │ %s │ %s │\n' "$(pad_text "Tổng quan" 18)" "$(status_cell "$STATUS_HEADER_TEXT" "$STATUS_HEADER_COLOR" 26)"
+printf '   ├────────────────────┼────────────────────────────┤\n'
+printf '   │ %s │ %s │\n' "$(pad_text "Auto Retry" 18)" "$(status_cell "$RETRY_STATUS_TEXT ($RETRY_COUNT)" "$RETRY_STATUS_COLOR" 26)"
+printf '   ├────────────────────┼────────────────────────────┤\n'
+printf '   │ %s │ %s │\n' "$(pad_text "Auto Accept" 18)" "$(status_cell "$ACCEPT_STATUS_TEXT ($ACCEPT_COUNT)" "$ACCEPT_STATUS_COLOR" 26)"
+printf '   │ %s │ %s │\n' "$(pad_text "Perform Click" 18)" "$(status_cell "$([ "$AUTO_ACCEPT_PERFORM_CLICK" = "true" ] && echo ACTIVE || echo OFF)" "$( [ "$AUTO_ACCEPT_PERFORM_CLICK" = "true" ] && echo 32 || echo 31 )" 26)"
+printf '   ├────────────────────┼────────────────────────────┤\n'
+printf '   │ %s │ %s │\n' "$(pad_text "Node Daemon" 18)" "$(status_cell "$([ "$NODE_RUNNING" = "yes" ] && echo ON || echo OFF)" "$( [ "$NODE_RUNNING" = "yes" ] && echo 32 || echo 31 )" 26)"
+printf '   │ %s │ %s │\n' "$(pad_text "CDP" 18)" "$(status_cell "$([ "$CDP_ENABLED" = "yes" ] && echo ACTIVE || echo OFF)" "$( [ "$CDP_ENABLED" = "yes" ] && echo 32 || echo 31 )" 26)"
+printf '   └────────────────────┴────────────────────────────┘\n'
+if [ -n "$ACCEPT_CATEGORY_TAGS" ]; then
+    echo "   (t: Terminal, r: Review Change, s: System Review)"
+fi
 echo "======================================================"
 
 if [ "$SHOW_ACTIVITY_STATS" = "true" ]; then

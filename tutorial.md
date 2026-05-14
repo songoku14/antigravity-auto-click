@@ -60,7 +60,7 @@ Giao diện Menu thực tế sẽ trông như thế này:
 > [!TIP]
 > Khi chạy **Regression Test** (từ menu hoặc CLI), bạn có thể dùng các pattern lọc:
 > - `Retry`: Chỉ kiểm tra các ca thử lại.
-> - `Run`, `Proceed`, `Accept_all`, `System`: Kiểm tra theo từng nhóm Auto-Accept.
+> - `Run`, `Proceed`, `Accept_all`, `System`: Kiểm tra theo từng nhóm Auto-Accept (`terminal`, `reviewChange`, `systemReview`).
 
 
 ---
@@ -79,8 +79,8 @@ Phù hợp cho việc bật/tắt nhanh các tính năng trong lúc đang code m
 ### 🛰️ Chỉ số tại Status Bar (Góc dưới phải)
 Bạn sẽ thấy biểu tượng dấu tích (Check) hoặc gạch chéo (Circle-slash) kèm theo trạng thái:
 - `(R)` : **Auto-Retry** đang Bật.
-- `(A[tr])` : **Auto-Accept** đang Bật với các nhóm (t: terminal, r: review).
-- `(A[trs])` : **Auto-Accept** đang Bật với đủ 3 nhóm `terminal`, `review`, `system`.
+- `(A[tr])` : **Auto-Accept** đang Bật với các nhóm (t: Terminal, r: Review Change).
+- `(A[trs])` : **Auto-Accept** đang Bật với đủ 3 nhóm `terminal`, `reviewChange`, `systemReview`.
 - `(R/A[tr])` : Cả hai đều đang Bật.
 - Khi daemon dừng, status bar chỉ hiển thị trạng thái `STOPPED`.
 
@@ -111,8 +111,8 @@ Bạn có thể tùy chỉnh hành vi của công cụ trong file `config.json` 
     "blacklist": ["rm ", "sudo ", "delete "],
     "categories": {
       "terminal": { "enabled": true, "context": ["run\\s*this\\s*command"] },
-      "review": { "enabled": true, "context": ["agent\\s*prompt"] },
-      "system": { "enabled": true, "context": ["security\\s*confirmation"] }
+      "reviewChange": { "enabled": true, "context": ["agent\\s*prompt"] },
+      "systemReview": { "enabled": true, "context": ["security\\s*confirmation"] }
     }
   }
 }

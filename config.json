@@ -63,7 +63,7 @@
   },
   "autoAccept": {
     "enabled": true,
-    "performClick": false,
+    "performClick": true,
     "blacklist": [
       "rm ",
       "sudo ",
@@ -88,20 +88,19 @@
           "/run/i"
         ]
       },
-      "review": {
-        "enabled": false,
+      "reviewChange": {
+        "enabled": true,
         "buttons": [
-          "/^proceed$/i",
+          "/^accept$/i",
           "/^accept\\s*all$/i"
         ],
         "context": [
           "/review\\s*the\\s*changes/i",
-          "/agent\\s*prompt/i",
-          "/approve\\s*request/i",
-          "/review\\s*required/i"
+          "/reject\\s*all/i",
+          "/^reject$/i"
         ]
       },
-      "system": {
+      "systemReview": {
         "enabled": false,
         "buttons": [
           "/^proceed$/i"
