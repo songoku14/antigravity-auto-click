@@ -815,7 +815,7 @@ function getInjectionScript(userConfig = {}) {
       
       // Case 1: Auto-Retry
       if (RETRY_CONFIG.enabled !== false) {
-        // debug(`[STEP 1] Found matching RETRY container: <${container.tagName.toLowerCase()}> (ID: ${container.id})`);
+        // debug('[STEP 1] Found matching RETRY container.');
         const btns = findButtonsIn(container, CONFIG.retryButtonPatterns, dryRun ? null : 'RETRY');
         btns.sort((a, b) => (a.inFooter !== b.inFooter ? (b.inFooter ? 1 : -1) : b.rect.top - a.rect.top));
         for (const btnObj of btns) {
@@ -850,7 +850,7 @@ function getInjectionScript(userConfig = {}) {
               containerReport.buttons.retry.push(diag);
             }
             if (!dryRun) logSkippedStat('RETRY', 'context_mismatch');
-            debug(`[STEP 3.1] Skipping RETRY button: context mismatch`);
+            debug('[STEP 3.1] Skipping RETRY button: context mismatch');
             continue;
           }
           if (!useFallback) {

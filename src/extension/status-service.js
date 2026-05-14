@@ -29,7 +29,9 @@ function buildFeatureSummary(config) {
 
 function buildStatusBarState({ config, daemonState, activitySummary }) {
   const running = !!(daemonState && daemonState.running);
-  const status = daemonState ? daemonState.status.toUpperCase() : 'STOPPED';
+  const status = daemonState && typeof daemonState.status === 'string'
+    ? daemonState.status.toUpperCase()
+    : (running ? 'RUNNING' : 'STOPPED');
   
   let icon = '$(circle-slash)';
   if (status === 'RUNNING') icon = '$(check)';

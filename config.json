@@ -65,7 +65,7 @@
     }
   },
   "autoAccept": {
-    "enabled": true,
+    "enabled": false,
     "performClick": false,
     "blacklist": [
       "rm ",
