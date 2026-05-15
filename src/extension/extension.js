@@ -493,7 +493,18 @@ async function openCategorySettings(categoryName) {
           if (confirm !== 'Enable') return;
         }
         updateConfig((cfg) => {
-          cfg.autoAccept.categories[categoryName].enabled = !cfg.autoAccept.categories[categoryName].enabled;
+          const newVal = !cfg.autoAccept.categories[categoryName].enabled;
+          cfg.autoAccept.categories[categoryName].enabled = newVal;
+          
+          // Sync master switch
+          if (newVal === true) {
+            cfg.autoAccept.enabled = true;
+          } else {
+            const anyEnabled = Object.values(cfg.autoAccept.categories).some(cat => cat && cat.enabled);
+            if (!anyEnabled) {
+              cfg.autoAccept.enabled = false;
+            }
+          }
           return cfg;
         });
         refreshStatusBar();

@@ -135,22 +135,23 @@
                     'autoAccept.categories.systemReview.enabled'
                 ];
                 
+                // Get fresh state from DOM
                 const anyEnabled = subKeys.some(key => toggles[key] && toggles[key].checked);
-                const allDisabled = !anyEnabled;
-
-                if (allDisabled && masterToggle.checked) {
-                    masterToggle.checked = false;
-                    vscode.postMessage({
-                        type: 'TOGGLE_FEATURE',
-                        feature: 'autoAccept.enabled',
-                        value: false
-                    });
-                } else if (anyEnabled && !masterToggle.checked) {
+                
+                if (anyEnabled && !masterToggle.checked) {
                     masterToggle.checked = true;
                     vscode.postMessage({
                         type: 'TOGGLE_FEATURE',
                         feature: 'autoAccept.enabled',
                         value: true
+                    });
+                } else if (!anyEnabled && masterToggle.checked) {
+                    // Optional: turn off master if all categories off
+                    masterToggle.checked = false;
+                    vscode.postMessage({
+                        type: 'TOGGLE_FEATURE',
+                        feature: 'autoAccept.enabled',
+                        value: false
                     });
                 }
             }
@@ -203,12 +204,12 @@
             if (config.autoAccept.enabled) {
                 categoriesContainer.classList.remove('dimmed');
                 categoriesContainer.style.opacity = '1';
-                categoriesContainer.style.pointerEvents = 'auto';
             } else {
                 categoriesContainer.classList.add('dimmed');
-                categoriesContainer.style.opacity = '0.5';
-                categoriesContainer.style.pointerEvents = 'none';
+                categoriesContainer.style.opacity = '0.7';
             }
+            // Ensure interaction is always possible
+            categoriesContainer.style.pointerEvents = 'auto';
         }
 
         // Update Blacklist

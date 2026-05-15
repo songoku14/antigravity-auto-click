@@ -106,6 +106,21 @@ class ControlCenterViewProvider {
         target = target[keys[i]];
       }
       target[keys[keys.length - 1]] = value;
+
+      // Sync master switch with categories
+      if (featurePath.startsWith('autoAccept.categories.')) {
+        if (value === true) {
+          cfg.autoAccept.enabled = true;
+        } else {
+          // If all categories are OFF, turn OFF master
+          const categories = cfg.autoAccept.categories || {};
+          const anyEnabled = Object.values(categories).some(cat => cat && cat.enabled);
+          if (!anyEnabled) {
+            cfg.autoAccept.enabled = false;
+          }
+        }
+      }
+
       return cfg;
     });
 
