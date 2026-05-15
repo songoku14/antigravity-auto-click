@@ -1,5 +1,5 @@
-const path = require('path');
 const AutoRetryDaemon = require('./daemon');
+const { getStoragePaths } = require('./storage-paths');
 
 // Simple CLI arg parser
 const args = process.argv.slice(2);
@@ -8,9 +8,9 @@ const getArg = (name) => {
   return (idx !== -1 && args[idx + 1]) ? args[idx + 1] : null;
 };
 
-const projectRoot = path.join(__dirname, '..', '..');
-const configPath = getArg('--config') || path.join(projectRoot, 'config.json');
-const logsDir = getArg('--logs') || path.join(projectRoot, 'logs');
+const defaults = getStoragePaths();
+const configPath = getArg('--config') || defaults.configPath;
+const logsDir = getArg('--logs') || defaults.logsDir;
 
 const daemon = new AutoRetryDaemon(configPath, logsDir);
 

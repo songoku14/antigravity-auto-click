@@ -1,37 +1,35 @@
 const fs = require('fs');
 const path = require('path');
+const {
+  getLegacyActivityLogPaths,
+  getStoragePaths
+} = require('../core/storage-paths');
 
 let storagePath = null;
 
 function initialize(p) {
-  storagePath = p;
-  const targetDir = path.join(storagePath, 'logs');
-  const targetPath = path.join(targetDir, 'activity-log.json');
-  const legacyDir = path.join(__dirname, '..', '..', 'logs');
-  const legacyPath = path.join(legacyDir, 'activity-log.json');
+  storagePath = getStoragePaths().storageDir;
+  const targetDir = getStoragePaths(storagePath).logsDir;
+  const targetPath = getActivityLogPath();
+  const legacyPaths = getLegacyActivityLogPaths(p ? [p] : []);
 
-  // Migration: If target doesn't exist but legacy does, copy it
-  if (!fs.existsSync(targetPath) && fs.existsSync(legacyPath)) {
+  if (!fs.existsSync(targetPath)) {
     try {
       if (!fs.existsSync(targetDir)) {
         fs.mkdirSync(targetDir, { recursive: true });
       }
-      fs.copyFileSync(legacyPath, targetPath);
+      const legacyPath = legacyPaths.find((candidate) => fs.existsSync(candidate));
+      if (legacyPath) {
+        fs.copyFileSync(legacyPath, targetPath);
+      }
     } catch (e) {
       console.error(`[ActivityService] Migration failed: ${e.message}`);
     }
   }
 }
 
-
-
 function getActivityLogPath() {
-  if (storagePath) {
-    return path.join(storagePath, 'logs', 'activity-log.json');
-  }
-  // Always use global storage path for consistency even in dev mode
-  const home = process.env.HOME || process.env.USERPROFILE;
-  return path.join(home, 'Library/Application Support/Code/User/globalStorage/antigravity.antigravity-auto-click/logs/activity-log.json');
+  return getStoragePaths(storagePath || undefined).activityLogPath;
 }
 
 function readActivityLog() {
@@ -136,6 +134,7 @@ function resetActivity(targetPath = getActivityLogPath()) {
     accept: { candidates: 0, skipped: 0, detected: 0, clicked: 0, blocked: 0, clickedByCategory: {}, detectedByCategory: {}, clickedByButton: {} },
     skipReasons: {}
   };
+  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
   fs.writeFileSync(targetPath, JSON.stringify(initial, null, 2));
   cachedSummary = summarizeActivity(initial);
   return initial;

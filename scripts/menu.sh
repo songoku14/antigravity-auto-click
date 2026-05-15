@@ -4,7 +4,15 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 PLIST_NAME="com.antigravity.autoretry"
-ACTIVITY_FILE="$PROJECT_ROOT/logs/activity-log.json"
+CONFIG_FILE="$(node "$SCRIPT_DIR/core/print-storage-path.js" configPath)"
+ACTIVITY_FILE="$(node "$SCRIPT_DIR/core/print-storage-path.js" activityLogPath)"
+DAEMON_LOG_FILE="$(node "$SCRIPT_DIR/core/print-storage-path.js" daemonLogPath)"
+
+mkdir -p "$(dirname "$CONFIG_FILE")" "$(dirname "$ACTIVITY_FILE")"
+if [ ! -f "$CONFIG_FILE" ]; then
+    cd "$PROJECT_ROOT"
+    node -e "const service=require('./src/extension/config-service'); service.writeConfig(service.readConfig());"
+fi
 
 # Check if system is already running
 if pgrep -f "node.*src/core/auto-retry.js" > /dev/null; then
@@ -193,12 +201,12 @@ show_menu() {
     echo "======================================================"
     
     # Check current state for header
-    AUTO_RETRY=$(jq -r 'if (.autoRetry | type) == "object" then (if .autoRetry.enabled == null then true else .autoRetry.enabled end) else (if .autoRetry == null then true else .autoRetry end) end' "$PROJECT_ROOT/config.json" 2>/dev/null || echo "true")
-    AUTO_ACCEPT_ENABLED=$(jq -r 'if (.autoAccept | type) == "object" then (if .autoAccept.enabled == null then true else .autoAccept.enabled end) else (if .autoAccept == null then true else .autoAccept end) end' "$PROJECT_ROOT/config.json" 2>/dev/null || echo "true")
+    AUTO_RETRY=$(jq -r 'if (.autoRetry | type) == "object" then (if .autoRetry.enabled == null then true else .autoRetry.enabled end) else (if .autoRetry == null then true else .autoRetry end) end' "$CONFIG_FILE" 2>/dev/null || echo "true")
+    AUTO_ACCEPT_ENABLED=$(jq -r 'if (.autoAccept | type) == "object" then (if .autoAccept.enabled == null then true else .autoAccept.enabled end) else (if .autoAccept == null then true else .autoAccept end) end' "$CONFIG_FILE" 2>/dev/null || echo "true")
     NODE_RUNNING=$(pgrep -f "node.*src/core/auto-retry.js" > /dev/null && echo "yes" || echo "no")
     APP_RUNNING=$(ps aux | grep "Antigravity.app/Contents/MacOS/Electron" | grep -v grep > /dev/null && echo "yes" || echo "no")
     CDP_ENABLED=$(ps aux | grep -i "Antigravity.app/Contents/MacOS/Electron" | grep -v grep | grep -q "\\-\\-remote-debugging-port=" && echo "yes" || echo "no")
-    PERFORM_CLICK=$(jq -r 'if (.autoAccept | type) == "object" then (if .autoAccept.performClick == null then false else .autoAccept.performClick end) else (if .performClickAutoAccept == null then false else .performClickAutoAccept end) end' "$PROJECT_ROOT/config.json" 2>/dev/null || echo "false")
+    PERFORM_CLICK=$(jq -r 'if (.autoAccept | type) == "object" then (if .autoAccept.performClick == null then false else .autoAccept.performClick end) else (if .performClickAutoAccept == null then false else .performClickAutoAccept end) end' "$CONFIG_FILE" 2>/dev/null || echo "false")
 
     if [ "$NODE_RUNNING" = "no" ]; then
         STATUS_HEADER_TEXT="[TẮT]"
@@ -232,7 +240,7 @@ show_menu() {
             # Get active categories
             CATS=$(jq -r 'if .autoAccept | type == "object" then 
                 [.autoAccept.categories | to_entries[] | select(.value.enabled != false) | .key | {terminal: "t", reviewChange: "r", systemReview: "s"}[.]] | join("")
-                else "" end' "$PROJECT_ROOT/config.json" 2>/dev/null)
+                else "" end' "$CONFIG_FILE" 2>/dev/null)
             if [ -n "$CATS" ]; then
                 ACCEPT_STATUS_TEXT="ACTIVE [$CATS]"
                 ACCEPT_STATUS_COLOR="32"
@@ -402,7 +410,7 @@ show_dev_menu() {
                 run_regression_suite
                 ;;
             4)
-                LOG_FILE="$PROJECT_ROOT/logs/daemon.log"
+                LOG_FILE="$DAEMON_LOG_FILE"
                 if [ -f "$LOG_FILE" ]; then
                     echo "Đang theo dõi log (Nhấn Ctrl+C để thoát)..."
                     tail -f "$LOG_FILE"
@@ -439,15 +447,15 @@ show_auto_accept_settings() {
     while true; do
         clear
         # Get current settings for Auto Accept
-        CUR_ACCEPT=$(jq -r 'if (.autoAccept | type) == "object" then (if .autoAccept.enabled == null then true else .autoAccept.enabled end) else (if .autoAccept == null then true else .autoAccept end) end' "$PROJECT_ROOT/config.json" 2>/dev/null || echo "true")
-        CUR_TERM=$(jq -r '.autoAccept.categories.terminal.enabled // true' "$PROJECT_ROOT/config.json" 2>/dev/null)
-        CUR_REV=$(jq -r '.autoAccept.categories.reviewChange.enabled // false' "$PROJECT_ROOT/config.json" 2>/dev/null)
-        CUR_SYS=$(jq -r '.autoAccept.categories.systemReview.enabled // false' "$PROJECT_ROOT/config.json" 2>/dev/null)
+        CUR_ACCEPT=$(jq -r 'if (.autoAccept | type) == "object" then (if .autoAccept.enabled == null then true else .autoAccept.enabled end) else (if .autoAccept == null then true else .autoAccept end) end' "$CONFIG_FILE" 2>/dev/null || echo "true")
+        CUR_TERM=$(jq -r '.autoAccept.categories.terminal.enabled // true' "$CONFIG_FILE" 2>/dev/null)
+        CUR_REV=$(jq -r '.autoAccept.categories.reviewChange.enabled // false' "$CONFIG_FILE" 2>/dev/null)
+        CUR_SYS=$(jq -r '.autoAccept.categories.systemReview.enabled // false' "$CONFIG_FILE" 2>/dev/null)
 
         # Get buttons for each category and clean them
-        TERM_RAW=$(jq -r '.autoAccept.categories.terminal.buttons | join(", ")' "$PROJECT_ROOT/config.json" 2>/dev/null)
-        REV_RAW=$(jq -r '.autoAccept.categories.reviewChange.buttons | join(", ")' "$PROJECT_ROOT/config.json" 2>/dev/null)
-        SYS_RAW=$(jq -r '.autoAccept.categories.systemReview.buttons | join(", ")' "$PROJECT_ROOT/config.json" 2>/dev/null)
+        TERM_RAW=$(jq -r '.autoAccept.categories.terminal.buttons | join(", ")' "$CONFIG_FILE" 2>/dev/null)
+        REV_RAW=$(jq -r '.autoAccept.categories.reviewChange.buttons | join(", ")' "$CONFIG_FILE" 2>/dev/null)
+        SYS_RAW=$(jq -r '.autoAccept.categories.systemReview.buttons | join(", ")' "$CONFIG_FILE" 2>/dev/null)
 
         TERM_BTNS=$(clean_regex_for_display "$TERM_RAW")
         REV_BTNS=$(clean_regex_for_display "$REV_RAW")
@@ -500,25 +508,25 @@ show_auto_accept_settings() {
         case $aa_choice in
             1)
                 if [ "$CUR_ACCEPT" = "true" ]; then NEW_VAL="false"; else NEW_VAL="true"; fi
-                jq 'if (.autoAccept | type) == "object" then .autoAccept.enabled = '"$NEW_VAL"' else .autoAccept = '"$NEW_VAL"' end' "$PROJECT_ROOT/config.json" > "$PROJECT_ROOT/config.json.tmp" && mv "$PROJECT_ROOT/config.json.tmp" "$PROJECT_ROOT/config.json"
+                jq 'if (.autoAccept | type) == "object" then .autoAccept.enabled = '"$NEW_VAL"' else .autoAccept = '"$NEW_VAL"' end' "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
                 echo -e "✅ Đã chuyển Master Switch sang: $NEW_VAL"
                 sleep 0.5
                 ;;
             2)
                 if [ "$CUR_TERM" = "true" ]; then NEW_VAL="false"; else NEW_VAL="true"; fi
-                jq '.autoAccept.categories.terminal.enabled = '"$NEW_VAL" "$PROJECT_ROOT/config.json" > "$PROJECT_ROOT/config.json.tmp" && mv "$PROJECT_ROOT/config.json.tmp" "$PROJECT_ROOT/config.json"
+                jq '.autoAccept.categories.terminal.enabled = '"$NEW_VAL" "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
                 echo -e "✅ Đã chuyển Terminal prompts sang: $NEW_VAL"
                 sleep 0.5
                 ;;
             3)
                 if [ "$CUR_REV" = "true" ]; then NEW_VAL="false"; else NEW_VAL="true"; fi
-                jq '.autoAccept.categories.reviewChange.enabled = '"$NEW_VAL" "$PROJECT_ROOT/config.json" > "$PROJECT_ROOT/config.json.tmp" && mv "$PROJECT_ROOT/config.json.tmp" "$PROJECT_ROOT/config.json"
+                jq '.autoAccept.categories.reviewChange.enabled = '"$NEW_VAL" "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
                 echo -e "✅ Đã chuyển Review Change prompts sang: $NEW_VAL"
                 sleep 0.5
                 ;;
             4)
                 if [ "$CUR_SYS" = "true" ]; then NEW_VAL="false"; else NEW_VAL="true"; fi
-                jq '.autoAccept.categories.systemReview.enabled = '"$NEW_VAL" "$PROJECT_ROOT/config.json" > "$PROJECT_ROOT/config.json.tmp" && mv "$PROJECT_ROOT/config.json.tmp" "$PROJECT_ROOT/config.json"
+                jq '.autoAccept.categories.systemReview.enabled = '"$NEW_VAL" "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
                 echo -e "✅ Đã chuyển System Review prompts sang: $NEW_VAL"
                 sleep 0.5
                 ;;
@@ -543,10 +551,10 @@ while true; do
             while true; do
                 clear
                 # Get current settings for display
-                CUR_RETRY=$(jq -r 'if (.autoRetry | type) == "object" then (if .autoRetry.enabled == null then true else .autoRetry.enabled end) else (if .autoRetry == null then true else .autoRetry end) end' "$PROJECT_ROOT/config.json" 2>/dev/null || echo "true")
-                CUR_ACCEPT=$(jq -r 'if (.autoAccept | type) == "object" then (if .autoAccept.enabled == null then true else .autoAccept.enabled end) else (if .autoAccept == null then true else .autoAccept end) end' "$PROJECT_ROOT/config.json" 2>/dev/null || echo "true")
-                CUR_CLICK_ACCEPT=$(jq -r 'if (.autoAccept | type) == "object" then (if .autoAccept.performClick == null then false else .autoAccept.performClick end) else (if .performClickAutoAccept == null then false else .performClickAutoAccept end) end' "$PROJECT_ROOT/config.json" 2>/dev/null || echo "false")
-                CUR_DEBUG=$(jq -r 'if .debug == null then true else .debug end' "$PROJECT_ROOT/config.json" 2>/dev/null || echo "true")
+                CUR_RETRY=$(jq -r 'if (.autoRetry | type) == "object" then (if .autoRetry.enabled == null then true else .autoRetry.enabled end) else (if .autoRetry == null then true else .autoRetry end) end' "$CONFIG_FILE" 2>/dev/null || echo "true")
+                CUR_ACCEPT=$(jq -r 'if (.autoAccept | type) == "object" then (if .autoAccept.enabled == null then true else .autoAccept.enabled end) else (if .autoAccept == null then true else .autoAccept end) end' "$CONFIG_FILE" 2>/dev/null || echo "true")
+                CUR_CLICK_ACCEPT=$(jq -r 'if (.autoAccept | type) == "object" then (if .autoAccept.performClick == null then false else .autoAccept.performClick end) else (if .performClickAutoAccept == null then false else .performClickAutoAccept end) end' "$CONFIG_FILE" 2>/dev/null || echo "false")
+                CUR_DEBUG=$(jq -r 'if .debug == null then true else .debug end' "$CONFIG_FILE" 2>/dev/null || echo "true")
                 
                 [ "$CUR_RETRY" = "true" ] && RETRY_VAL="ACTIVE" || RETRY_VAL="OFF"
                 [ "$CUR_RETRY" = "true" ] && RETRY_CLR="32" || RETRY_CLR="31"
@@ -606,7 +614,7 @@ while true; do
                 case $sub_choice in
                     1)
                         if [ "$CUR_RETRY" = "true" ]; then NEW_VAL="false"; else NEW_VAL="true"; fi
-                        jq 'if (.autoRetry | type) == "object" then .autoRetry.enabled = '"$NEW_VAL"' else .autoRetry = '"$NEW_VAL"' end' "$PROJECT_ROOT/config.json" > "$PROJECT_ROOT/config.json.tmp" && mv "$PROJECT_ROOT/config.json.tmp" "$PROJECT_ROOT/config.json"
+                        jq 'if (.autoRetry | type) == "object" then .autoRetry.enabled = '"$NEW_VAL"' else .autoRetry = '"$NEW_VAL"' end' "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
                         echo -e "✅ Đã chuyển Auto Retry sang: $NEW_VAL"
                         sleep 1
                         ;;
@@ -615,13 +623,13 @@ while true; do
                         ;;
                     3)
                         if [ "$CUR_CLICK_ACCEPT" = "true" ]; then NEW_VAL="false"; else NEW_VAL="true"; fi
-                        jq 'if (.autoAccept | type) == "object" then .autoAccept.performClick = '"$NEW_VAL"' else .performClickAutoAccept = '"$NEW_VAL"' end' "$PROJECT_ROOT/config.json" > "$PROJECT_ROOT/config.json.tmp" && mv "$PROJECT_ROOT/config.json.tmp" "$PROJECT_ROOT/config.json"
+                        jq 'if (.autoAccept | type) == "object" then .autoAccept.performClick = '"$NEW_VAL"' else .performClickAutoAccept = '"$NEW_VAL"' end' "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
                         echo -e "✅ Đã chuyển Auto Accept Click sang: $NEW_VAL"
                         sleep 1
                         ;;
                     4)
                         if [ "$CUR_DEBUG" = "true" ]; then NEW_VAL="false"; else NEW_VAL="true"; fi
-                        jq ".debug = $NEW_VAL" "$PROJECT_ROOT/config.json" > "$PROJECT_ROOT/config.json.tmp" && mv "$PROJECT_ROOT/config.json.tmp" "$PROJECT_ROOT/config.json"
+                        jq ".debug = $NEW_VAL" "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
                         echo -e "✅ Đã chuyển Debug mode của Auto Click sang: $NEW_VAL"
                         sleep 1
                         ;;

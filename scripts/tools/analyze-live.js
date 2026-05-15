@@ -7,8 +7,8 @@
 
 const WebSocket = require('ws');
 const fs = require('fs');
-const path = require('path');
 const { findCDPPort, getTargets, filterPageTargets } = require('../../src/core/discovery');
+const { getStoragePaths } = require('../../src/core/storage-paths');
 
 function formatKindAndCategory(button) {
   if (!button) return 'UNKNOWN';
@@ -43,8 +43,7 @@ async function analyzeLive() {
     return;
   }
 
-  const projectRoot = path.join(__dirname, '../..');
-  const activityFile = path.join(projectRoot, 'logs', 'activity-log.json');
+  const activityFile = getStoragePaths().activityLogPath;
   
   let statsSummary = 'N/A';
   try {

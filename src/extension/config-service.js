@@ -5,21 +5,26 @@ const {
   normalizeConfig,
   normalizeCategoryName
 } = require('../core/config-schema');
+const {
+  getLegacyConfigPaths,
+  getStoragePaths
+} = require('../core/storage-paths');
 const { CANONICAL_AUTO_ACCEPT_CATEGORIES, FIELD_DEFINITIONS } = require('./config-contract');
 
-const CONFIG_FILE = 'config.json';
 let storagePath = null;
 
 function initialize(p) {
-  storagePath = p;
-  const targetPath = path.join(storagePath, CONFIG_FILE);
-  const legacyPath = path.join(__dirname, '..', '..', CONFIG_FILE);
+  storagePath = getStoragePaths().storageDir;
+  const targetPath = getConfigPath();
+  const legacyPaths = getLegacyConfigPaths(p ? [p] : []);
 
-  // Migration: If target doesn't exist but legacy does, copy it
-  if (!fs.existsSync(targetPath) && fs.existsSync(legacyPath)) {
+  if (!fs.existsSync(targetPath)) {
     try {
       fs.mkdirSync(storagePath, { recursive: true });
-      fs.copyFileSync(legacyPath, targetPath);
+      const legacyPath = legacyPaths.find((candidate) => fs.existsSync(candidate));
+      if (legacyPath) {
+        fs.copyFileSync(legacyPath, targetPath);
+      }
     } catch (e) {
       console.error(`[ConfigService] Migration failed: ${e.message}`);
     }
@@ -27,21 +32,11 @@ function initialize(p) {
 }
 
 function getActivityLogPath() {
-  if (storagePath) {
-    return path.join(storagePath, 'logs', 'activity-log.json');
-  }
-  // Always use global storage path for consistency even in dev mode
-  const home = process.env.HOME || process.env.USERPROFILE;
-  return path.join(home, 'Library/Application Support/Code/User/globalStorage/antigravity.antigravity-auto-click/logs/activity-log.json');
+  return getStoragePaths(storagePath || undefined).activityLogPath;
 }
 
 function getConfigPath() {
-  if (storagePath) {
-    return path.join(storagePath, CONFIG_FILE);
-  }
-  // Always use global storage path for consistency even in dev mode
-  const home = process.env.HOME || process.env.USERPROFILE;
-  return path.join(home, 'Library/Application Support/Code/User/globalStorage/antigravity.antigravity-auto-click', CONFIG_FILE);
+  return getStoragePaths(storagePath || undefined).configPath;
 }
 
 function loadRawConfigResult() {
@@ -83,6 +78,7 @@ function readConfig() {
 function writeConfig(config) {
   const configPath = getConfigPath();
   const normalized = normalizeForSave(config);
+  fs.mkdirSync(path.dirname(configPath), { recursive: true });
   fs.writeFileSync(configPath, `${JSON.stringify(normalized, null, 2)}\n`);
   return normalized;
 }
@@ -206,6 +202,9 @@ function resetConfigBlock(blockName) {
 
 async function openConfigFile() {
   const vscode = require('vscode');
+  if (!fs.existsSync(getConfigPath())) {
+    writeConfig(readConfig());
+  }
   const uri = vscode.Uri.file(getConfigPath());
   return vscode.window.showTextDocument(uri);
 }

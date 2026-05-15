@@ -7,7 +7,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PLIST_NAME="com.antigravity.autoretry"
 PLIST_SRC="$SCRIPT_DIR/$PLIST_NAME.plist"
 PLIST_DST="$HOME/Library/LaunchAgents/$PLIST_NAME.plist"
-LOG_DIR="$SCRIPT_DIR/logs"
+CONFIG_FILE="$(node "$SCRIPT_DIR/scripts/core/print-storage-path.js" configPath)"
+LOG_DIR="$(node "$SCRIPT_DIR/scripts/core/print-storage-path.js" logsDir)"
 NODE_PATH=$(which node)
 
 echo "🔧 Installing Antigravity Auto-Retry..."
@@ -39,6 +40,10 @@ cat > "$PLIST_DST" << EOF
     <array>
         <string>$NODE_PATH</string>
         <string>$SCRIPT_DIR/src/core/auto-retry.js</string>
+        <string>--config</string>
+        <string>$CONFIG_FILE</string>
+        <string>--logs</string>
+        <string>$LOG_DIR</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
@@ -74,7 +79,7 @@ echo ""
 echo "✅ Installation complete!"
 echo ""
 echo "   Status:  launchctl list | grep autoretry"
-echo "   Logs:    tail -f $LOG_DIR/stdout.log"
+echo "   Logs:    tail -f $LOG_DIR/daemon.log"
 echo "   Stop:    launchctl unload $PLIST_DST"
 echo "   Start:   launchctl load $PLIST_DST"
 echo "   Remove:  npm run uninstall-agent"

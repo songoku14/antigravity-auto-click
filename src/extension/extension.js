@@ -24,17 +24,18 @@ const {
 } = require('./activity-service');
 const { ControlCenterViewProvider } = require('./webview-provider');
 const { isAutoRetryEnabled, isAutoAcceptEnabled } = require('../core/config-schema');
+const { getStoragePaths } = require('../core/storage-paths');
 
 let extensionState = null;
 
 function activate(context) {
   const outputChannel = vscode.window.createOutputChannel('Antigravity Auto-Click');
   
-  // Initialize storage
-  const storagePath = context.globalStorageUri.fsPath;
-  initializeConfig(storagePath);
-  initializeActivity(storagePath);
-  outputChannel.appendLine(`[Extension] Storage initialized at: ${storagePath}`);
+  const legacyStoragePath = context.globalStorageUri.fsPath;
+  const storagePaths = getStoragePaths();
+  initializeConfig(legacyStoragePath);
+  initializeActivity(legacyStoragePath);
+  outputChannel.appendLine(`[Extension] Storage initialized at: ${storagePaths.storageDir}`);
 
   const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, STATUS_BAR_PRIORITY);
   const daemonService = createDaemonService(outputChannel);
@@ -49,7 +50,9 @@ function activate(context) {
     context.extensionUri,
     { 
       getConfig: readConfig,
-      updateConfig: updateConfig
+      updateConfig: updateConfig,
+      getConfigPath: getConfigPath,
+      getActivityLogPath: getActivityLogPath
     },
     daemonService,
     { 
@@ -81,8 +84,16 @@ function activate(context) {
     logContractAndWarnings(outputChannel);
   }
   // Watch for external config changes to update Status Bar
-  const configWatcher = vscode.workspace.createFileSystemWatcher('**/config.json');
+  const configWatcher = createExactFileWatcher(getConfigPath());
   configWatcher.onDidChange(() => {
+    refreshStatusBar();
+    syncDaemonWithConfig();
+  });
+  configWatcher.onDidCreate(() => {
+    refreshStatusBar();
+    syncDaemonWithConfig();
+  });
+  configWatcher.onDidDelete(() => {
     refreshStatusBar();
     syncDaemonWithConfig();
   });
@@ -592,13 +603,22 @@ function openConfig() {
 }
 
 async function openLogs() {
-  const logPath = path.join(__dirname, '..', '..', 'logs', 'daemon.log');
+  const logPath = getStoragePaths().daemonLogPath;
   const uri = vscode.Uri.file(logPath);
   try {
     return await vscode.window.showTextDocument(uri);
   } catch (error) {
     return vscode.window.showWarningMessage(`Không thể mở log file: ${error.message}`);
   }
+}
+
+function createExactFileWatcher(filePath) {
+  if (vscode.RelativePattern && path.isAbsolute(filePath)) {
+    return vscode.workspace.createFileSystemWatcher(
+      new vscode.RelativePattern(path.dirname(filePath), path.basename(filePath))
+    );
+  }
+  return vscode.workspace.createFileSystemWatcher(filePath);
 }
 
 async function showActivitySummary() {

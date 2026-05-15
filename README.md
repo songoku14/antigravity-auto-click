@@ -63,12 +63,13 @@ echo 'alias antigravity="open -a Antigravity --args --remote-debugging-port=3190
 ### Tách biệt Mã nguồn & Dữ liệu (Data Decoupling)
 Để đảm bảo extension chạy ổn định khi đóng gói dưới dạng VSIX (thư mục cài đặt thường là read-only), chúng tôi đã tách biệt hoàn toàn dữ liệu:
 - **Source Code**: Nằm trong thư mục cài đặt extension (không thể ghi).
-- **User Data (Config/Logs)**: Được lưu trữ tại **Global Storage** của VS Code.
-    - macOS: `~/Library/Application Support/Code/User/globalStorage/antigravity.antigravity-auto-click/`
-- **Migration**: Khi khởi chạy, extension sẽ tự động di chuyển dữ liệu từ thư mục project cũ vào Global Storage.
+- **User Data (Config/Logs)**: Được lưu trữ tại một thư mục dùng chung ngoài project, không phụ thuộc workspace hay chế độ Release/Dev của extension.
+    - macOS: `~/Library/Application Support/Antigravity/Auto Click/`
+    - Cấu trúc: `config.json`, `logs/activity-log.json`, `logs/daemon.log`
+- **Migration**: Khi khởi chạy, hệ thống sẽ tự động lấy dữ liệu cũ từ project legacy hoặc VS Code `globalStorage` cũ sang thư mục canonical này.
 
 ### CLI Engine
-Daemon (`src/core/auto-retry.js`) hỗ trợ tham số `--config` và `--logs`. Extension sẽ tự động truyền các đường dẫn storage chuẩn vào engine khi khởi chạy.
+Daemon (`src/core/auto-retry.js`) hỗ trợ tham số `--config` và `--logs`. Nếu không truyền tham số, cả CLI và Extension đều tự resolve về cùng một storage canonical ở trên.
 
 ## 6. Phát triển & Đóng gói (Development)
 

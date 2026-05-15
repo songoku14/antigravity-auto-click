@@ -140,15 +140,20 @@ class ControlCenterViewProvider {
   }
 
   _setupFileWatchers() {
-    // config.json watcher
-    const configWatcher = vscode.workspace.createFileSystemWatcher('**/config.json');
+    const configPath = typeof this._configService.getConfigPath === 'function'
+      ? this._configService.getConfigPath()
+      : 'config.json';
+    const activityLogPath = typeof this._configService.getActivityLogPath === 'function'
+      ? this._configService.getActivityLogPath()
+      : 'activity-log.json';
+
+    const configWatcher = createExactFileWatcher(configPath);
     configWatcher.onDidChange(() => this._updateWebview());
     configWatcher.onDidCreate(() => this._updateWebview());
     configWatcher.onDidDelete(() => this._updateWebview());
 
-    // activity-log.json watcher
-    const activityWatcher = vscode.workspace.createFileSystemWatcher('**/activity-log.json');
-    activityWatcher.onDidChange(() => this._updateWebview(true)); // Force refresh on file change
+    const activityWatcher = createExactFileWatcher(activityLogPath);
+    activityWatcher.onDidChange(() => this._updateWebview(true));
     activityWatcher.onDidCreate(() => this._updateWebview(true));
     activityWatcher.onDidDelete(() => this._updateWebview(true));
   }
@@ -326,6 +331,15 @@ class ControlCenterViewProvider {
 </body>
 </html>`;
   }
+}
+
+function createExactFileWatcher(filePath) {
+  if (vscode.RelativePattern && path.isAbsolute(filePath)) {
+    return vscode.workspace.createFileSystemWatcher(
+      new vscode.RelativePattern(path.dirname(filePath), path.basename(filePath))
+    );
+  }
+  return vscode.workspace.createFileSystemWatcher(filePath);
 }
 
 function getNonce() {

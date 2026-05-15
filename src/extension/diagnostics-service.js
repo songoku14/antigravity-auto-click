@@ -1,11 +1,11 @@
 const fs = require('fs');
-const path = require('path');
 const cp = require('child_process');
 const { inspectConfig } = require('./config-service');
+const { getStoragePaths } = require('../core/storage-paths');
 
 function createDiagnosticsService(daemonService) {
   function getRecentLogs(lines = 50) {
-    const logPath = path.join(__dirname, '..', '..', 'logs', 'daemon.log');
+    const logPath = getStoragePaths().daemonLogPath;
     if (!fs.existsSync(logPath)) return 'Log file not found.';
     
     try {
@@ -45,7 +45,7 @@ function createDiagnosticsService(daemonService) {
     const cdp = checkCdpState();
     
     // Check if activity-log.json exists and is writable
-    const activityLogPath = path.join(__dirname, '..', '..', 'logs', 'activity-log.json');
+    const activityLogPath = getStoragePaths().activityLogPath;
     let activityLogState = 'missing';
     if (fs.existsSync(activityLogPath)) {
       try {

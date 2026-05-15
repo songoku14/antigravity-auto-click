@@ -1,4 +1,14 @@
 const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
+
+const TEST_STORAGE_DIR = path.join(__dirname, '../../scratch/test-storage-phase3');
+process.env.ANTIGRAVITY_AUTO_CLICK_HOME = TEST_STORAGE_DIR;
+
+if (fs.existsSync(TEST_STORAGE_DIR)) {
+  fs.rmSync(TEST_STORAGE_DIR, { recursive: true, force: true });
+}
+
 const configService = require('../../src/extension/config-service');
 const { DEFAULT_CONFIG } = require('../../src/core/config-schema');
 

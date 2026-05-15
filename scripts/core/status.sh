@@ -3,8 +3,8 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
-CONFIG_FILE="$PROJECT_ROOT/config.json"
-ACTIVITY_FILE="$PROJECT_ROOT/logs/activity-log.json"
+CONFIG_FILE="$(node "$SCRIPT_DIR/print-storage-path.js" configPath)"
+ACTIVITY_FILE="$(node "$SCRIPT_DIR/print-storage-path.js" activityLogPath)"
 
 # Check if reset is requested
 SHOW_ACTIVITY_STATS="false"

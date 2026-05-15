@@ -8,10 +8,9 @@
  */
 
 const fs = require('fs');
-const path = require('path');
+const { getStoragePaths } = require('../../src/core/storage-paths');
 
-const PROJECT_ROOT = path.join(__dirname, '..', '..');
-const ACTIVITY_FILE = path.join(PROJECT_ROOT, 'logs', 'activity-log.json');
+const ACTIVITY_FILE = getStoragePaths().activityLogPath;
 
 function padText(text, width, align = 'left') {
   const str = String(text);
