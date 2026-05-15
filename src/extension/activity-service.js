@@ -19,7 +19,16 @@ function readActivityLog() {
   }
 }
 
-function summarizeActivity(data = readActivityLog()) {
+let cachedSummary = null;
+
+function summarizeActivity(data) {
+  // If no data provided and we have a cache, use it to avoid disk I/O
+  if (data === undefined && cachedSummary !== null) {
+    return cachedSummary;
+  }
+
+  const logData = data === undefined ? readActivityLog() : data;
+
   const summary = {
     total: 0,
     retryClicks: 0,
@@ -29,18 +38,27 @@ function summarizeActivity(data = readActivityLog()) {
       reviewChange: 0,
       systemReview: 0
     },
+    retryByCategory: {
+      terminal: 0,
+      reviewChange: 0,
+      systemReview: 0
+    },
+    byButton: {},
     skipReasons: {}
   };
 
-  if (!data) return summary;
+  if (!logData) {
+    cachedSummary = summary;
+    return summary;
+  }
 
-  summary.retryClicks = data.retry?.clicked || 0;
-  summary.acceptClicks = data.accept?.clicked || 0;
+  summary.retryClicks = logData.retry?.clicked || 0;
+  summary.acceptClicks = logData.accept?.clicked || 0;
   summary.total = summary.retryClicks + summary.acceptClicks;
   
-  // Normalize categories
-  const rawCategories = data.accept?.clickedByCategory || {};
-  for (const [key, value] of Object.entries(rawCategories)) {
+  // Normalize categories for Accept
+  const rawAcceptCategories = logData.accept?.clickedByCategory || {};
+  for (const [key, value] of Object.entries(rawAcceptCategories)) {
     const normalizedKey = key.toLowerCase() === 'reviewchange' ? 'reviewChange' :
                          key.toLowerCase() === 'systemreview' ? 'systemReview' :
                          key.toLowerCase() === 'terminal' ? 'terminal' : key;
@@ -52,12 +70,50 @@ function summarizeActivity(data = readActivityLog()) {
     }
   }
 
-  summary.skipReasons = data.skipReasons || {};
+  // Normalize categories for Retry
+  const rawRetryCategories = logData.retry?.clickedByCategory || {};
+  for (const [key, value] of Object.entries(rawRetryCategories)) {
+    const normalizedKey = key.toLowerCase() === 'reviewchange' ? 'reviewChange' :
+                         key.toLowerCase() === 'systemreview' ? 'systemReview' :
+                         key.toLowerCase() === 'terminal' ? 'terminal' : key;
+    
+    if (summary.retryByCategory[normalizedKey] !== undefined) {
+      summary.retryByCategory[normalizedKey] += value;
+    } else {
+      summary.retryByCategory[normalizedKey] = value;
+    }
+  }
 
+  summary.skipReasons = logData.skipReasons || {};
+
+  // Merge button stats
+  const retryButtons = logData.retry?.clickedByButton || {};
+  const acceptButtons = logData.accept?.clickedByButton || {};
+  
+  for (const [btn, count] of Object.entries(retryButtons)) {
+    summary.byButton[btn] = (summary.byButton[btn] || 0) + count;
+  }
+  for (const [btn, count] of Object.entries(acceptButtons)) {
+    summary.byButton[btn] = (summary.byButton[btn] || 0) + count;
+  }
+
+  cachedSummary = summary;
   return summary;
+}
+
+function resetActivity(targetPath = getActivityLogPath()) {
+  const initial = {
+    retry: { candidates: 0, skipped: 0, detected: 0, clicked: 0, clickedByButton: {} },
+    accept: { candidates: 0, skipped: 0, detected: 0, clicked: 0, blocked: 0, clickedByCategory: {}, detectedByCategory: {}, clickedByButton: {} },
+    skipReasons: {}
+  };
+  fs.writeFileSync(targetPath, JSON.stringify(initial, null, 2));
+  cachedSummary = summarizeActivity(initial);
+  return initial;
 }
 
 module.exports = {
   readActivityLog,
-  summarizeActivity
+  summarizeActivity,
+  resetActivity
 };

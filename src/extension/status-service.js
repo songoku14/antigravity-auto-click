@@ -21,7 +21,7 @@ function buildFeatureSummary(config) {
       }
     }
 
-    activeFeatures.push(activeCategories.length > 0 ? `A:${activeCategories.join(',')}` : 'A');
+    activeFeatures.push(activeCategories.length > 0 ? `A (${activeCategories.join('|')})` : 'A');
   }
 
   return activeFeatures.length > 0 ? activeFeatures.join(' / ') : 'OFF';
@@ -34,7 +34,7 @@ function buildStatusBarState({ config, daemonState, activitySummary }) {
     : (running ? 'RUNNING' : 'STOPPED');
   
   let icon = '$(circle-slash)';
-  if (status === 'RUNNING') icon = '$(check)';
+  if (status === 'RUNNING') icon = '$(zap)';
   else if (status === 'STARTING' || status === 'RELOADING') icon = '$(sync~spin)';
   else if (status === 'STOPPING') icon = '$(loading~spin)';
 
@@ -46,7 +46,7 @@ function buildStatusBarState({ config, daemonState, activitySummary }) {
   }
 
   return {
-    text: `${icon} AG Auto ${running ? summary : ''}`.trim(),
+    text: `${icon} Auto Click ${running ? summary : ''}`.trim(),
     tooltip
   };
 }

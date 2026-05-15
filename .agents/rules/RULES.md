@@ -1,3 +1,7 @@
+---
+trigger: always_on
+---
+
 # Quy tắc Antigravity Auto-Retry
 
 ## 1. Nguyên tắc Chung
@@ -42,4 +46,8 @@
   2. **Tech Leader** duyệt kế hoạch.
   3. **DỪNG LẠI CHỜ** người dùng xác nhận.
 - **Dọn dẹp (Cleanup)**: Sau khi hoàn tất (đặc biệt là Debug), Orchestrator phải đảm bảo các file tạm (`logs/*.log`) và file nháp (`scratch/*`) được xóa sạch.
+
+## 7. Quy tắc thiết kế:
+- Luôn vẽ mockup với các yêu cầu về thiết kế mà có ảnh hưởng lớn về UX
+- Các yêu câu nhỏ như sửa text, dãn dòng thì ko cần vẽ mockup
 

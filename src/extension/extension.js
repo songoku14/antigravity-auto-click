@@ -1,6 +1,6 @@
 const path = require('path');
 const vscode = require('vscode');
-const { COMMANDS, STATUS_BAR_PRIORITY } = require('./constants');
+const { COMMANDS, STATUS_BAR_PRIORITY, VIEW_ID } = require('./constants');
 const { 
   readConfig, 
   updateConfig, 
@@ -13,7 +13,8 @@ const {
 const { createDaemonService } = require('./daemon-service');
 const { createDiagnosticsService } = require('./diagnostics-service');
 const { buildFeatureSummary, buildStatusBarState } = require('./status-service');
-const { readActivityLog, summarizeActivity } = require('./activity-service');
+const { readActivityLog, summarizeActivity, resetActivity } = require('./activity-service');
+const { ControlCenterViewProvider } = require('./webview-provider');
 const { isAutoRetryEnabled, isAutoAcceptEnabled } = require('../core/config-schema');
 
 let extensionState = null;
@@ -26,6 +27,27 @@ function activate(context) {
   const extensionConfig = vscode.workspace.getConfiguration('antigravityAutoClick.extension');
 
   statusBarItem.command = COMMANDS.openControlCenter;
+  
+  const webviewProvider = new ControlCenterViewProvider(
+    context.extensionUri,
+    { 
+      getConfig: readConfig,
+      updateConfig: updateConfig
+    },
+    daemonService,
+    { 
+      summarizeActivity: (force) => summarizeActivity(force ? readActivityLog() : undefined),
+      resetActivity: resetActivity
+    },
+    syncDaemonWithConfig
+  );
+
+
+
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(VIEW_ID, webviewProvider)
+  );
+
   context.subscriptions.push(outputChannel, statusBarItem);
 
   extensionState = {
@@ -33,13 +55,22 @@ function activate(context) {
     daemonService,
     diagnosticsService,
     outputChannel,
-    statusBarItem
+    statusBarItem,
+    webviewProvider
   };
 
   registerCommands(context);
   if (extensionConfig.get('showConfigWarningsOnStartup', true)) {
     logContractAndWarnings(outputChannel);
   }
+  // Watch for external config changes to update Status Bar
+  const configWatcher = vscode.workspace.createFileSystemWatcher('**/config.json');
+  configWatcher.onDidChange(() => {
+    refreshStatusBar();
+    syncDaemonWithConfig();
+  });
+  context.subscriptions.push(configWatcher);
+
   refreshStatusBar();
 
   statusBarItem.show();
@@ -116,7 +147,7 @@ function refreshStatusBar() {
 
   const { daemonService, statusBarItem } = extensionState;
   const config = readConfig();
-  const activitySummary = summarizeActivity(readActivityLog());
+  const activitySummary = summarizeActivity();
   
   const status = buildStatusBarState({
     config,
@@ -126,44 +157,19 @@ function refreshStatusBar() {
 
   statusBarItem.text = status.text;
   statusBarItem.tooltip = status.tooltip;
+
+  refreshWebview();
+}
+
+function refreshWebview() {
+  if (extensionState && extensionState.webviewProvider) {
+    extensionState.webviewProvider._updateWebview();
+  }
 }
 
 async function openControlCenter() {
-  const config = readConfig();
-  const daemonState = extensionState.daemonService.getState();
-  const inspection = inspectConfig();
-  const activitySummary = summarizeActivity(readActivityLog());
-  const featureSummary = buildFeatureSummary(config);
-
-  const items = [
-    {
-      label: `$(info) Trạng thái: ${daemonState.running ? 'Đang chạy' : 'Đã dừng'}`,
-      description: `Tính năng: ${featureSummary}`,
-      detail: `Cảnh báo: ${inspection.warnings.length} | Tổng hoạt động: ${activitySummary.total}`,
-      alwaysShow: true
-    },
-    {
-      label: '--- Cấu hình ---',
-      kind: vscode.QuickPickItemKind.Separator
-    },
-    {
-      label: '$(sync) Cài đặt Auto Retry',
-      description: `Trạng thái: ${config.autoRetry.enabled ? 'Bật' : 'Tắt'}`,
-      action: openAutoRetrySettings
-    },
-    {
-      label: '$(check-all) Cài đặt Auto Accept',
-      description: `Trạng thái: ${config.autoAccept.enabled ? 'Bật' : 'Tắt'}`,
-      action: () => vscode.commands.executeCommand(COMMANDS.openAutoAcceptSettings)
-    }
-  ];
-
-  const selected = await vscode.window.showQuickPick(items, {
-    placeHolder: 'Antigravity Control Center'
-  });
-
-  if (selected && typeof selected.action === 'function') {
-    await selected.action();
+  if (extensionState && extensionState.webviewProvider) {
+    extensionState.webviewProvider.show();
   }
 }
 
@@ -702,5 +708,6 @@ function deactivate() {
 
 module.exports = {
   activate,
-  deactivate
+  deactivate,
+  syncDaemonWithConfig
 };

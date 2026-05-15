@@ -66,16 +66,16 @@
   },
   "autoAccept": {
     "enabled": true,
-    "performClick": false,
+    "performClick": true,
     "blacklist": [
-      "rm ",
-      "sudo ",
-      "force ",
-      "push ",
-      "delete ",
-      "terminate ",
-      "pkill ",
-      "kill ",
+      "rm",
+      "sudo",
+      "force",
+      "push",
+      "delete",
+      "terminate",
+      "pkill",
+      "kill",
       "mkfs"
     ],
     "customAcceptPatterns": [],
@@ -101,21 +101,23 @@
       "reviewChange": {
         "enabled": true,
         "buttons": [
-          "/^proceed$/i",
-          "/^accept\\s*all$/i"
+          "/^accept\\s*all$/i",
+          "/^accept$/i"
         ],
         "context": [
-          "/review\\s*the\\s*changes/i",
-          "/agent\\s*prompt/i",
-          "/approve\\s*request/i",
-          "/review\\s*required/i",
-          "/proceed\\s*with\\s*changes/i"
+          "/^reject$/i",
+          "/^reject\\s*all$/i"
         ]
       },
       "systemReview": {
         "enabled": false,
-        "buttons": [],
-        "context": []
+        "buttons": [
+          "/^proceed$/i"
+        ],
+        "context": [
+          "/^review$/i",
+          "/^open$/i"
+        ]
       }
     }
   }

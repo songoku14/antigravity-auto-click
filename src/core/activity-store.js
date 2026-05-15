@@ -49,19 +49,23 @@ class ActivityStore {
         return {
           ...activity,
           ...parsed,
-          retry: {
-            ...activity.retry,
-            ...(parsed.retry || {}),
-            skipped: parsed.retry?.skipped ?? retrySkipped,
-            candidates: parsed.retry?.candidates ?? ((parsed.retry?.detected || 0) + retrySkipped)
-          },
           accept: {
             ...activity.accept,
             ...(parsed.accept || {}),
             skipped: parsed.accept?.skipped ?? acceptSkipped,
             candidates: parsed.accept?.candidates ?? ((parsed.accept?.detected || 0) + acceptSkipped),
             clickedByCategory: this._sanitizeCategoryMap(parsed.accept?.clickedByCategory),
-            detectedByCategory: this._sanitizeCategoryMap(parsed.accept?.detectedByCategory)
+            detectedByCategory: this._sanitizeCategoryMap(parsed.accept?.detectedByCategory),
+            clickedByButton: parsed.accept?.clickedByButton || {}
+          },
+          retry: {
+            ...activity.retry,
+            ...(parsed.retry || {}),
+            skipped: parsed.retry?.skipped ?? retrySkipped,
+            candidates: parsed.retry?.candidates ?? ((parsed.retry?.detected || 0) + retrySkipped),
+            clickedByCategory: this._sanitizeCategoryMap(parsed.retry?.clickedByCategory),
+            detectedByCategory: this._sanitizeCategoryMap(parsed.retry?.detectedByCategory),
+            clickedByButton: parsed.retry?.clickedByButton || {}
           },
           skipReasons
         };
@@ -74,8 +78,8 @@ class ActivityStore {
 
   _getInitialActivity() {
     return {
-      retry: { candidates: 0, skipped: 0, detected: 0, clicked: 0 },
-      accept: { candidates: 0, skipped: 0, detected: 0, clicked: 0, blocked: 0, clickedByCategory: {}, detectedByCategory: {} },
+      retry: { candidates: 0, skipped: 0, detected: 0, clicked: 0, clickedByCategory: {}, detectedByCategory: {}, clickedByButton: {} },
+      accept: { candidates: 0, skipped: 0, detected: 0, clicked: 0, blocked: 0, clickedByCategory: {}, detectedByCategory: {}, clickedByButton: {} },
       skipReasons: {}
     };
   }
@@ -110,9 +114,24 @@ class ActivityStore {
     if (text.includes('RETRY_DETECTED')) {
       activity.retry.candidates++;
       activity.retry.detected++;
+      const cat = this._extractCategory(text, 'RETRY_DETECTED');
+      if (cat) {
+        if (!activity.retry.detectedByCategory) activity.retry.detectedByCategory = {};
+        activity.retry.detectedByCategory[cat] = (activity.retry.detectedByCategory[cat] || 0) + 1;
+      }
       changed = true;
     } else if (text.includes('RETRY_CLICKED')) {
       activity.retry.clicked++;
+      const cat = this._extractCategory(text, 'RETRY_CLICKED');
+      if (cat) {
+        if (!activity.retry.clickedByCategory) activity.retry.clickedByCategory = {};
+        activity.retry.clickedByCategory[cat] = (activity.retry.clickedByCategory[cat] || 0) + 1;
+      }
+      const button = this._extractButton(text);
+      if (button) {
+        if (!activity.retry.clickedByButton) activity.retry.clickedByButton = {};
+        activity.retry.clickedByButton[button] = (activity.retry.clickedByButton[button] || 0) + 1;
+      }
       changed = true;
     } else if (text.includes('ACCEPT_DETECTED')) {
       activity.accept.candidates++;
@@ -129,6 +148,11 @@ class ActivityStore {
       if (cat) {
         if (!activity.accept.clickedByCategory) activity.accept.clickedByCategory = {};
         activity.accept.clickedByCategory[cat] = (activity.accept.clickedByCategory[cat] || 0) + 1;
+      }
+      const button = this._extractButton(text);
+      if (button) {
+        if (!activity.accept.clickedByButton) activity.accept.clickedByButton = {};
+        activity.accept.clickedByButton[button] = (activity.accept.clickedByButton[button] || 0) + 1;
       }
       changed = true;
     } else if (text.match(/\[STAT\] ACCEPT_BLOCKED(?::[a-z0-9_-]+)?/i)) {
@@ -147,6 +171,11 @@ class ActivityStore {
     if (!match) return null;
     const category = String(match[1]).toLowerCase();
     return CATEGORY_KEY_RE.test(category) ? category : null;
+  }
+
+  _extractButton(text) {
+    const match = text.match(/button=([^ ]+)/i);
+    return match ? match[1] : null;
   }
 
   _sanitizeCategoryMap(categoryMap) {

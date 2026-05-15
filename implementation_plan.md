@@ -27,7 +27,7 @@ Chuyển giao diện extension từ QuickPick sang **Webview Panel** (Bottom Pan
 
 ---
 
-### Phase 1: Foundation — Webview Provider Setup
+### Phase 1: Foundation — Webview Provider Setup [COMPLETED]
 
 #### Bước 1.1: Viết test trước
 
@@ -88,7 +88,7 @@ node scripts/tests/extension-webview-phase1.js  # → PASS
 
 ---
 
-### Phase 2: UI Template — HTML/CSS/JS
+### Phase 2: UI Template — HTML/CSS/JS [COMPLETED]
 
 #### Bước 2.1: Viết test trước
 
@@ -189,7 +189,7 @@ node scripts/tests/extension-webview-phase2.js  # → PASS
 
 ---
 
-### Phase 2.5: Activity Store Enhancement — Button-level Tracking
+### Phase 2.5: Activity Store Enhancement — Button-level Tracking [COMPLETED]
 
 > [!IMPORTANT]
 > Hiện tại `activity-store.js` chỉ track theo **category** (`clickedByCategory`), chưa track theo **button name**. Ảnh tham chiếu cần stats per button (Run, Allow, Retry...), nên cần mở rộng data model.

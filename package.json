@@ -88,6 +88,24 @@
           "description": "Ghi cảnh báo migration/config vào Output Channel khi extension khởi động."
         }
       }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "antigravity-auto-click-container",
+          "title": "Auto Click",
+          "icon": "$(zap)"
+        }
+      ]
+    },
+    "views": {
+      "antigravity-auto-click-container": [
+        {
+          "id": "antigravity-auto-click.controlCenter",
+          "type": "webview",
+          "name": "Control Center"
+        }
+      ]
     }
   },
   "scripts": {

@@ -131,11 +131,11 @@ function getInjectionScript(userConfig = {}) {
   }
 
   function logDetectedStat(type, category = '') {
+    const normalizedCategory = String(category || 'unknown').toLowerCase();
     if (type === 'RETRY') {
-      log('[STAT] RETRY_DETECTED');
+      log('[STAT] RETRY_DETECTED:' + normalizedCategory);
       return;
     }
-    const normalizedCategory = String(category || 'unknown').toLowerCase();
     log('[STAT] ACCEPT_DETECTED:' + normalizedCategory);
   }
 
@@ -819,11 +819,14 @@ function getInjectionScript(userConfig = {}) {
         const btns = findButtonsIn(container, CONFIG.retryButtonPatterns, dryRun ? null : 'RETRY');
         btns.sort((a, b) => (a.inFooter !== b.inFooter ? (b.inFooter ? 1 : -1) : b.rect.top - a.rect.top));
         for (const btnObj of btns) {
+          const buttonCat = getCategoryForButton(btnObj.text);
+          const matchedCat = buttonCat || getCategoryForContainer(container, btnObj.el);
+
           if (dryRun && !rememberUniqueButton(reportSeenButtons, btnObj)) continue;
           if (dryRun) report.totalButtons++;
-          const diag = dryRun ? buttonDiagnostic(btnObj, container, 'retry') : null;
+          const diag = dryRun ? buttonDiagnostic(btnObj, container, 'retry', matchedCat) : null;
 
-          if (!dryRun) logDetectedStat('RETRY');
+          if (!dryRun) logDetectedStat('RETRY', matchedCat);
 
           const isRightSide = btnObj.rect.left > window.innerWidth * 0.4;
           if (!USER_CONFIG.testMode && !isAgentWindow && !isRightSide) {
@@ -902,7 +905,7 @@ function getInjectionScript(userConfig = {}) {
             report.containerCount = report.containers.length;
             return report;
           }
-          performClick(btnObj, container, '🔄 RETRY', 'retry');
+          performClick(btnObj, container, '🔄 RETRY', matchedCat);
           return;
         }
       }

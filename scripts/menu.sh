@@ -6,9 +6,13 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 PLIST_NAME="com.antigravity.autoretry"
 ACTIVITY_FILE="$PROJECT_ROOT/logs/activity-log.json"
 
-# Auto-restart on launch to ensure system is ready
-echo "🚀 Đang tự động kiểm tra và khởi chạy hệ thống..."
-bash "$SCRIPT_DIR/core/restart.sh"
+# Check if system is already running
+if pgrep -f "node.*src/core/auto-retry.js" > /dev/null; then
+    echo "✅ Hệ thống đang chạy và sẵn sàng."
+else
+    echo "🚀 Hệ thống chưa chạy. Đang khởi chạy..."
+    bash "$SCRIPT_DIR/core/start.sh"
+fi
 
 pad_text() {
     local text="$1"
@@ -643,7 +647,20 @@ while true; do
             show_dev_menu
             ;;
         3)
-            bash "$SCRIPT_DIR/core/restart.sh"
+            if pgrep -f "node.*src/core/auto-retry.js" > /dev/null; then
+                echo "======================================================"
+                echo -e "🔄 \033[33mHỆ THỐNG ĐANG CHẠY\033[0m"
+                echo "======================================================"
+                read -p "-> Bạn có muốn Restart hệ thống không? (y/n): " confirm
+                if [[ "$confirm" =~ ^[Yy]$ ]]; then
+                    bash "$SCRIPT_DIR/core/restart.sh"
+                else
+                    echo "ℹ️  Tiếp tục với trạng thái hiện tại."
+                fi
+            else
+                echo "🚀 Đang khởi chạy hệ thống..."
+                bash "$SCRIPT_DIR/core/start.sh"
+            fi
             sleep 1
             read -p "Nhấn Enter để quay lại menu..."
             ;;
