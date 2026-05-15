@@ -42,11 +42,17 @@ function createDaemonService(outputChannel) {
     };
   }
 
-  function start() {
+  let lastConfigPath = null;
+  let lastLogsDir = null;
+
+  function start(configPath, logsDir) {
     if (status === 'starting' || status === 'running' || status === 'reloading') {
       return getState();
     }
-
+    
+    lastConfigPath = configPath || lastConfigPath;
+    lastLogsDir = logsDir || lastLogsDir;
+    
     // Double check if already running externally
     if (isRunning()) {
       status = 'running';
@@ -55,10 +61,14 @@ function createDaemonService(outputChannel) {
 
     status = 'starting';
     const scriptPath = getScriptPath();
-    outputChannel.appendLine(`[Extension] Starting daemon: node ${scriptPath}`);
+    const args = [scriptPath];
+    if (lastConfigPath) args.push('--config', lastConfigPath);
+    if (lastLogsDir) args.push('--logs', lastLogsDir);
+
+    outputChannel.appendLine(`[Extension] Starting daemon: node ${args.join(' ')}`);
 
     try {
-      daemonProcess = cp.spawn('node', [scriptPath], {
+      daemonProcess = cp.spawn('node', args, {
         env: { ...process.env, DEBUG: process.env.DEBUG || '1' }
       });
       lastStartTime = Date.now();
@@ -113,12 +123,11 @@ function createDaemonService(outputChannel) {
   }
 
   async function reload() {
-    const oldStatus = status;
     status = 'reloading';
     outputChannel.appendLine('[Extension] Reloading daemon...');
     
     await stop();
-    const result = start();
+    const result = start(lastConfigPath, lastLogsDir);
     
     if (result.status === 'running') {
       outputChannel.appendLine('[Extension] Daemon reloaded successfully.');

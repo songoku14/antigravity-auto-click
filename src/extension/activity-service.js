@@ -1,7 +1,32 @@
 const fs = require('fs');
 const path = require('path');
 
+let storagePath = null;
+
+function initialize(p) {
+  storagePath = p;
+  const targetDir = path.join(storagePath, 'logs');
+  const targetPath = path.join(targetDir, 'activity-log.json');
+  const legacyDir = path.join(__dirname, '..', '..', 'logs');
+  const legacyPath = path.join(legacyDir, 'activity-log.json');
+
+  // Migration: If target doesn't exist but legacy does, copy it
+  if (!fs.existsSync(targetPath) && fs.existsSync(legacyPath)) {
+    try {
+      if (!fs.existsSync(targetDir)) {
+        fs.mkdirSync(targetDir, { recursive: true });
+      }
+      fs.copyFileSync(legacyPath, targetPath);
+    } catch (e) {
+      console.error(`[ActivityService] Migration failed: ${e.message}`);
+    }
+  }
+}
+
 function getActivityLogPath() {
+  if (storagePath) {
+    return path.join(storagePath, 'logs', 'activity-log.json');
+  }
   return path.join(__dirname, '..', '..', 'logs', 'activity-log.json');
 }
 
@@ -113,6 +138,7 @@ function resetActivity(targetPath = getActivityLogPath()) {
 }
 
 module.exports = {
+  initialize,
   readActivityLog,
   summarizeActivity,
   resetActivity

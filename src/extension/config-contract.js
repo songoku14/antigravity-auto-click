@@ -119,14 +119,7 @@ const FIELD_DEFINITIONS = [
     requiresReload: false,
     defaultValue: DEFAULT_CONFIG.autoAccept.enabled
   },
-  {
-    path: 'autoAccept.performClick',
-    label: 'Perform Click',
-    type: 'boolean',
-    surface: 'autoAccept',
-    requiresReload: false,
-    defaultValue: DEFAULT_CONFIG.autoAccept.performClick
-  },
+
   {
     path: 'autoAccept.blacklist',
     label: 'Terminal Blacklist',

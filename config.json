@@ -84,18 +84,13 @@
         "enabled": true,
         "buttons": [
           "/^run$/i",
-          "/^run⌥enter$/i",
+          "/^run\\s*⌥enter$/i",
+          "/^accept\\s*⌥enter$/i",
           "/^execute$/i"
         ],
         "context": [
-          "/allow\\s*the\\s*following\\s*command/i",
-          "/run\\s*this\\s*command/i",
-          "/run\\s*the\\s*command/i",
-          "/execute\\s*the\\s*following/i",
-          "/do\\s*you\\s*want\\s*to\\s*run/i",
-          "/terminal\\s*action/i",
-          "/thực\\s*thi\\s*lệnh/i",
-          "/chạy\\s*lệnh/i"
+          "/^reject$/i",
+          "/^reject\\s*all$/i"
         ]
       },
       "reviewChange": {

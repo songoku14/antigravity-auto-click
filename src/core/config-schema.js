@@ -236,7 +236,7 @@ function buildDefaultConfig() {
     },
     autoAccept: {
       enabled: false,
-      performClick: false,
+      performClick: true,
       blacklist: [...DEFAULT_BLACKLIST],
       customAcceptPatterns: [],
       categories

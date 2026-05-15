@@ -4,6 +4,10 @@
   "description": "Auto-click Retry and Accept buttons in Antigravity (Auto-Retry & Auto-Accept)",
   "main": "src/extension/extension.js",
   "publisher": "antigravity",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/antigravity/antigravity-auto-click"
+  },
   "displayName": "Antigravity Auto-Click",
   "categories": [
     "Other"
@@ -116,7 +120,8 @@
     "uninstall-agent": "bash scripts/uninstall.sh",
     "menu": "bash scripts/menu.sh",
     "test": "node scripts/tests/regression.js",
-    "test:extension": "node scripts/tests/run-extension-tests.js"
+    "test:extension": "node scripts/tests/run-extension-tests.js",
+    "package": "npx @vscode/vsce package --no-git-tag-version --no-update-package-json --skip-license"
   },
   "dependencies": {
     "jsdom": "^29.1.1",

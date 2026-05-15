@@ -118,6 +118,11 @@ async function runRegressionTests() {
   const terminalLocalCommandResult = await verifyTerminalAcceptUsesLocalCommandText();
   if (terminalLocalCommandResult.success) passed++;
 
+  total++;
+  console.log(`\n📄 Đang kiểm tra: \x1b[34mterminal_accept_ignores_loose_chat_run_text\x1b[0m`);
+  const terminalLooseChatRunResult = await verifyTerminalAcceptIgnoresLooseChatRunText();
+  if (terminalLooseChatRunResult.success) passed++;
+
   console.log('\n\x1b[36m======================================================\x1b[0m');
   console.log(`🏁 KẾT QUẢ: \x1b[1m${passed}/${total}\x1b[0m trường hợp vượt qua.`);
   console.log('\x1b[36m======================================================\x1b[0m');
@@ -884,6 +889,92 @@ async function verifyTerminalAcceptUsesLocalCommandText() {
     return { success: false };
   } catch (e) {
     console.error('   ❌ Error in terminal local-command scenario:', e.message);
+    return { success: false };
+  } finally {
+    window.close();
+  }
+}
+
+async function verifyTerminalAcceptIgnoresLooseChatRunText() {
+  const html = `
+    <html>
+      <body>
+        <div class="antigravity-agent-side-panel">
+          <div class="bg-agent-convo-background">
+            <div class="overflow-y-auto">
+              <div class="cursor-pointer" id="chat-run-text">Run</div>
+              <div>[Orchestrator] Tôi sẽ thực hiện dọn dẹp các file tạm trước khi kết thúc. run rm /Users/LeHoangThang</div>
+            </div>
+            <div>Allow the following command</div>
+            <div class="command-text">npm test</div>
+            <footer>
+              <button id="reject-btn">Reject</button>
+              <button id="run-btn">Run</button>
+            </footer>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  const dom = new JSDOM(html, {
+    runScripts: "dangerously",
+    pretendToBeVisual: true,
+    url: "http://localhost/workbench.html"
+  });
+
+  const { window } = dom;
+  window.requestAnimationFrame = (cb) => setTimeout(cb, 0);
+  window.innerWidth = 1440;
+  window.innerHeight = 900;
+
+  const runButton = window.document.getElementById('run-btn');
+  const chatRunText = window.document.getElementById('chat-run-text');
+
+  window.HTMLElement.prototype.click = function() {
+    this.__clicked = true;
+  };
+
+  window.Element.prototype.getBoundingClientRect = function() {
+    if (this === runButton) {
+      return { left: 1350, top: 700, width: 70, height: 30, right: 1420, bottom: 730, x: 1350, y: 700 };
+    }
+    if (this === chatRunText) {
+      return { left: 1080, top: 620, width: 60, height: 20, right: 1140, bottom: 640, x: 1080, y: 620 };
+    }
+    return { left: 1000, top: 600, width: 430, height: 160, right: 1430, bottom: 760, x: 1000, y: 600 };
+  };
+
+  window.document.elementFromPoint = function() {
+    return runButton;
+  };
+
+  try {
+    const scriptText = getInjectionScript({
+      autoRetry: false,
+      autoAccept: true,
+      performClickAutoAccept: false
+    });
+    window.eval(scriptText);
+
+    const analysis = window.__analyzeDialog({ ignoreCategoryConfig: true });
+    const acceptButtons = analysis.containers.flatMap(c => c.buttons.accept);
+    const runMatches = acceptButtons.filter(b => /run/i.test(b.text));
+    const chatRunDiag = runMatches.find(b => b.element.includes('chat-run-text'));
+    const actualRunDiag = runMatches.find(b => b.element.includes('run-btn'));
+
+    if (!chatRunDiag &&
+        actualRunDiag &&
+        actualRunDiag.category === 'terminal' &&
+        actualRunDiag.decision === 'wouldClick') {
+      console.log(`   ✅ \x1b[32mPASS\x1b[0m: Chat response có text "Run" dạng loose clickable không còn bị nhận diện như nút terminal confirm.`);
+      return { success: true };
+    }
+
+    console.log(`   ❌ \x1b[31mFAIL\x1b[0m: Loose chat "Run" vẫn bị nhận diện nhầm. matches=${JSON.stringify(runMatches)}`);
+    return { success: false };
+  } catch (e) {
+    console.error('   ❌ Error in terminal loose-chat-run scenario:', e.message);
     return { success: false };
   } finally {
     window.close();

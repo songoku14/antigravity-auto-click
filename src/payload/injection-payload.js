@@ -453,6 +453,7 @@ function getInjectionScript(userConfig = {}) {
 
   function isPrimaryClickable(el, tag, role) {
     return tag === 'button' ||
+      (tag === 'input' && (el.type === 'button' || el.type === 'submit')) ||
       role === 'button' ||
       el.classList.contains('monaco-button') ||
       el.classList.contains('action-label');
@@ -520,6 +521,10 @@ function getInjectionScript(userConfig = {}) {
         if (text.length > 0 && text.length <= 50) {
           if (el.disabled || el.getAttribute('disabled') !== null) {
             debug('[SCAN] Skipping disabled clickable ' + summarizeElement(el) + ' text="' + text + '"');
+            continue;
+          }
+          if (!isRetryScan && !isPrimaryButton) {
+            debug('[SCAN] Skipping loose ACCEPT candidate without semantic button traits ' + summarizeElement(el) + ' text="' + text + '"');
             continue;
           }
           const rect = el.getBoundingClientRect();

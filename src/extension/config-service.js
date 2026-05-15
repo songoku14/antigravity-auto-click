@@ -8,13 +8,29 @@ const {
 const { CANONICAL_AUTO_ACCEPT_CATEGORIES, FIELD_DEFINITIONS } = require('./config-contract');
 
 const CONFIG_FILE = 'config.json';
+let storagePath = null;
 
-function getProjectRoot() {
-  return path.join(__dirname, '..', '..');
+function initialize(p) {
+  storagePath = p;
+  const targetPath = path.join(storagePath, CONFIG_FILE);
+  const legacyPath = path.join(__dirname, '..', '..', CONFIG_FILE);
+
+  // Migration: If target doesn't exist but legacy does, copy it
+  if (!fs.existsSync(targetPath) && fs.existsSync(legacyPath)) {
+    try {
+      fs.mkdirSync(storagePath, { recursive: true });
+      fs.copyFileSync(legacyPath, targetPath);
+    } catch (e) {
+      console.error(`[ConfigService] Migration failed: ${e.message}`);
+    }
+  }
 }
 
 function getConfigPath() {
-  return path.join(getProjectRoot(), CONFIG_FILE);
+  if (storagePath) {
+    return path.join(storagePath, CONFIG_FILE);
+  }
+  return path.join(__dirname, '..', '..', CONFIG_FILE);
 }
 
 function loadRawConfigResult() {
@@ -184,6 +200,7 @@ async function openConfigFile() {
 }
 
 module.exports = {
+  initialize,
   getConfigPath,
   getContractSummary,
   inspectConfig,

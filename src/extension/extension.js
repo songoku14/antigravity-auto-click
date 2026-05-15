@@ -2,18 +2,26 @@ const path = require('path');
 const vscode = require('vscode');
 const { COMMANDS, STATUS_BAR_PRIORITY, VIEW_ID } = require('./constants');
 const { 
+  initialize: initializeConfig,
   readConfig, 
   updateConfig, 
   inspectConfig, 
   openConfigFile, 
   getContractSummary,
   validateConfigField,
-  resetConfigBlock
+  resetConfigBlock,
+  getConfigPath
 } = require('./config-service');
 const { createDaemonService } = require('./daemon-service');
 const { createDiagnosticsService } = require('./diagnostics-service');
 const { buildFeatureSummary, buildStatusBarState } = require('./status-service');
-const { readActivityLog, summarizeActivity, resetActivity } = require('./activity-service');
+const { 
+  initialize: initializeActivity,
+  readActivityLog, 
+  summarizeActivity, 
+  resetActivity,
+  getActivityLogPath
+} = require('./activity-service');
 const { ControlCenterViewProvider } = require('./webview-provider');
 const { isAutoRetryEnabled, isAutoAcceptEnabled } = require('../core/config-schema');
 
@@ -21,6 +29,13 @@ let extensionState = null;
 
 function activate(context) {
   const outputChannel = vscode.window.createOutputChannel('Antigravity Auto-Click');
+  
+  // Initialize storage
+  const storagePath = context.globalStorageUri.fsPath;
+  initializeConfig(storagePath);
+  initializeActivity(storagePath);
+  outputChannel.appendLine(`[Extension] Storage initialized at: ${storagePath}`);
+
   const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, STATUS_BAR_PRIORITY);
   const daemonService = createDaemonService(outputChannel);
   const diagnosticsService = createDiagnosticsService(daemonService);
@@ -96,7 +111,7 @@ async function syncDaemonWithConfig(options = {}) {
     }
     
     outputChannel.appendLine('[Extension] Auto-starting daemon based on config...');
-    daemonService.start();
+    daemonService.start(getConfigPath(), path.dirname(getActivityLogPath()));
     refreshStatusBar();
   } else if (!shouldRun && daemonState.running) {
     outputChannel.appendLine('[Extension] Auto-stopping daemon as all features are disabled...');
@@ -374,27 +389,6 @@ async function openAutoAcceptSettings() {
       action: toggleAutoAccept
     },
     {
-      label: `${config.autoAccept.performClick ? '$(zap)' : '$(eye)'} Perform Click`,
-      description: config.autoAccept.performClick ? 'ENABLED (Will click buttons)' : 'DISABLED (Observe only)',
-      detail: config.autoAccept.performClick ? 'WARNING: High risk of accidental actions.' : '',
-      action: async () => {
-        if (!config.autoAccept.performClick) {
-          const confirm = await vscode.window.showWarningMessage(
-            'Bật Perform Click cho phép Antigravity tự động nhấn nút. Bạn có chắc chắn muốn tiếp tục?',
-            { modal: true },
-            'Enable'
-          );
-          if (confirm !== 'Enable') return;
-        }
-        updateConfig((cfg) => {
-          cfg.autoAccept.performClick = !cfg.autoAccept.performClick;
-          return cfg;
-        });
-        refreshStatusBar();
-        await syncDaemonWithConfig();
-      }
-    },
-    {
       label: '--- Categories ---',
       kind: vscode.QuickPickItemKind.Separator
     }
@@ -544,7 +538,7 @@ async function editStringList(path, label) {
 }
 
 function startDaemon() {
-  extensionState.daemonService.start();
+  extensionState.daemonService.start(getConfigPath(), path.dirname(getActivityLogPath()));
   refreshStatusBar();
   vscode.window.setStatusBarMessage('Antigravity Auto-Click started', 3000);
 }

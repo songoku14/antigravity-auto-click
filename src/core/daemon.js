@@ -8,12 +8,11 @@ const DEBUG = process.env.DEBUG === '1';
 const LOG_PREFIX = '[AutoRetry]';
 
 class AutoRetryDaemon {
-  constructor() {
+  constructor(configPath, logsDir) {
     this.connections = new Map(); // targetId -> CDPConnection
     
-    const projectRoot = path.join(__dirname, '..', '..');
-    this.configStore = new ConfigStore(path.join(projectRoot, 'config.json'));
-    this.activityStore = new ActivityStore(path.join(projectRoot, 'logs'));
+    this.configStore = new ConfigStore(configPath);
+    this.activityStore = new ActivityStore(logsDir);
     
     this.lastPID = null;
     this.running = false;
