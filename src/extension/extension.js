@@ -41,6 +41,8 @@ function activate(context) {
   const diagnosticsService = createDiagnosticsService(daemonService);
   const extensionConfig = vscode.workspace.getConfiguration('antigravityAutoClick.extension');
 
+  outputChannel.appendLine('[Extension] Activating components...');
+
   statusBarItem.command = COMMANDS.openControlCenter;
   
   const webviewProvider = new ControlCenterViewProvider(
@@ -102,7 +104,15 @@ async function syncDaemonWithConfig(options = {}) {
   const shouldRun = isAutoRetryEnabled(config) || isAutoAcceptEnabled(config);
   const daemonState = daemonService.getState();
   
-  if (shouldRun && !daemonState.running) {
+  if (shouldRun) {
+    outputChannel.appendLine('[Extension] Feature(s) enabled in config. Checking daemon...');
+    
+    if (daemonState.running) {
+      outputChannel.appendLine('[Extension] Daemon is already running (external or previous session).');
+      refreshStatusBar();
+      return;
+    }
+
     const autoStartSetting = extensionConfig.get('autoStartDaemon', true);
     // Only skip auto-start if it's the initial activation AND the setting is false
     if (options.isInitial && !autoStartSetting) {
@@ -110,7 +120,7 @@ async function syncDaemonWithConfig(options = {}) {
       return;
     }
     
-    outputChannel.appendLine('[Extension] Auto-starting daemon based on config...');
+    outputChannel.appendLine('[Extension] Starting daemon...');
     daemonService.start(getConfigPath(), path.dirname(getActivityLogPath()));
     refreshStatusBar();
   } else if (!shouldRun && daemonState.running) {

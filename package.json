@@ -13,6 +13,7 @@
     "Other"
   ],
   "activationEvents": [
+    "*",
     "onStartupFinished",
     "onCommand:antigravity-auto-click.openControlCenter",
     "onCommand:antigravity-auto-click.startDaemon",

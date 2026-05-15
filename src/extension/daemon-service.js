@@ -17,9 +17,10 @@ function createDaemonService(outputChannel) {
   function isRunning() {
     if (status === 'running' || status === 'starting') return true;
     
-    // Check for external process
+    // Check for external process (including background daemon or other VS Code instances)
     try {
-      cp.execSync('pgrep -f "node.*[s]rc/core/auto-retry.js"');
+      // Use pgrep with full command line match to find the specific script
+      cp.execSync('pgrep -f "node.*src/core/auto-retry.js"');
       return true;
     } catch (e) {
       return false;
