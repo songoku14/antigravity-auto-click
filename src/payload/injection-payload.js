@@ -7,7 +7,7 @@
 
 const { normalizeConfig } = require('../core/config-schema');
 
-const INJECTION_VERSION = 51;
+const INJECTION_VERSION = 52;
 
 /**
  * Trả về string JavaScript sẽ được inject vào DOM qua CDP Runtime.evaluate
@@ -456,7 +456,9 @@ function getInjectionScript(userConfig = {}) {
       (tag === 'input' && (el.type === 'button' || el.type === 'submit')) ||
       role === 'button' ||
       el.classList.contains('monaco-button') ||
-      el.classList.contains('action-label');
+      el.classList.contains('action-label') ||
+      el.classList.contains('bg-ide-button-background') ||
+      el.classList.contains('hover:bg-ide-button-hover-background');
   }
 
   function hasLooseClickability(el) {
@@ -485,13 +487,17 @@ function getInjectionScript(userConfig = {}) {
         if (child === el) continue;
         const tag = child.tagName.toLowerCase();
         const role = child.getAttribute('role');
-        const isClickable = isRetryScan
-          ? isPrimaryClickable(child, tag, role)
-          : (isPrimaryClickable(child, tag, role) || hasLooseClickability(child));
+        const text = (child.textContent || '').trim();
+        const isPrimary = isPrimaryClickable(child, tag, role);
+        const isLoose = hasLooseClickability(child);
+        const isClickable = isRetryScan ? isPrimary : (isPrimary || isLoose);
         if (!isClickable || isUnsafeClickableContext(child)) continue;
         if (child.disabled || child.getAttribute('disabled') !== null) continue;
-        const text = (child.textContent || '').trim();
         if (text.length === 0 || text.length > 50) continue;
+        if (!isRetryScan && !isPrimary) {
+          const isSemanticAccept = /accept all|reject all|proceed/i.test(text);
+          if (!isSemanticAccept) continue;
+        }
         const rect = child.getBoundingClientRect();
         if (rect.width <= 2 || rect.height <= 2) continue;
         if (matchesButtonPatterns(text, patterns, isRetryScan)) return true;
@@ -524,8 +530,12 @@ function getInjectionScript(userConfig = {}) {
             continue;
           }
           if (!isRetryScan && !isPrimaryButton) {
-            debug('[SCAN] Skipping loose ACCEPT candidate without semantic button traits ' + summarizeElement(el) + ' text="' + text + '"');
-            continue;
+            const isSemanticAccept = /accept all|reject all|proceed/i.test(text);
+            if (!isSemanticAccept) {
+              debug('[SCAN] Skipping loose ACCEPT candidate without semantic button traits ' + summarizeElement(el) + ' text="' + text + '"');
+              continue;
+            }
+            debug('[SCAN] Allowing loose candidate with semantic text: "' + text + '"');
           }
           const rect = el.getBoundingClientRect();
           if (rect.width > 2 && rect.height > 2) {
@@ -936,15 +946,16 @@ function getInjectionScript(userConfig = {}) {
 
             if (!dryRun) logDetectedStat('ACCEPT', matchedCat);
 
-            if (dryRun && !categoryEnabled && ignoreCategoryConfig) {
-              diag.decision = 'skip';
-              diag.reason = 'categoryDisabled';
-              diag.categoryEnabled = false;
-              containerReport.buttons.accept.push(diag);
+            if (!categoryEnabled && !ignoreCategoryConfig) {
+              if (dryRun) {
+                diag.decision = 'skip';
+                diag.reason = 'categoryDisabled';
+                diag.categoryEnabled = false;
+                containerReport.buttons.accept.push(diag);
+              }
               continue;
             }
-            if (!categoryEnabled) continue;
-            if (dryRun) diag.categoryEnabled = true;
+            if (dryRun) diag.categoryEnabled = categoryEnabled;
 
             const isRightSide = btnObj.rect.left > window.innerWidth * 0.4;
             if (!USER_CONFIG.testMode && !isAgentWindow && !isRightSide) {

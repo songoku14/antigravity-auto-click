@@ -23,11 +23,15 @@ function initialize(p) {
   }
 }
 
+
+
 function getActivityLogPath() {
   if (storagePath) {
     return path.join(storagePath, 'logs', 'activity-log.json');
   }
-  return path.join(__dirname, '..', '..', 'logs', 'activity-log.json');
+  // Always use global storage path for consistency even in dev mode
+  const home = process.env.HOME || process.env.USERPROFILE;
+  return path.join(home, 'Library/Application Support/Code/User/globalStorage/antigravity.antigravity-auto-click/logs/activity-log.json');
 }
 
 function readActivityLog() {
@@ -110,7 +114,7 @@ function summarizeActivity(data) {
   }
 
   summary.skipReasons = logData.skipReasons || {};
-
+  
   // Merge button stats
   const retryButtons = logData.retry?.clickedByButton || {};
   const acceptButtons = logData.accept?.clickedByButton || {};

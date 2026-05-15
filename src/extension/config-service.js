@@ -26,11 +26,22 @@ function initialize(p) {
   }
 }
 
+function getActivityLogPath() {
+  if (storagePath) {
+    return path.join(storagePath, 'logs', 'activity-log.json');
+  }
+  // Always use global storage path for consistency even in dev mode
+  const home = process.env.HOME || process.env.USERPROFILE;
+  return path.join(home, 'Library/Application Support/Code/User/globalStorage/antigravity.antigravity-auto-click/logs/activity-log.json');
+}
+
 function getConfigPath() {
   if (storagePath) {
     return path.join(storagePath, CONFIG_FILE);
   }
-  return path.join(__dirname, '..', '..', CONFIG_FILE);
+  // Always use global storage path for consistency even in dev mode
+  const home = process.env.HOME || process.env.USERPROFILE;
+  return path.join(home, 'Library/Application Support/Code/User/globalStorage/antigravity.antigravity-auto-click', CONFIG_FILE);
 }
 
 function loadRawConfigResult() {

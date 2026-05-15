@@ -51,8 +51,8 @@ function createDaemonService(outputChannel) {
       return getState();
     }
     
-    lastConfigPath = configPath || lastConfigPath;
-    lastLogsDir = logsDir || lastLogsDir;
+    lastConfigPath = configPath ? path.resolve(configPath) : lastConfigPath;
+    lastLogsDir = logsDir ? path.resolve(logsDir) : lastLogsDir;
     
     // Double check if already running externally
     if (isRunning()) {

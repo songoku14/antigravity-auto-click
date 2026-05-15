@@ -6,8 +6,9 @@
  */
 
 const WebSocket = require('ws');
+const fs = require('fs');
+const path = require('path');
 const { findCDPPort, getTargets, filterPageTargets } = require('../../src/core/discovery');
-const { getInjectionScript } = require('../../src/payload/injection-payload');
 
 function formatKindAndCategory(button) {
   if (!button) return 'UNKNOWN';
@@ -42,9 +43,6 @@ async function analyzeLive() {
     return;
   }
 
-  // Đọc thống kê hiện tại từ activity-log.json
-  const fs = require('fs');
-  const path = require('path');
   const projectRoot = path.join(__dirname, '../..');
   const activityFile = path.join(projectRoot, 'logs', 'activity-log.json');
   
@@ -88,7 +86,7 @@ function runAnalysis(target) {
       (function() {
         try {
           if (typeof window.__analyzeDialog === 'function') {
-            return window.__analyzeDialog();
+            return window.__analyzeDialog({ ignoreCategoryConfig: true });
           }
           return { error: 'Hệ thống Auto-Click chưa được inject vào trang này (hoặc chưa bật Daemon).' };
         } catch(e) {
@@ -130,6 +128,7 @@ function runAnalysis(target) {
         
         console.log(`   🔍 Phân tích DOM trực tiếp (cùng pipeline với daemon):`);
         console.log(`      - Payload version: ${analysis.scriptVersion || 'unknown'}`);
+        console.log(`      - Analysis mode: bỏ qua category enable/disable để đối chiếu với Test DOM Samples`);
         console.log(`      - Tìm thấy Agent Panel: ${analysis.foundAgentPanel ? '✅ CÓ' : '❌ KHÔNG'}`);
         console.log(`      - Số lượng Actionable Cards: \x1b[1m${analysis.containerCount}\x1b[0m`);
         console.log(`      - Tổng số nút bấm phát hiện: \x1b[1m${analysis.totalButtons || 0}\x1b[0m`);
