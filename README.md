@@ -58,18 +58,24 @@ echo 'alias antigravity="open -a Antigravity --args --remote-debugging-port=3190
 - Các tính năng sẽ tự động đồng bộ hóa trạng thái giữa UI và Daemon.
 - Dùng CLI (`./scripts/menu.sh`) cho các tác vụ nâng cao như cài đặt LaunchAgent hoặc Regression Tests.
 
-## 5. Kiến trúc Dữ liệu & Đóng gói (Dành cho Developer)
+## 5. Kiến trúc Dữ liệu & Tính Đồng bộ
 
-### Tách biệt Mã nguồn & Dữ liệu (Data Decoupling)
-Để đảm bảo extension chạy ổn định khi đóng gói dưới dạng VSIX (thư mục cài đặt thường là read-only), chúng tôi đã tách biệt hoàn toàn dữ liệu:
-- **Source Code**: Nằm trong thư mục cài đặt extension (không thể ghi).
-- **User Data (Config/Logs)**: Được lưu trữ tại một thư mục dùng chung ngoài project, không phụ thuộc workspace hay chế độ Release/Dev của extension.
-    - macOS: `~/Library/Application Support/Antigravity/Auto Click/`
-    - Cấu trúc: `config.json`, `logs/activity-log.json`, `logs/daemon.log`
-- **Migration**: Khi khởi chạy, hệ thống sẽ tự động lấy dữ liệu cũ từ project legacy hoặc VS Code `globalStorage` cũ sang thư mục canonical này.
+Hệ thống đảm bảo tính nhất quán tuyệt đối giữa CLI và Extension thông qua cơ chế lưu trữ tập trung.
 
-### CLI Engine
-Daemon (`src/core/auto-retry.js`) hỗ trợ tham số `--config` và `--logs`. Nếu không truyền tham số, cả CLI và Extension đều tự resolve về cùng một storage canonical ở trên.
+### Thư mục Lưu trữ Chuẩn (Canonical Storage)
+Mọi cấu hình và dữ liệu hoạt động được lưu trữ tại một vị trí cố định trên hệ điều hành, độc lập với thư mục cài đặt mã nguồn:
+- **macOS**: `~/Library/Application Support/Antigravity/Auto Click/`
+- **Cấu trúc**:
+    - `config.json`: File cấu hình chung duy nhất.
+    - `logs/activity-log.json`: Nhật ký click và thống kê real-time.
+    - `logs/daemon.log`: Log chi tiết quá trình chạy ngầm.
+
+> [!TIP]
+> Bạn có thể thay đổi vị trí này bằng cách thiết lập biến môi trường `ANTIGRAVITY_AUTO_CLICK_HOME`.
+
+### Cơ chế Đồng bộ (Single Source of Truth)
+- **Tất cả các thành phần** (Extension UI, Background Daemon, CLI Scripts) đều trỏ về cùng một file `config.json` và `activity-log.json` nêu trên.
+- Khi bạn gạt nút trên Webview, Extension sẽ ghi vào `config.json`. Daemon đang chạy ngầm sẽ nhận thấy thay đổi thông qua **Watcher** và tải lại logic ngay lập tức. Ngược lại, khi Daemon click thành công, nó ghi vào `activity-log.json` và UI sẽ cập nhật biểu đồ thống kê sau 1 giây.
 
 ## 6. Phát triển & Đóng gói (Development)
 
@@ -81,6 +87,25 @@ Nếu bạn muốn chỉnh sửa code và đóng gói lại:
 3. **Kiểm thử TDD**: 
     - `npm run test`: Chạy Regression tests trên DOM samples.
     - `npm run test:extension`: Kiểm tra tính ổn định của Extension.
+
+## 7. Tham chiếu Kỹ thuật (Technical Reference)
+
+### Cấu trúc file `config.json`
+Hệ thống sử dụng schema tự động chuẩn hóa (`src/core/config-schema.js`):
+- **interval**: Tốc độ quét DOM (mặc định: `1000ms`).
+- **maxRetries**: Giới hạn số lần click retry cho cùng một lỗi (mặc định: `5`).
+- **actionCategories**:
+    - `terminal`: Target các nút `Run`, `Execute`. Có kiểm tra `blacklist`.
+    - `reviewChange`: Target các nút `Proceed`, `Accept All`.
+    - `systemReview`: Các hội thoại hệ thống (Agent Side Panel).
+- **blacklist**: Mảng các prefix lệnh bị chặn (ví dụ: `rm `, `sudo `, `push `).
+
+### Cơ chế Watcher (Đồng bộ thời gian thực)
+Để đảm bảo UI và CLI luôn khớp nhau mà không cần restart:
+- **Daemon Layer**: `ConfigStore` sử dụng `fs.watch` trên thư mục chứa config. Khi file `config.json` thay đổi, hệ thống sẽ đợi 300ms (debounce) rồi tải lại toàn bộ logic.
+- **Extension Layer**:
+    - Sử dụng `fs.watch` (với fallback sang `createFileSystemWatcher` của VS Code) để theo dõi `config.json` (cập nhật UI Toggles - debounce 300ms) và `activity-log.json` (cập nhật thống kê real-time - debounce 1000ms).
+    - Các mức debounce này đảm bảo hiệu năng và tránh tranh chấp file khi nhiều tiến trình ghi đồng thời.
 
 ---
 *Xem thêm chi tiết tại [tutorial.md](tutorial.md).*

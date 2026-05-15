@@ -73,7 +73,7 @@ class ControlCenterViewProvider {
 
     const config = this._configService.getConfig();
     const daemonState = this._daemonService.getState();
-    const activitySummary = this._activityService.summarizeActivity(forceRefresh);
+    const activitySummary = this._activityService.summarizeActivity(undefined, forceRefresh);
 
     this._view.webview.postMessage({
       type: MESSAGE_TYPES.UPDATE_STATE,
@@ -167,7 +167,7 @@ class ControlCenterViewProvider {
     configWatcher.onDidCreate(() => this._updateWebview());
     configWatcher.onDidDelete(() => this._updateWebview());
 
-    const activityWatcher = createExactFileWatcher(activityLogPath);
+    const activityWatcher = createExactFileWatcher(activityLogPath, 1000);
     activityWatcher.onDidChange(() => this._updateWebview(true));
     activityWatcher.onDidCreate(() => this._updateWebview(true));
     activityWatcher.onDidDelete(() => this._updateWebview(true));
@@ -348,13 +348,35 @@ class ControlCenterViewProvider {
   }
 }
 
-function createExactFileWatcher(filePath) {
-  if (vscode.RelativePattern && path.isAbsolute(filePath)) {
-    return vscode.workspace.createFileSystemWatcher(
-      new vscode.RelativePattern(path.dirname(filePath), path.basename(filePath))
-    );
+function createExactFileWatcher(filePath, delay = 300) {
+  // Use Node.js fs.watch for files outside workspace as VS Code watcher is unreliable there
+  const eventEmitter = new vscode.EventEmitter();
+  let debounceTimer;
+
+  try {
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+    const watcher = fs.watch(dir, (eventType, filename) => {
+      if (filename === path.basename(filePath)) {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => eventEmitter.fire(vscode.Uri.file(filePath)), delay);
+      }
+    });
+
+    return {
+      onDidChange: eventEmitter.event,
+      onDidCreate: eventEmitter.event,
+      onDidDelete: eventEmitter.event,
+      dispose: () => {
+        watcher.close();
+        eventEmitter.dispose();
+        clearTimeout(debounceTimer);
+      }
+    };
+  } catch (e) {
+    return vscode.workspace.createFileSystemWatcher(filePath);
   }
-  return vscode.workspace.createFileSystemWatcher(filePath);
 }
 
 function getNonce() {

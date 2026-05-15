@@ -48,7 +48,11 @@ function readActivityLog() {
 
 let cachedSummary = null;
 
-function summarizeActivity(data) {
+function summarizeActivity(data, forceRefresh = false) {
+  if (forceRefresh === true) {
+    cachedSummary = null;
+  }
+
   // If no data provided and we have a cache, use it to avoid disk I/O
   // IMPORTANT: We only use cache if data is explicitly undefined
   if (data === undefined && cachedSummary !== null) {
@@ -76,11 +80,12 @@ function summarizeActivity(data) {
   };
 
   if (!logData || typeof logData !== 'object') {
-    // If we failed to read data, return empty but DON'T necessarily clobber cache
-    // if we already have a better one, unless this is the very first call.
-    if (cachedSummary !== null && data === undefined) {
+    // If we failed to read data, return the cache if we have one
+    // to avoid flickering to 0 during daemon write locks.
+    if (cachedSummary !== null) {
       return cachedSummary;
     }
+    // Only return empty summary if we have absolutely no data yet
     cachedSummary = summary;
     return summary;
   }
@@ -157,5 +162,6 @@ module.exports = {
   initialize,
   readActivityLog,
   summarizeActivity,
-  resetActivity
+  resetActivity,
+  getActivityLogPath
 };

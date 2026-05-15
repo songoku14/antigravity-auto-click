@@ -64,12 +64,18 @@ Phù hợp cho các tác vụ nâng cao hoặc khi cần khắc phục sự cố
 
 Hệ thống phân loại các yêu cầu Accept thành 3 nhóm chính để đảm bảo an toàn:
 
-1.  **terminal**: Các yêu cầu chạy lệnh trong Terminal.
-    - *Lưu ý*: Luôn được kiểm tra qua `blacklist` trước khi click.
-2.  **reviewChange**: Các yêu cầu duyệt thay đổi code (Proceed, Accept All).
+1.  **terminal**: Tự động xác nhận các yêu cầu chạy lệnh trong Terminal.
+    - *Lưu ý*: Luôn được kiểm tra qua danh sách `blacklist` trước khi click để tránh chạy các lệnh nguy hiểm.
+2.  **reviewChange**: Tự động duyệt các thay đổi code (nút Proceed, Accept All).
 3.  **systemReview**: Các xác nhận hệ thống hoặc Agent side panel.
 
 ---
+
+## 📂 Vị trí Dữ liệu & Cấu hình
+
+Cả Extension và CLI đều dùng chung một bộ dữ liệu để đảm bảo đồng bộ. Nếu cần can thiệp thủ công, bạn có thể tìm thấy chúng tại:
+- **Đường dẫn**: ` ~/Library/Application\ Support/Antigravity/Auto\ Click `
+- **File quan trọng**: `config.json` (Cấu hình) và `logs/activity-log.json` (Thống kê).
 
 ---
 

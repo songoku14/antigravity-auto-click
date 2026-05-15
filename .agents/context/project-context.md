@@ -32,12 +32,19 @@ The primary user interface is now a **Webview Control Center** integrated into t
   - `main.js`: Handles state sync, toggle logic, and blacklist UI interactions.
   - `main.css`: Modern dark theme with CSS-only toggle switches and responsive layout.
 
+## Storage Architecture
+- **Canonical Path**: `~/Library/Application Support/Antigravity/Auto Click/` (macOS).
+- **Logic**: Implemented in `src/core/storage-paths.js`. It uses the `ANTIGRAVITY_AUTO_CLICK_HOME` env var if present, otherwise falls back to platform-specific application data folders.
+- **Synchronization**: Both CLI and Extension use this shared logic to ensure they always point to the same `config.json` and `activity-log.json`, regardless of where they are executed from.
+
 ## Key Design Decisions
 - **Passive Polling**: The payload uses interval-based polling to detect dialogs, minimizing CPU overhead.
 - **Container Scoping**: DOM scanning is limited to specific dialog/notification containers (e.g., `.monaco-dialog-box`).
 - **Category Normalization**: Legacy keys (e.g., `review`, `system`) are normalized to `reviewChange` and `systemReview` in the extension layer.
 - **Master Toggle Sync**: Toggling "Auto Accept" affects all sub-categories. Conversely, if all sub-categories are disabled, "Auto Accept" turns off; if one is enabled, it turns on.
-- **Live UI Updates**: File watchers on `config.json` and `activity-log.json` ensure the Webview reflects the current system state without manual refreshes.
+- **Live UI Updates**: Cơ chế watcher đảm bảo đồng bộ hóa trạng thái giữa Daemon và Extension:
+  - **Daemon**: `ConfigStore` dùng `fs.watch` trên thư mục config với debounce 300ms để tải lại `config.json`.
+  - **Extension**: Sử dụng `fs.watch` (fallback `createFileSystemWatcher`) với debounce 300ms cho `config.json` và 1000ms (1s) cho `activity-log.json` để cập nhật Webview/StatusBar theo thời gian thực.
 - **Theme Awareness**: The Webview CSS uses VS Code CSS variables (`var(--vscode-*)`) to match the user's theme.
 
 ## Operational Boundaries

@@ -56,7 +56,7 @@ function activate(context) {
     },
     daemonService,
     { 
-      summarizeActivity: (force) => summarizeActivity(force ? readActivityLog() : undefined),
+      summarizeActivity: (data, force) => summarizeActivity(data, force),
       resetActivity: resetActivity
     },
     syncDaemonWithConfig
@@ -99,10 +99,19 @@ function activate(context) {
   });
   context.subscriptions.push(configWatcher);
 
+  // Watch for activity changes to update Status Bar real-time
+  const logPath = getActivityLogPath();
+  outputChannel.appendLine(`[Extension] Watching activity log at: ${logPath}`);
+  const activityWatcher = createExactFileWatcher(logPath, 1000);
+  activityWatcher.onDidChange(() => refreshStatusBar(true));
+  activityWatcher.onDidCreate(() => refreshStatusBar(true));
+  activityWatcher.onDidDelete(() => refreshStatusBar(true));
+  context.subscriptions.push(activityWatcher);
+
   // 1. Initial daemon check & start
   syncDaemonWithConfig({ isInitial: true });
 
-  // 2. Initial status bar update (force fresh read)
+  // 2. Initial status bar update
   refreshStatusBar(true);
   statusBarItem.show();
 }
@@ -182,20 +191,26 @@ function logContractAndWarnings(outputChannel) {
 function refreshStatusBar(forceRefresh = false) {
   if (!extensionState) return;
 
-  const { daemonService, statusBarItem } = extensionState;
-  const config = readConfig();
-  const activitySummary = forceRefresh ? summarizeActivity(readActivityLog()) : summarizeActivity();
-  
-  const status = buildStatusBarState({
-    config,
-    daemonState: daemonService.getState(),
-    activitySummary
-  });
+  try {
+    const { daemonService, statusBarItem } = extensionState;
+    const config = readConfig();
+    const activitySummary = summarizeActivity(undefined, forceRefresh);
+    
+    const status = buildStatusBarState({
+      config,
+      daemonState: daemonService.getState(),
+      activitySummary
+    });
 
-  statusBarItem.text = status.text;
-  statusBarItem.tooltip = status.tooltip;
+    statusBarItem.text = status.text;
+    statusBarItem.tooltip = status.tooltip;
 
-  refreshWebview(forceRefresh);
+    refreshWebview(forceRefresh);
+  } catch (e) {
+    if (extensionState.outputChannel) {
+      extensionState.outputChannel.appendLine(`[Extension] Error refreshing status bar: ${e.message}`);
+    }
+  }
 }
 
 function refreshWebview(forceRefresh = false) {
@@ -624,13 +639,36 @@ async function openLogs() {
   }
 }
 
-function createExactFileWatcher(filePath) {
-  if (vscode.RelativePattern && path.isAbsolute(filePath)) {
-    return vscode.workspace.createFileSystemWatcher(
-      new vscode.RelativePattern(path.dirname(filePath), path.basename(filePath))
-    );
+function createExactFileWatcher(filePath, delay = 300) {
+  // Use Node.js fs.watch for files outside workspace as VS Code watcher is unreliable there
+  const eventEmitter = new vscode.EventEmitter();
+  let debounceTimer;
+
+  try {
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+    const watcher = fs.watch(dir, (eventType, filename) => {
+      if (filename === path.basename(filePath)) {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => eventEmitter.fire(vscode.Uri.file(filePath)), delay);
+      }
+    });
+
+    return {
+      onDidChange: eventEmitter.event,
+      onDidCreate: eventEmitter.event,
+      onDidDelete: eventEmitter.event,
+      dispose: () => {
+        watcher.close();
+        eventEmitter.dispose();
+        clearTimeout(debounceTimer);
+      }
+    };
+  } catch (e) {
+    console.error(`[Watcher] Fallback to VS Code watcher for ${filePath}: ${e.message}`);
+    return vscode.workspace.createFileSystemWatcher(filePath);
   }
-  return vscode.workspace.createFileSystemWatcher(filePath);
 }
 
 async function showActivitySummary() {
