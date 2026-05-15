@@ -99,11 +99,12 @@ function activate(context) {
   });
   context.subscriptions.push(configWatcher);
 
-  refreshStatusBar();
-
-  statusBarItem.show();
-
+  // 1. Initial daemon check & start
   syncDaemonWithConfig({ isInitial: true });
+
+  // 2. Initial status bar update (force fresh read)
+  refreshStatusBar(true);
+  statusBarItem.show();
 }
 
 async function syncDaemonWithConfig(options = {}) {
@@ -178,12 +179,12 @@ function logContractAndWarnings(outputChannel) {
   }
 }
 
-function refreshStatusBar() {
+function refreshStatusBar(forceRefresh = false) {
   if (!extensionState) return;
 
   const { daemonService, statusBarItem } = extensionState;
   const config = readConfig();
-  const activitySummary = summarizeActivity();
+  const activitySummary = forceRefresh ? summarizeActivity(readActivityLog()) : summarizeActivity();
   
   const status = buildStatusBarState({
     config,
@@ -194,12 +195,12 @@ function refreshStatusBar() {
   statusBarItem.text = status.text;
   statusBarItem.tooltip = status.tooltip;
 
-  refreshWebview();
+  refreshWebview(forceRefresh);
 }
 
-function refreshWebview() {
+function refreshWebview(forceRefresh = false) {
   if (extensionState && extensionState.webviewProvider) {
-    extensionState.webviewProvider._updateWebview();
+    extensionState.webviewProvider._updateWebview(forceRefresh);
   }
 }
 

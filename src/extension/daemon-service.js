@@ -15,25 +15,36 @@ function createDaemonService(outputChannel) {
   }
 
   function isRunning() {
-    if (status === 'running' || status === 'starting') return true;
+    // If we are stopping, we should report based on the actual process check
+    // but if we are starting/running/reloading we can trust our state temporarily
+    // unless we need a fresh check.
     
-    // Check for external process (including background daemon or other VS Code instances)
+    // Perform a fresh check for external process
     try {
       // Use pgrep with full command line match to find the specific script
       cp.execSync('pgrep -f "node.*src/core/auto-retry.js"');
       return true;
     } catch (e) {
+      // If it's starting, give it a bit of grace period (3 seconds)
+      if (status === 'starting' && (Date.now() - lastStartTime < 3000)) {
+        return true;
+      }
       return false;
     }
   }
 
   function getState() {
     const running = isRunning();
-    // If it's running but we thought it was stopped, sync it
-    if (running && status === 'stopped') {
-      status = 'running';
-    } else if (!running && status === 'running') {
-      status = 'stopped';
+    
+    // Sync internal status with actual process state
+    if (running) {
+      if (status === 'stopped' || status === 'stopping') {
+        status = 'running';
+      }
+    } else {
+      if (status === 'running' || status === 'starting' || status === 'reloading') {
+        status = 'stopped';
+      }
     }
 
     return {

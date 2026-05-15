@@ -45,7 +45,7 @@ class ControlCenterViewProvider {
           vscode.commands.executeCommand('antigravity-auto-click.openConfig');
           break;
         case 'READY': // New message type for instant update
-          this._updateWebview();
+          this._updateWebview(true);
           break;
       }
     });
@@ -54,8 +54,8 @@ class ControlCenterViewProvider {
       this._view = undefined;
     });
 
-    // Send initial update as soon as possible
-    this._updateWebview();
+    // Send initial update as soon as possible with force refresh
+    this._updateWebview(true);
   }
 
   show() {
