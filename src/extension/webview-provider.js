@@ -284,14 +284,7 @@ class ControlCenterViewProvider {
 
             <div id="notification-toast" class="notification-toast hidden"></div>
 
-            <div class="stats-section">
-                <div class="stats-header">
-                    <div class="stats-total-container">
-                        <span class="stats-label">⚡ Total Actions</span>
-                        <div id="stat-total-actions" class="stats-value big glow">0</div>
-                    </div>
-                </div>
-                <div class="stats-grid">
+            <div class="stats-grid">
                     <div class="stats-card">
                         <div class="card-title">🔄 Auto Retry</div>
                         <div id="stat-retry-total" class="stats-value">0</div>
@@ -333,7 +326,6 @@ class ControlCenterViewProvider {
                         </div>
                     </div>
                 </div>
-            </div>
 
             <div class="footer">
                 <button id="btn-open-config" class="link-btn">⚙️ Config</button>

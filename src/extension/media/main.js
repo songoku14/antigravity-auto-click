@@ -264,15 +264,12 @@
     }
 
     function renderStats(summary) {
-        const statTotalActions = document.getElementById('stat-total-actions');
         const statRetryTotal = document.getElementById('stat-retry-total');
         const statAcceptTotal = document.getElementById('stat-accept-total');
         
         const retryCount = summary.retryClicks || 0;
         const acceptCount = summary.acceptClicks || 0;
-        const totalActions = retryCount + acceptCount;
 
-        if (statTotalActions) statTotalActions.textContent = totalActions.toLocaleString();
         if (statRetryTotal) statRetryTotal.textContent = retryCount.toLocaleString();
         if (statAcceptTotal) statAcceptTotal.textContent = acceptCount.toLocaleString();
         

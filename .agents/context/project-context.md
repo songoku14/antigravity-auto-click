@@ -33,7 +33,7 @@ The primary user interface is now a **Webview Control Center** integrated into t
   - `main.css`: Modern dark theme with CSS-only toggle switches and responsive layout.
 
 ## Storage Architecture
-- **Canonical Path**: `~/Library/Application Support/Antigravity/Auto Click/` (macOS).
+- **Canonical Path**: `~/Library/Application\ Support/Antigravity/Auto\ Click/` (macOS).
 - **Logic**: Implemented in `src/core/storage-paths.js`. It uses the `ANTIGRAVITY_AUTO_CLICK_HOME` env var if present, otherwise falls back to platform-specific application data folders.
 - **Synchronization**: Both CLI and Extension use this shared logic to ensure they always point to the same `config.json` and `activity-log.json`, regardless of where they are executed from.
 
