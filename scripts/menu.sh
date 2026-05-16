@@ -425,7 +425,12 @@ show_dev_menu() {
                 read -p "Nhấn Enter để tiếp tục..."
                 ;;
             6)
-                bash "$SCRIPT_DIR/core/status.sh" --reset
+                read -p "❓ Bạn có muốn xóa luôn toàn bộ file log không? (y/n): " clear_logs
+                if [[ "$clear_logs" =~ ^[Yy]$ ]]; then
+                    bash "$SCRIPT_DIR/core/status.sh" --reset --with-logs
+                else
+                    bash "$SCRIPT_DIR/core/status.sh" --reset
+                fi
                 sleep 0.5
                 ;;
             7|"")

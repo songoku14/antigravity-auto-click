@@ -4,7 +4,7 @@ const CDPConnection = require('./cdp-connection');
 const ConfigStore = require('./config-store');
 const ActivityStore = require('./activity-store');
 
-const DEBUG = process.env.DEBUG === '1';
+// DEBUG is now managed via configStore
 const LOG_PREFIX = '[AutoRetry]';
 
 class AutoRetryDaemon {
@@ -27,20 +27,38 @@ class AutoRetryDaemon {
   }
 
   log(msg) {
+    const config = this.configStore.get();
+    if (config.logging?.enabled === false) return;
+    
     const ts = new Date().toLocaleTimeString('vi-VN', { hour12: false });
     console.log(`${LOG_PREFIX} [${ts}] ${msg}`);
   }
+  
+  isDebugEnabled() {
+    return this.configStore.get().debug === true || process.env.DEBUG === '1';
+  }
 
   debug(msg) {
-    if (DEBUG) this.log(`[DEBUG] ${msg}`);
+    if (this.isDebugEnabled()) this.log(`[DEBUG] ${msg}`);
   }
 
   error(msg) {
+    const config = this.configStore.get();
+    // We usually want to see errors even if logging is disabled, 
+    // but the user specifically asked to control "ghi log riêng" (daemon.log).
+    // If logging.enabled is false, we should probably still log errors to console
+    // but the problem is console.error also goes to daemon.log.
+    // Let's honor the enabled flag for error too if it's explicitly disabled.
+    if (config.logging?.enabled === false) return;
+
     const ts = new Date().toLocaleTimeString('vi-VN', { hour12: false });
     console.error(`${LOG_PREFIX} [${ts}] [ERROR] ${msg}`);
   }
 
   updateActivity(text) {
+    const config = this.configStore.get();
+    if (config.logging?.activityLog === false) return;
+
     if (this.activityStore.update(text)) {
       this.debug(`Activity updated: ${text.split('[STAT] ')[1]}`);
     }
@@ -48,7 +66,7 @@ class AutoRetryDaemon {
 
   async start() {
     this.log('🚀 Starting Antigravity Auto-Click Daemon...');
-    this.log(`Debug mode: ${DEBUG ? 'ON' : 'OFF'}`);
+    this.log(`Debug mode: ${this.isDebugEnabled() ? 'ON' : 'OFF'}`);
     this.running = true;
 
     process.on('SIGINT', () => this.stop('SIGINT'));

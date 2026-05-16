@@ -41,6 +41,8 @@ The primary user interface is now a **Webview Control Center** integrated into t
 - **Passive Polling**: The payload uses interval-based polling to detect dialogs, minimizing CPU overhead.
 - **Container Scoping**: DOM scanning is limited to specific dialog/notification containers (e.g., `.monaco-dialog-box`).
 - **Category Normalization**: Legacy keys (e.g., `review`, `system`) are normalized to `reviewChange` and `systemReview` in the extension layer.
+- **Logging Control**: Added `logging` configuration to mitigate large log files. `logging.enabled` silences daemon console output (controlling `daemon.log` size), while `logging.activityLog` controls `activity-log.json` persistence.
+- **Dynamic Debugging**: `debug` mode is now a dynamic configuration that can be toggled without restarting the daemon.
 - **Master Toggle Sync**: Toggling "Auto Accept" affects all sub-categories. Conversely, if all sub-categories are disabled, "Auto Accept" turns off; if one is enabled, it turns on.
 - **Live UI Updates**: Cơ chế watcher đảm bảo đồng bộ hóa trạng thái giữa Daemon và Extension:
   - **Daemon**: `ConfigStore` dùng `fs.watch` trên thư mục config với debounce 300ms để tải lại `config.json`.

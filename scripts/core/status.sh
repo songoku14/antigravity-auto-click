@@ -8,10 +8,14 @@ ACTIVITY_FILE="$(node "$SCRIPT_DIR/print-storage-path.js" activityLogPath)"
 
 # Check if reset is requested
 SHOW_ACTIVITY_STATS="false"
+WITH_LOGS="false"
 for arg in "$@"; do
     case "$arg" in
         --activity|--stats)
             SHOW_ACTIVITY_STATS="true"
+            ;;
+        --with-logs)
+            WITH_LOGS="true"
             ;;
     esac
 done
@@ -36,6 +40,19 @@ if [ "$1" == "--reset" ]; then
   },
   "skipReasons": {}
 }' > "$ACTIVITY_FILE"
+
+    if [ "$WITH_LOGS" == "true" ]; then
+        DAEMON_LOG_FILE="$(node "$SCRIPT_DIR/print-storage-path.js" daemonLogPath)"
+        LOG_DIR="$(node "$SCRIPT_DIR/print-storage-path.js" logsDir)"
+        if [ -f "$DAEMON_LOG_FILE" ]; then
+            rm "$DAEMON_LOG_FILE"
+            echo "✅ Đã xóa file daemon.log"
+        fi
+        # Clear other logs but keep activity-log.json
+        find "$LOG_DIR" -type f ! -name "activity-log.json" -delete 2>/dev/null || true
+        echo "✅ Đã dọn dẹp thư mục logs"
+    fi
+
     echo "✅ Đã reset bộ đếm thống kê thành công!"
     exit 0
 fi

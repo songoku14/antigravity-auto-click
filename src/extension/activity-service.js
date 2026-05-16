@@ -152,8 +152,26 @@ function resetActivity(targetPath = getActivityLogPath()) {
     accept: { candidates: 0, skipped: 0, detected: 0, clicked: 0, blocked: 0, clickedByCategory: {}, detectedByCategory: {}, clickedByButton: {} },
     skipReasons: {}
   };
-  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+  
+  const logsDir = path.dirname(targetPath);
+  fs.mkdirSync(logsDir, { recursive: true });
+  
+  // Reset activity-log.json
   fs.writeFileSync(targetPath, JSON.stringify(initial, null, 2));
+  
+  // Clear other logs in the same directory (like daemon.log)
+  try {
+    const files = fs.readdirSync(logsDir);
+    for (const file of files) {
+      const filePath = path.join(logsDir, file);
+      if (filePath !== targetPath && fs.statSync(filePath).isFile()) {
+        fs.unlinkSync(filePath);
+      }
+    }
+  } catch (e) {
+    console.error(`[ActivityService] Failed to clear logs: ${e.message}`);
+  }
+
   cachedSummary = summarizeActivity(initial);
   return initial;
 }

@@ -9,6 +9,22 @@
       "description": "Bật log chi tiết cho daemon và extension.",
       "default": true
     },
+    "logging": {
+      "type": "object",
+      "description": "Cấu hình ghi log hệ thống và hoạt động.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Bật/tắt ghi log hệ thống (daemon.log).",
+          "default": true
+        },
+        "activityLog": {
+          "type": "boolean",
+          "description": "Bật/tắt ghi lại thống kê hoạt động (activity-log.json).",
+          "default": true
+        }
+      }
+    },
     "autoRetry": {
       "oneOf": [
         {

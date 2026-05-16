@@ -17,18 +17,33 @@ class CDPConnection {
   }
 
   log(msg) {
-    if (this.daemon) this.daemon.log(`${this.logPrefix} ${msg}`);
-    else console.log(`${this.logPrefix} ${msg}`);
+    if (this.daemon) {
+      this.daemon.log(`${this.logPrefix} ${msg}`);
+    } else {
+      if (this.config?.logging?.enabled === false) return;
+      console.log(`${this.logPrefix} ${msg}`);
+    }
   }
 
   debug(msg) {
-    if (this.daemon) this.daemon.debug(`${this.logPrefix} ${msg}`);
-    // else console.log(`${this.logPrefix} [DEBUG] ${msg}`);
+    if (this.daemon) {
+      this.daemon.debug(`${this.logPrefix} ${msg}`);
+    } else {
+      const debugEnabled = this.config?.debug === true || process.env.DEBUG === '1';
+      if (debugEnabled) {
+        if (this.config?.logging?.enabled === false) return;
+        console.log(`${this.logPrefix} [DEBUG] ${msg}`);
+      }
+    }
   }
 
   error(msg) {
-    if (this.daemon) this.daemon.error(`${this.logPrefix} ${msg}`);
-    else console.error(`${this.logPrefix} [ERROR] ${msg}`);
+    if (this.daemon) {
+      this.daemon.error(`${this.logPrefix} ${msg}`);
+    } else {
+      if (this.config?.logging?.enabled === false) return;
+      console.error(`${this.logPrefix} [ERROR] ${msg}`);
+    }
   }
 
   connect() {

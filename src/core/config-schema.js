@@ -217,6 +217,10 @@ function buildDefaultConfig() {
 
   return {
     debug: true,
+    logging: {
+      enabled: true,
+      activityLog: true
+    },
     autoRetry: {
       enabled: true,
       dialogContainerSelectors: [...DEFAULT_DIALOG_CONTAINER_SELECTORS],
@@ -263,6 +267,10 @@ function normalizeConfig(rawConfig = {}) {
   const normalized = clone(defaults);
 
   normalized.debug = normalizeBoolean(raw.debug, defaults.debug);
+
+  const logging = ensureObject(raw.logging);
+  normalized.logging.enabled = normalizeBoolean(logging.enabled, defaults.logging.enabled);
+  normalized.logging.activityLog = normalizeBoolean(logging.activityLog, defaults.logging.activityLog);
 
   normalized.autoRetry.enabled = typeof legacyAutoRetry === 'boolean'
     ? legacyAutoRetry
