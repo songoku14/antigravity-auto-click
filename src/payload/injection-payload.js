@@ -20,7 +20,6 @@ function getInjectionScript(userConfig = {}) {
 (function() {
   const SCRIPT_VERSION = ${INJECTION_VERSION};
   const USER_CONFIG = ${configJson};
-  const MOCK_MARKER_CLASS = 'antigravity-mock-dialog';
   const COMMAND_TEXT_SELECTORS = [
     '.command-text',
     'pre',
@@ -56,8 +55,8 @@ function getInjectionScript(userConfig = {}) {
   const ACCEPT_CONFIG = USER_CONFIG.autoAccept || {};
   const CONFIG = {
     dialogContainerSelectors: Array.isArray(RETRY_CONFIG.dialogContainerSelectors)
-      ? ['.' + MOCK_MARKER_CLASS, ...RETRY_CONFIG.dialogContainerSelectors.filter((selector) => selector !== '.' + MOCK_MARKER_CLASS)]
-      : ['.' + MOCK_MARKER_CLASS],
+      ? RETRY_CONFIG.dialogContainerSelectors.slice()
+      : [],
     errorPatterns: [],
     retryButtonPatterns: [],
     actionButtonPatterns: [],
@@ -220,17 +219,6 @@ function getInjectionScript(userConfig = {}) {
     return parts.join(' <- ');
   }
 
-  function cleanupMocks() {
-    try {
-      const mocks = document.querySelectorAll('.' + MOCK_MARKER_CLASS);
-      if (mocks.length > 0) {
-        log('Cleaning up ' + mocks.length + ' mock dialogs...');
-        mocks.forEach(m => m.remove());
-      }
-    } catch (e) {
-      debug('Cleanup error: ' + e.message);
-    }
-  }
 
   // ============================================================
   // 4. Rate Limiting & Safety
@@ -509,6 +497,18 @@ function getInjectionScript(userConfig = {}) {
   function findButtonsIn(root, patterns, typeLabel) {
     let buttons = [];
     const isRetryScan = patterns === CONFIG.retryButtonPatterns;
+
+    // Fast Path: Exit early if no keyword is found in textContent
+    if (patterns && patterns.length > 0) {
+      const text = (root.textContent || '').toLowerCase();
+      const hasKeyword = patterns.some(p => {
+        // Extract literal string from regex source
+        const src = p.source.replace(/[\\^\\$]/g, '').replace(/\\\\s\\*/g, ' ').trim().toLowerCase();
+        return src && text.includes(src);
+      });
+      if (!hasKeyword) return buttons;
+    }
+
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
     let el;
     while (el = walker.nextNode()) {
@@ -729,8 +729,6 @@ function getInjectionScript(userConfig = {}) {
 
   function buttonDiagnostic(btnObj, container, kind, category) {
     const surroundingText = getSurroundingText(btnObj.el);
-    const isAgentWindow = !!(container.closest && container.closest('.antigravity-agent-side-panel'));
-    const isRightSide = btnObj.rect.left > window.innerWidth * 0.4;
     return {
       kind,
       category: category || null,
@@ -744,8 +742,6 @@ function getInjectionScript(userConfig = {}) {
         height: Math.round(btnObj.rect.height)
       },
       inFooter: !!btnObj.inFooter,
-      isAgentWindow,
-      isRightSide,
       clickedFlag: !!btnObj.el.__clicked,
       disabled: !!(btnObj.el.disabled || btnObj.el.getAttribute('disabled') !== null),
       context: surroundingText.replace(/\s+/g, ' ').substring(0, 160),
@@ -806,11 +802,8 @@ function getInjectionScript(userConfig = {}) {
     }
 
     let containers = findValidContainers();
-    const useFallback = containers.length === 0 && (isAutoAcceptEnabled() || RETRY_CONFIG.enabled !== false);
-    if (useFallback) containers = [document.body];
 
     for (const container of containers) {
-      const isAgentWindow = container.closest && container.closest('.antigravity-agent-side-panel');
       const containerRect = container.getBoundingClientRect();
       const snippet = (container.textContent || '').replace(/\s+/g, ' ').trim().substring(0, 120);
       const containerReport = dryRun ? {
@@ -821,8 +814,6 @@ function getInjectionScript(userConfig = {}) {
           width: Math.round(containerRect.width),
           height: Math.round(containerRect.height)
         },
-        isAgentWindow: !!isAgentWindow,
-        fallback: useFallback,
         textSnippet: snippet,
         buttons: { retry: [], accept: [] }
       } : null;
@@ -843,17 +834,6 @@ function getInjectionScript(userConfig = {}) {
 
           if (!dryRun) logDetectedStat('RETRY', matchedCat);
 
-          const isRightSide = btnObj.rect.left > window.innerWidth * 0.4;
-          if (!USER_CONFIG.testMode && !isAgentWindow && !isRightSide) {
-            if (dryRun) {
-              diag.decision = 'skip';
-              diag.reason = 'notRightSide';
-              containerReport.buttons.retry.push(diag);
-            }
-            if (!dryRun) logSkippedStat('RETRY', 'not_right_side');
-            debug('[STEP 3] Skipping RETRY button: not on right side (' + Math.round(btnObj.rect.left) + ' < ' + Math.round(window.innerWidth * 0.4) + ')');
-            continue;
-          }
 
           if (!dryRun && !canClick('RETRY')) {
             logSkippedStat('RETRY', 'rate_limit_min_interval');
@@ -861,28 +841,16 @@ function getInjectionScript(userConfig = {}) {
             continue;
           }
 
-          if (useFallback && !CONFIG.retryContextPatterns.some(p => p.test(getSurroundingText(btnObj.el)))) {
+          const retryContext = getContextText(btnObj.el, container);
+          if (!CONFIG.retryContextPatterns.some(p => p.test(retryContext))) {
             if (dryRun) {
               diag.decision = 'skip';
-              diag.reason = 'contextMismatch';
+              diag.reason = 'retryContextMismatch';
               containerReport.buttons.retry.push(diag);
             }
-            if (!dryRun) logSkippedStat('RETRY', 'context_mismatch');
-            debug('[STEP 3.1] Skipping RETRY button: context mismatch');
+            if (!dryRun) logSkippedStat('RETRY', 'retry_context_mismatch');
+            debug('[STEP 3.2] Skipping RETRY button: no retry/error context in container');
             continue;
-          }
-          if (!useFallback) {
-            const retryContext = getContextText(btnObj.el, container);
-            if (!CONFIG.retryContextPatterns.some(p => p.test(retryContext))) {
-              if (dryRun) {
-                diag.decision = 'skip';
-                diag.reason = 'retryContextMismatch';
-                containerReport.buttons.retry.push(diag);
-              }
-              if (!dryRun) logSkippedStat('RETRY', 'retry_context_mismatch');
-              debug('[STEP 3.2] Skipping RETRY button: no retry/error context in container');
-              continue;
-            }
           }
           if (dryRun && !diag.visibility.ok) {
             diag.decision = 'skip';
@@ -957,17 +925,6 @@ function getInjectionScript(userConfig = {}) {
             }
             if (dryRun) diag.categoryEnabled = categoryEnabled;
 
-            const isRightSide = btnObj.rect.left > window.innerWidth * 0.4;
-            if (!USER_CONFIG.testMode && !isAgentWindow && !isRightSide) {
-              if (dryRun) {
-                diag.decision = 'skip';
-                diag.reason = 'notRightSide';
-                containerReport.buttons.accept.push(diag);
-              }
-              if (!dryRun) logSkippedStat('ACCEPT', 'not_right_side');
-              debug('[STEP 3] Skipping ACCEPT button: not on right side (' + Math.round(btnObj.rect.left) + ' < ' + Math.round(window.innerWidth * 0.4) + ')');
-              continue;
-            }
             if (dryRun && !diag.visibility.ok) {
               diag.decision = 'skip';
               diag.reason = 'visibility:' + diag.visibility.reason;
@@ -1123,7 +1080,7 @@ function getInjectionScript(userConfig = {}) {
         ' path=' + elementPath(liveBtn, 4) + ' actionCount=' + actionCount
       );
 
-      const isMock = liveBtn.closest('.' + MOCK_MARKER_CLASS);
+
       liveBtn.style.outline = '3px solid #3794ff';
       executeClick(liveBtn, false);
       
@@ -1133,38 +1090,32 @@ function getInjectionScript(userConfig = {}) {
         const stillPresent = hasEquivalentVisibleButton(btnObj, container);
         debug('[STEP 6/7] Post-click verification for "' + btnText + '": stillPresent=' + stillPresent);
         if (stillPresent) {
-          if (isMock) {
-            log('⚠️ [STEP 7] Mock button still visible. Triggering robust cleanup...');
-            cleanupMocks();
-          } else {
-            log('⚠️ [STEP 7] Button still visible after click. Retrying with fallback...');
-            const retryBtn = resolveLiveButton(btnObj, container);
-            if (!retryBtn) {
-              debug('[STEP 7] Fallback skipped because live target disappeared for "' + btnText + '"');
-              liveBtn.__clicked = false;
-              originalBtn.__clicked = false;
-              return;
-            }
-            executeClick(retryBtn, true);
-            
-            schedule(() => {
-              if (!isActive || window.__autoRetryDisabled) return;
-              const finalCheck = hasEquivalentVisibleButton(btnObj, container);
-              debug('[STEP 8] Final verification for "' + btnText + '": finalCheck=' + finalCheck);
-              if (finalCheck) {
-                log('❌ [STEP 8] Dialog persistent even after fallback click. Manual intervention may be required.');
-              } else {
-                log('✅ [STEP 8] Fallback click worked. Dialog dismissed.');
-                log(typeLabel.includes('RETRY') ? '[STAT] RETRY_CLICKED' : '[STAT] ACCEPT_CLICKED:' + category.toLowerCase());
-              }
-              liveBtn.__clicked = false;
-              originalBtn.__clicked = false;
-            }, 500);
+          log('⚠️ [STEP 7] Button still visible after click. Retrying with fallback...');
+          const retryBtn = resolveLiveButton(btnObj, container);
+          if (!retryBtn) {
+            debug('[STEP 7] Fallback skipped because live target disappeared for "' + btnText + '"');
+            liveBtn.__clicked = false;
+            originalBtn.__clicked = false;
+            return;
           }
+          executeClick(retryBtn, true);
+          
+          schedule(() => {
+            if (!isActive || window.__autoRetryDisabled) return;
+            const finalCheck = hasEquivalentVisibleButton(btnObj, container);
+            debug('[STEP 8] Final verification for "' + btnText + '": finalCheck=' + finalCheck);
+            if (finalCheck) {
+              log('❌ [STEP 8] Dialog persistent even after fallback click. Manual intervention may be required.');
+            } else {
+              log('✅ [STEP 8] Fallback click worked. Dialog dismissed.');
+              log(typeLabel.includes('RETRY') ? '[STAT] RETRY_CLICKED' : '[STAT] ACCEPT_CLICKED:' + category.toLowerCase());
+            }
+            liveBtn.__clicked = false;
+            originalBtn.__clicked = false;
+          }, 500);
         } else {
           log('✅ [STEP 6] Clicked successfully, dialog dismissed.');
           log(typeLabel.includes('RETRY') ? '[STAT] RETRY_CLICKED' : '[STAT] ACCEPT_CLICKED:' + category.toLowerCase());
-          if (isMock) cleanupMocks(); // Clean up other potential mocks
           liveBtn.__clicked = false;
           originalBtn.__clicked = false;
         }

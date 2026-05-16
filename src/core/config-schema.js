@@ -1,21 +1,5 @@
 const DEFAULT_DIALOG_CONTAINER_SELECTORS = [
-  '.antigravity-mock-dialog',
-  '.monaco-dialog-box',
-  '.dialog-shadow',
-  '.notifications-toasts',
-  '.notification-toast-container',
-  '.notification-list-item',
-  '.notification-toast',
-  '.notifications-center',
-  '.jetski-error',
-  '.error-overlay',
-  '.test-dialog',
-  '.test-accept-dialog',
-  '.bg-agent-convo-background',
-  '.antigravity-agent-side-panel',
-  '#antigravity\\.agentSidePanelInputBox',
-  '[role="dialog"]',
-  '[role="alertdialog"]'
+  '.antigravity-agent-side-panel'
 ];
 
 const DEFAULT_RETRY_ERROR_PATTERNS = [
