@@ -102,4 +102,4 @@ Hệ thống sử dụng schema tự động chuẩn hóa (`src/core/config-sche
     - Các mức debounce này đảm bảo hiệu năng và tránh tranh chấp file khi nhiều tiến trình ghi đồng thời.
 
 ---
-*Xem thêm chi tiết tại [tutorial.md](tutorial.md).*
+*Xem thêm chi tiết tại [tutorial.md](tutorial.md) hoặc [Phân tích logic xác định nút bấm](BUTTON_ANALYSIS.md).*
