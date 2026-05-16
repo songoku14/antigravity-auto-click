@@ -11,6 +11,9 @@
     const blacklistTags = document.getElementById('blacklist-tags');
     const blacklistAddInput = document.getElementById('blacklist-add-input');
     const btnAddBlacklist = document.getElementById('btn-add-blacklist');
+    const btnEnableCdpBanner = document.getElementById('btn-enable-cdp-banner');
+    const cdpWarning = document.getElementById('cdp-warning');
+    const configContainer = document.getElementById('config-container');
     const notificationToast = document.getElementById('notification-toast');
     
     let currentBlacklist = [];
@@ -26,6 +29,11 @@
 
     document.getElementById('btn-reset-stats').addEventListener('click', () => {
         vscode.postMessage({ type: 'RESET_STATS' });
+    });
+    
+    btnEnableCdpBanner.addEventListener('click', () => {
+        vscode.postMessage({ type: 'ENABLE_CDP' });
+        showNotification('Đã copy lệnh. Vui lòng xác nhận thông báo của VS Code.');
     });
 
     // Blacklist Logic
@@ -180,11 +188,34 @@
 
         // Update Status
         if (daemonState.running) {
-            statusDot.classList.add('running');
-            statusText.textContent = 'Đang chạy';
+            const cdpDetected = daemonState.cdp && daemonState.cdp.detected;
+            if (cdpDetected) {
+                statusDot.classList.add('running');
+                statusDot.classList.remove('warning');
+                statusText.textContent = 'Đang chạy';
+            } else {
+                statusDot.classList.remove('running');
+                statusDot.classList.add('warning');
+                statusText.textContent = 'CDP OFF';
+                
+                // Show Warning & Disable Config
+                cdpWarning.classList.remove('hidden');
+                configContainer.classList.add('disabled-config');
+            }
         } else {
             statusDot.classList.remove('running');
+            statusDot.classList.remove('warning');
             statusText.textContent = 'Đã dừng';
+            
+            // Hide Warning & Enable Config (it's stopped, not necessarily CDP error)
+            cdpWarning.classList.add('hidden');
+            configContainer.classList.remove('disabled-config');
+        }
+
+        // Handle case where it's running with CDP
+        if (daemonState.running && daemonState.cdp && daemonState.cdp.detected) {
+            cdpWarning.classList.add('hidden');
+            configContainer.classList.remove('disabled-config');
         }
 
         // Update Toggles

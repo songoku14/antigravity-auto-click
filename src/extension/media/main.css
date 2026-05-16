@@ -74,6 +74,64 @@ body {
     box-shadow: 0 0 8px var(--success);
 }
 
+.status-dot.warning {
+    background-color: var(--warning);
+  box-shadow: 0 0 8px var(--warning);
+}
+
+.cdp-btn:active {
+    transform: scale(0.95);
+}
+
+/* CDP Warning Banner */
+.cdp-warning-banner {
+    background: rgba(250, 179, 135, 0.15);
+    border: 1px solid var(--warning);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.cdp-warning-banner .warning-title {
+    color: var(--warning);
+    font-size: 13px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.cdp-warning-banner .warning-desc {
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.4;
+}
+
+.cdp-warning-banner .warning-action {
+    margin-top: 4px;
+    display: flex;
+    justify-content: center;
+}
+
+.cdp-warning-banner .btn-primary {
+    background: var(--warning);
+    color: var(--bg);
+    border: none;
+    border-radius: 4px;
+    padding: 4px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+/* Disabled State for Config */
+.disabled-config {
+    display: none !important;
+}
+
 /* Features List */
 .feature-section {
     margin-bottom: 24px;

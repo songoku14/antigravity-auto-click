@@ -44,6 +44,22 @@ class ControlCenterViewProvider {
         case MESSAGE_TYPES.OPEN_CONFIG:
           vscode.commands.executeCommand('antigravity-auto-click.openConfig');
           break;
+        case MESSAGE_TYPES.ENABLE_CDP:
+          const copied = this._daemonService.copyCDPCommand();
+          if (copied) {
+            const choice = await vscode.window.showInformationMessage(
+              'Đã copy lệnh bật CDP vào Clipboard.\n\nHướng dẫn: Mở Terminal, nhấn Cmd+V và Enter để khởi động lại Antigravity với chế độ CDP.\n\nBạn có muốn đóng Antigravity ngay bây giờ không?',
+              { modal: true },
+              'Reset Antigravity'
+            );
+            
+            if (choice === 'Reset Antigravity') {
+              await this._daemonService.quitAntigravity();
+            }
+          } else {
+            vscode.window.showErrorMessage('Không thể copy lệnh vào Clipboard.');
+          }
+          break;
         case 'READY': // New message type for instant update
           this._updateWebview(true);
           break;
@@ -200,7 +216,19 @@ class ControlCenterViewProvider {
                 </div>
             </div>
 
-            <div class="feature-section">
+            <!-- CDP Warning Banner -->
+            <div id="cdp-warning" class="cdp-warning-banner hidden">
+                <div class="warning-title">⚠️ CDP Connection Required</div>
+                <div class="warning-desc">
+                    Auto Click cần Antigravity bật CDP (Chrome Debug Protocol) để hoạt động.
+                </div>
+                <div class="warning-action">
+                    <button id="btn-enable-cdp-banner" class="btn-primary">Kích hoạt CDP ngay</button>
+                </div>
+            </div>
+
+            <div id="config-container">
+                <div class="feature-section">
                 <div class="feature-grid">
                     <!-- Auto Retry -->
                     <div class="feature-card">
@@ -281,8 +309,9 @@ class ControlCenterViewProvider {
                     </div>
                 </div>
             </div>
+            </div> <!-- End of config-container -->
 
-            <div id="notification-toast" class="notification-toast hidden"></div>
+        <div id="notification-toast" class="notification-toast hidden"></div>
 
             <div class="stats-grid">
                     <div class="stats-card">

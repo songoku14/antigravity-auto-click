@@ -37,6 +37,11 @@ function buildStatusBarState({ config, daemonState, activitySummary }) {
   if (status === 'RUNNING') icon = '$(zap)';
   else if (status === 'STARTING' || status === 'RELOADING') icon = '$(sync~spin)';
   else if (status === 'STOPPING') icon = '$(loading~spin)';
+  
+  const cdpDetected = daemonState && daemonState.cdp && daemonState.cdp.detected;
+  if (running && !cdpDetected) {
+    icon = '$(debug-disconnect)';
+  }
 
   const summary = buildFeatureSummary(config);
 
@@ -45,8 +50,13 @@ function buildStatusBarState({ config, daemonState, activitySummary }) {
     tooltip += `\nRecent Activity: ${activitySummary.retryClicks} retries, ${activitySummary.acceptClicks} accepts`;
   }
 
+  let statusText = `Auto Click ${running ? summary : ''}`;
+  if (running && !cdpDetected) {
+    statusText = `Auto Click CDP OFF`;
+  }
+
   return {
-    text: `${icon} Auto Click ${running ? summary : ''}`.trim(),
+    text: `${icon} ${statusText}`.trim(),
     tooltip
   };
 }

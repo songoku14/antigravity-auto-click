@@ -1,5 +1,6 @@
 const cp = require('child_process');
 const path = require('path');
+const { findCDPPort } = require('../core/discovery');
 
 function createDaemonService(outputChannel) {
   let daemonProcess = null;
@@ -47,10 +48,16 @@ function createDaemonService(outputChannel) {
       }
     }
 
+    const cdpPort = findCDPPort();
+
     return {
       running,
       status,
-      lastStartTime
+      lastStartTime,
+      cdp: {
+        detected: !!cdpPort,
+        port: cdpPort
+      }
     };
   }
 
@@ -161,7 +168,31 @@ function createDaemonService(outputChannel) {
     isRunning,
     reload,
     start,
-    stop
+    stop,
+    copyCDPCommand: () => {
+      const launchCmd = 'open -a "/Applications/Antigravity.app" --args --remote-debugging-port=31905';
+      try {
+        cp.execSync(`printf '${launchCmd}' | pbcopy`);
+        outputChannel.appendLine('[Extension] Launch command copied to clipboard.');
+        return true;
+      } catch (err) {
+        outputChannel.appendLine(`[ERROR] Failed to copy command: ${err.message}`);
+        return false;
+      }
+    },
+    quitAntigravity: () => {
+      outputChannel.appendLine('[Extension] Requesting Antigravity to quit...');
+      return new Promise((resolve) => {
+        cp.exec('osascript -e \'quit app "Antigravity"\'', (error) => {
+          if (error) {
+            outputChannel.appendLine('[Extension] osascript quit failed, trying pkill...');
+            cp.exec('pkill -9 -f "Antigravity"', () => resolve(true));
+          } else {
+            resolve(true);
+          }
+        });
+      });
+    }
   };
 }
 
