@@ -15,6 +15,7 @@ class AutoRetryDaemon {
     this.activityStore = new ActivityStore(logsDir);
     
     this.lastPID = null;
+    this.lastPort = null;
     this.running = false;
 
     // Watch for config changes to trigger re-injection
@@ -83,6 +84,21 @@ class AutoRetryDaemon {
   }
 
   async cycle() {
+    const liveConnections = Array.from(this.connections.values()).filter(conn => conn.isConnected);
+    if (liveConnections.length > 0 && this.lastPort) {
+      try {
+        const targets = await getTargets(this.lastPort);
+        this.debug(`CDP returned ${targets.length} total target(s) on cached port ${this.lastPort}`);
+        await this.reconcileTargets(targets);
+        return;
+      } catch (e) {
+        this.debug(`Cached CDP port failed: ${e.message}`);
+        this.disconnectAll();
+        this.lastPID = null;
+        this.lastPort = null;
+      }
+    }
+
     const currentPID = findAntigravityPID();
     
     if (!currentPID) {
@@ -91,6 +107,7 @@ class AutoRetryDaemon {
         this.disconnectAll();
       }
       this.lastPID = null;
+      this.lastPort = null;
       this.debug('Antigravity not running.');
       return;
     }
@@ -98,6 +115,7 @@ class AutoRetryDaemon {
     if (this.lastPID && this.lastPID !== currentPID) {
       this.log(`🔄 Restart detected (PID: ${this.lastPID} -> ${currentPID}). Resetting...`);
       this.disconnectAll();
+      this.lastPort = null;
     }
     this.lastPID = currentPID;
 
@@ -106,6 +124,7 @@ class AutoRetryDaemon {
       this.debug('CDP port not found.');
       return;
     }
+    this.lastPort = port;
 
     let targets;
     try {
@@ -116,6 +135,10 @@ class AutoRetryDaemon {
       return;
     }
 
+    await this.reconcileTargets(targets);
+  }
+
+  async reconcileTargets(targets) {
     const pageTargets = filterPageTargets(targets);
     this.debug(
       `Filtered to ${pageTargets.length} page target(s): ` +
