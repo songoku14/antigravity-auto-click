@@ -273,6 +273,16 @@ input:checked + .slider:before {
     transform: translateX(16px);
 }
 
+/* Dimmed Switch Override */
+.dimmed .slider {
+    background-color: var(--toggle-off) !important;
+    cursor: not-allowed;
+}
+
+.dimmed input:checked + .slider:before {
+    transform: translateX(0px) !important;
+}
+
 .feature-section.compact {
     margin-bottom: 20px;
 }

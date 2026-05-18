@@ -39,6 +39,9 @@ function activate(context) {
 
   const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, STATUS_BAR_PRIORITY);
   const daemonService = createDaemonService(outputChannel);
+  
+  daemonService.onStateChange(() => refreshStatusBar());
+
   const diagnosticsService = createDiagnosticsService(daemonService);
   const extensionConfig = vscode.workspace.getConfiguration('antigravityAutoClick.extension');
 

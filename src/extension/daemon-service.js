@@ -7,6 +7,54 @@ function createDaemonService(outputChannel) {
   let lastStartTime = 0;
   let status = 'stopped'; // stopped, starting, running, stopping, reloading
 
+  let cachedCdpState = { detected: false, port: null };
+  let cdpCheckInterval = null;
+  const stateChangeEmitter = new (require('events').EventEmitter)();
+
+  function checkCdpStatus() {
+    const port = findCDPPort();
+    if (!port) {
+      if (cachedCdpState.detected) {
+        cachedCdpState = { detected: false, port: null };
+        stateChangeEmitter.emit('change');
+      }
+      return;
+    }
+
+    const http = require('http');
+    const req = http.get(`http://127.0.0.1:${port}/json`, (res) => {
+      const isOk = res.statusCode === 200;
+      if (cachedCdpState.detected !== isOk || cachedCdpState.port !== port) {
+        cachedCdpState = { detected: isOk, port: isOk ? port : null };
+        stateChangeEmitter.emit('change');
+      }
+    }).on('error', () => {
+      if (cachedCdpState.detected) {
+        cachedCdpState = { detected: false, port: null };
+        stateChangeEmitter.emit('change');
+      }
+    });
+    req.setTimeout(1000, () => req.destroy());
+  }
+
+  function startCdpChecker() {
+    if (!cdpCheckInterval) {
+      checkCdpStatus(); // initial check
+      cdpCheckInterval = setInterval(checkCdpStatus, 2000);
+    }
+  }
+
+  function stopCdpChecker() {
+    if (cdpCheckInterval) {
+      clearInterval(cdpCheckInterval);
+      cdpCheckInterval = null;
+    }
+    if (cachedCdpState.detected) {
+      cachedCdpState = { detected: false, port: null };
+      stateChangeEmitter.emit('change');
+    }
+  }
+
   function getScriptPath() {
     return path.join(__dirname, '..', 'core', 'auto-retry.js');
   }
@@ -48,15 +96,13 @@ function createDaemonService(outputChannel) {
       }
     }
 
-    const cdpPort = findCDPPort();
-
     return {
       running,
       status,
       lastStartTime,
       cdp: {
-        detected: !!cdpPort,
-        port: cdpPort
+        detected: cachedCdpState.detected,
+        port: cachedCdpState.port
       }
     };
   }
@@ -92,6 +138,7 @@ function createDaemonService(outputChannel) {
       });
       lastStartTime = Date.now();
       status = 'running';
+      startCdpChecker();
 
       daemonProcess.stdout.on('data', (data) => {
         outputChannel.append(data.toString());
@@ -104,6 +151,7 @@ function createDaemonService(outputChannel) {
       daemonProcess.on('close', (code) => {
         outputChannel.appendLine(`[Extension] Daemon exited with code ${code}`);
         daemonProcess = null;
+        stopCdpChecker();
         if (status !== 'reloading' && status !== 'stopping') {
           status = 'stopped';
         }
@@ -155,6 +203,7 @@ function createDaemonService(outputChannel) {
   }
 
   function dispose() {
+    stopCdpChecker();
     if (daemonProcess) {
       daemonProcess.kill();
       daemonProcess = null;
@@ -163,6 +212,7 @@ function createDaemonService(outputChannel) {
   }
 
   return {
+    onStateChange: (cb) => stateChangeEmitter.on('change', cb),
     dispose,
     getState,
     isRunning,
