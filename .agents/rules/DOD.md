@@ -18,8 +18,7 @@ Mọi tác vụ chỉ được coi là HOÀN THÀNH (Done) khi và chỉ khi Orc
 - [ ] Đã kiểm tra các trường hợp biên (Edge cases).
 
 ## 4. Tài liệu (Docs-Agent)
-- [ ] Cập nhật `README.md` nếu có thay đổi tính năng/kiến trúc.
-- [ ] Cập nhật `tutorial.md` với hướng dẫn sử dụng mới.
+- [ ] Cập nhật `README.md` khi có thay đổi tính năng/kiến trúc hoặc tài liệu người dùng.
 - [ ] Đã được Tech Leader review tài liệu (tuân thủ phong cách tối giản).
 
 ## 5. Xác nhận Cuối (Orchestrator)

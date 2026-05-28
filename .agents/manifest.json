@@ -33,7 +33,7 @@
     {
       "id": "docs-agent",
       "name": "Docs Agent",
-      "description": "Documentation Specialist. Maintains README.md, tutorial.md, and other project docs.",
+      "description": "Documentation Specialist. Maintains README.md and other project docs.",
       "instructions": "agents/docs-agent.md"
     }
   ]
