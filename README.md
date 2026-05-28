@@ -1,132 +1,134 @@
-# 🤖 Antigravity Auto-Click (Retry & Accept)
+# 🤖 Antigravity Auto Retry-Click (Retry & Accept)
 
-Bộ công cụ tự động hóa thao tác click cho Antigravity IDE: Tự động thử lại khi lỗi (Auto-Retry) và Tự động chấp nhận đề xuất từ Agent (Auto-Accept). 
+[Tiếng Việt](README.vi.md)
 
-Kể từ phiên bản mới nhất, hệ thống đã chuyển sang mô hình **Extension-First**, cho phép bạn điều phối mọi hoạt động ngay trong IDE thông qua **Control Center** trực quan.
+Automation tool suite for click actions in Antigravity IDE: Auto-Retry on errors and Auto-Accept agent proposals.
+
+Starting from the latest version, the system has migrated to an **Extension-First** model, allowing you to orchestrate all activities directly inside the IDE via an intuitive **Control Center**.
 
 ---
 
-## 🛠️ Hướng Dẫn Cài Đặt & Sử Dụng Nhanh (Quick Start)
+## 🛠️ Quick Start & Installation
 
-### Bước 1: Thiết lập chế độ Debug cho IDE (Chỉ làm 1 lần)
-Để công cụ có thể giao tiếp với Antigravity IDE qua Chrome DevTools Protocol (CDP), bạn **bắt buộc** phải khởi động IDE với cổng debug.
-Dán lệnh sau vào Terminal của macOS để tạo phím tắt `antigravity`:
+### Step 1: Configure IDE Debug Mode (One-time setup)
+To allow the tool to communicate with Antigravity IDE via Chrome DevTools Protocol (CDP), you **must** start the IDE with the debugging port enabled.
+Run the following command in your macOS Terminal to create the `antigravity` alias:
 ```bash
 echo 'alias antigravity="open -a \"Antigravity IDE\" --args --remote-debugging-port=31905"' >> ~/.zshrc && source ~/.zshrc
 ```
 > [!IMPORTANT]
-> Hãy luôn khởi động IDE bằng lệnh `antigravity`. Nếu quên, hãy đóng hẳn IDE và mở lại bằng alias này để kích hoạt đúng cổng debug.
+> Always start the IDE using the `antigravity` command. If forgotten, completely close the IDE and reopen it using this alias to activate the correct debug port.
 
-### Bước 2: Cài đặt Extension
-Công cụ được đóng gói dưới dạng file `.vsix` tiện lợi:
-1. Mở Antigravity IDE.
-2. Kéo thả file `antigravity-auto-click-1.0.0.vsix` vào IDE để cài đặt.
-3. Nếu bạn đã sử dụng phiên bản cũ, hệ thống sẽ tự động cập nhật dữ liệu cấu hình cũ mà không cần thao tác gì thêm.
+### Step 2: Install the Extension
+The tool is conveniently packaged as a `.vsix` file:
+1. Open Antigravity IDE.
+2. Drag and drop the `antigravity-auto-click-1.0.0.vsix` file into the IDE to install it.
+3. If you used an older version, the system will automatically migrate your config without further action.
 
-### Bước 3: Sử dụng qua Giao diện Control Center
-- **Status Bar (Góc dưới phải)**: Click vào để bật/tắt nhanh **Control Center**. Trạng thái hiển thị theo thời gian thực:
+### Step 3: Use the Control Center Interface
+- **Status Bar (Bottom Right)**: Click to toggle the **Control Center**. Real-time status display:
   - `Auto Click R / A (t|r|s)`:
-    - `R`: Auto-Retry đang Bật.
-    - `A`: Auto-Accept đang Bật.
-    - `t|r|s`: Các category đang hoạt động (`terminal`, `reviewChange`, `systemReview`).
-  - `STOPPED`: Daemon chưa hoạt động.
+    - `R`: Auto-Retry is Enabled.
+    - `A`: Auto-Accept is Enabled.
+    - `t|r|s`: Active categories (`terminal`, `reviewChange`, `systemReview`).
+  - `STOPPED`: Daemon is inactive.
 - **Control Center Dashboard**:
-  - **Toggles**: Bật/tắt nhanh Auto Retry và Auto Accept (bao gồm 3 phân cấp: Terminal, Review Change, System Review).
-  - **Statistics**: Biểu đồ thống kê số lần click thành công theo từng loại hành động trực quan.
-  - **Blacklist Management**: Thêm/xóa các lệnh bị chặn bằng giao diện tags vô cùng đơn giản.
-  - **System Diagnostics**: Kiểm tra cổng CDP, trạng thái cấu hình và xem nhanh log hệ thống để xử lý sự cố.
+  - **Toggles**: Quick toggle for Auto Retry and Auto Accept (supporting 3 levels: Terminal, Review Change, System Review).
+  - **Statistics**: Visual charts showing click statistics by action type.
+  - **Blacklist Management**: Add/remove blocked commands easily using the tag interface.
+  - **System Diagnostics**: Inspect the CDP port, configuration status, and view system logs for troubleshooting.
 
 ---
 
-## ⚙️ Giải thích các Category Auto-Accept
+## ⚙️ Auto-Accept Categories Explanation
 
-Hệ thống phân loại các yêu cầu tự động chấp nhận thành 3 nhóm chính để đảm bảo an toàn tối đa:
-1. **terminal**: Tự động xác nhận các yêu cầu chạy lệnh trong Terminal.
-   - *Lưu ý*: Lệnh luôn được đối chiếu qua danh sách `blacklist` trước khi tự động click để tránh chạy các lệnh nguy hiểm.
-2. **reviewChange**: Tự động duyệt các thay đổi mã nguồn (nút `Proceed`, `Accept All`).
-3. **systemReview**: Các xác nhận hệ thống hoặc hội thoại trên Side Panel của Agent (yêu cầu an toàn cao hơn, master toggle tự động đồng bộ hóa).
+The system classifies auto-accept requests into 3 main groups to ensure maximum safety:
+1. **terminal**: Auto-approve terminal command run requests.
+   - *Note*: Commands are cross-checked with the `blacklist` before being clicked automatically to prevent running dangerous commands.
+2. **reviewChange**: Auto-approve code changes (e.g., clicking `Proceed`, `Accept All` buttons).
+3. **systemReview**: System-level confirmations or agent side-panel dialogs (higher safety requirements, synchronized with a master toggle).
 
 ---
 
-## 📂 Vị trí Dữ liệu & Cấu hình
+## 📂 Data & Configuration Locations
 
-Cả Extension và CLI đều dùng chung một bộ dữ liệu để đảm bảo đồng bộ. Hệ thống tự động nhận diện và sử dụng đường dẫn tương ứng với phiên bản IDE bạn cài đặt (ưu tiên Antigravity IDE):
-- **Đường dẫn trên macOS**:
-  - `~/Library/Application Support/Antigravity IDE/Auto Click` (mặc định cho IDE mới)
-  - `~/Library/Application Support/Antigravity/Auto Click` (mặc định cho IDE cũ)
-- **Đường dẫn trên Windows**:
-  - `%APPDATA%\Antigravity IDE\Auto Click` (mặc định cho IDE mới)
-  - `%APPDATA%\Antigravity\Auto Click` (mặc định cho IDE cũ)
+Both the Extension and the CLI share the same data directory to ensure synchronization. The system automatically detects and uses the path corresponding to your installed IDE version (preferring Antigravity IDE):
+- **Path on macOS**:
+  - `~/Library/Application Support/Antigravity IDE/Auto Click` (default for new IDE)
+  - `~/Library/Application Support/Antigravity/Auto Click` (legacy default)
+- **Path on Windows**:
+  - `%APPDATA%\Antigravity IDE\Auto Click` (default for new IDE)
+  - `%APPDATA%\Antigravity\Auto Click` (legacy default)
 
-### Các file quan trọng:
-- `config.json`: Cấu hình toàn bộ hệ thống.
-- `logs/activity-log.json`: Thống kê click (có thể tắt qua `logging.activityLog` trong cấu hình).
-- `logs/daemon.log`: Nhật ký hệ thống chạy ngầm (có thể tắt qua `logging.enabled` để tiết kiệm bộ nhớ).
+### Key Files:
+- `config.json`: System-wide configuration.
+- `logs/activity-log.json`: Click statistics (can be disabled via `logging.activityLog` in config).
+- `logs/daemon.log`: Background daemon log (can be disabled via `logging.enabled` to save disk space).
 
-### Tinh chỉnh Thời gian & Rate Limit (Advanced Timing Config)
-Trong file `config.json`, bạn có thể tinh chỉnh các tham số nâng cao:
+### Advanced Timing & Rate Limit Configurations
+In `config.json`, you can fine-tune advanced parameters:
 1. **`autoRetry.timing`**:
-   - `pollInterval` (mặc định `3000` ms): Tần suất quét DOM của IDE để tìm hộp thoại lỗi.
-   - `clickDelay` (mặc định `800` ms): Khoảng trễ trước khi click (giả lập thao tác người dùng).
-   - `minClickInterval` (mặc định `5000` ms): Khoảng cách tối thiểu giữa 2 lần click liên tiếp (tránh double-click).
+   - `pollInterval` (default `3000` ms): Polling frequency for scanning the IDE DOM for error dialogs.
+   - `clickDelay` (default `800` ms): Click delay (simulates human interaction).
+   - `minClickInterval` (default `5000` ms): Minimum interval between consecutive clicks (prevents double-clicks).
 2. **`autoRetry.rateLimit`**:
-   - `maxRetriesPerMinute` (mặc định `15` lần): Số lần click tối đa trong 1 phút để tránh lặp vô hạn khi hệ thống lỗi liên tiếp.
-   - `cooldownMs` (mặc định `60000` ms): Thời gian tạm dừng sau khi đạt giới hạn rate-limit.
+   - `maxRetriesPerMinute` (default `15` clicks): Maximum clicks in a minute to prevent infinite loops during recurring errors.
+   - `cooldownMs` (default `60000` ms): Cool down duration after reaching the rate-limit.
 
 ---
 
-## ❓ Xử lý sự cố (Troubleshooting & CLI Diagnostics)
+## ❓ Troubleshooting & CLI Diagnostics
 
-Nếu hệ thống gặp sự cố, bạn có thể kiểm tra nhanh:
+If the system encounters an issue, you can quickly check:
 
-| Vấn đề | Cách xử lý |
+| Issue | Resolution |
 | :--- | :--- |
-| **Extension báo "Config Invalid"** | Dùng menu **System Diagnostics** để xem chi tiết, sau đó click **Open Raw Config** để sửa. |
-| **Daemon không khởi động được** | Kiểm tra Output Channel `Antigravity Auto-Click` trong IDE. Đảm bảo không có tiến trình `node src/core/auto-retry.js` nào bị treo (sử dụng `pgrep -f auto-retry`). |
-| **Không nhận diện được nút mới** | Dùng CLI > Developer Tools > **Dump DOM Snapshot** và gửi file mẫu cho đội phát triển. |
-| **CDP không kết nối được** | Đảm bảo bạn đã tắt hẳn IDE trước khi mở lại bằng lệnh debug `antigravity`. |
+| **Extension reports "Config Invalid"** | Use the **System Diagnostics** menu to view details, then click **Open Raw Config** to edit. |
+| **Daemon fails to start** | Check the **Antigravity Auto-Click** Output Channel in the IDE. Ensure no hung `node src/core/auto-retry.js` processes exist (use `pgrep -f auto-retry`). |
+| **New buttons not detected** | Use CLI > Developer Tools > **Dump DOM Snapshot** and send the captured file to the development team. |
+| **CDP fails to connect** | Ensure you completely closed the IDE before reopening it with the debug command `antigravity`. |
 
-### Giao diện phụ: CLI Menu
-Dành cho quản trị nâng cao hoặc khắc phục sự cố nghiêm trọng. Chạy lệnh:
+### Secondary Interface: CLI Menu
+Designed for advanced administration or critical troubleshooting. Run:
 ```bash
 ./scripts/menu.sh
 ```
-**Các tính năng trên CLI:**
-- **Cài đặt LaunchAgent**: Để daemon tự động khởi động cùng hệ thống macOS.
-- **Developer Tools**: Phân tích DOM trực tiếp hoặc kết xuất DOM Snapshot để phân tích.
-- **Reset statistics**: Xóa thống kê click và có tùy chọn xóa sạch file `daemon.log` để giải phóng dung lượng đĩa.
+**CLI Features:**
+- **Install LaunchAgent**: Enables the daemon to start automatically with macOS.
+- **Developer Tools**: Analyze DOM live or dump DOM Snapshots for diagnostic analysis.
+- **Reset statistics**: Clear click stats and optionally clear `daemon.log` to free disk space.
 
 ---
 
-## 💻 Dành Cho Nhà Phát Triển (Technical & Development)
+## 💻 Technical & Development
 
-### 1. Kiến trúc & Công nghệ (Tech Stack)
-- **Core Engine**: Node.js daemon kết nối với Electron renderer qua Chrome DevTools Protocol (CDP) thông qua WebSocket.
-- **Extension API**: VS Code extension đóng vai trò là tầng điều khiển, sử dụng `WebviewViewProvider` cho UI.
-- **DOM Automation Payload**: Vanilla JS được inject trực tiếp vào DOM của IDE để dò và tương tác với các hộp thoại.
-- **Passive Polling & Scoping**: Quét DOM định kỳ, giới hạn phạm vi quét trong các dialog container (e.g., `.monaco-dialog-box`, `.notification-toast`) để giảm thiểu CPU overhead.
+### 1. Architecture & Technology Stack
+- **Core Engine**: Node.js daemon connecting to the Electron renderer via Chrome DevTools Protocol (CDP) over WebSockets.
+- **Extension API**: VS Code extension acting as the control panel, using `WebviewViewProvider` for the UI.
+- **DOM Automation Payload**: Vanilla JS injected directly into the IDE DOM to detect and interact with dialogs.
+- **Passive Polling & Scoping**: Periodically scans the DOM, scoped within dialog containers (e.g., `.monaco-dialog-box`, `.notification-toast`) to minimize CPU overhead.
 
-### 2. Cấu Trúc Dự Án
+### 2. Project Structure
 ```text
 antigravity-auto-click/
-├── src/                   # Mã nguồn chính
-│   ├── extension/         # Logic điều khiển Extension (VS Code)
-│   │   └── media/         # UI Assets (CSS, JS) cho Webview
-│   ├── core/              # Daemon kết nối CDP & Engine chính
-│   └── payload/           # JavaScript inject vào IDE (Detection Logic)
-├── scripts/               # Bộ công cụ điều khiển & Script tiện ích
-├── package.json           # Cấu hình dự án & scripts build
-└── .vscodeignore          # Cấu hình lọc file khi đóng gói VSIX
+├── src/                   # Main source code
+│   ├── extension/         # Extension controller logic (VS Code)
+│   │   └── media/         # Webview UI Assets (CSS, JS)
+│   ├── core/              # CDP Connection Daemon & Main Engine
+│   └── payload/           # JS Injected into IDE (Detection Logic)
+├── scripts/               # CLI & Utility Scripts
+├── package.json           # Project Configuration & Build scripts
+└── .vscodeignore          # File exclude configurations for VSIX packaging
 ```
 
-### 3. Quy trình Đóng gói (Packaging VSIX)
-Nếu bạn chỉnh sửa mã nguồn và muốn đóng gói lại extension:
-1. Chạy lệnh cài đặt thư viện: `npm install`
-2. Đóng gói Extension: `npm run package`
-   - Lệnh này bỏ qua các kiểm tra nghiêm ngặt về License/Git để nhanh chóng xuất ra file `.vsix` nằm ở thư mục gốc.
+### 3. Packaging (VSIX)
+If you edit the source code and want to package the extension:
+1. Install dependencies: `npm install`
+2. Package Extension: `npm run package`
+   - Generates the `.vsix` file in the root directory.
 
-### 4. Kiểm thử TDD (Regression Testing)
-Trước khi release hoặc sau khi chỉnh sửa logic quét DOM, bắt buộc phải chạy bộ test để tránh regression:
-- Chạy toàn bộ suite test trên các mẫu DOM: `npm run test` (hoặc chạy qua CLI tool).
-- Tích hợp kiểm thử tính ổn định của extension: `npm run test:extension`.
-- Tài liệu chi tiết về cơ chế click và nhận diện nút bấm có thể tham khảo tại [button-identification.md](button-identification.md).
+### 4. TDD & Regression Testing
+Before releasing or modifying DOM detection logic, you must run the regression test suite:
+- Run the full suite on DOM samples: `npm run test` (or run via CLI).
+- Run extension stability tests: `npm run test:extension`.
+- Detailed documentation on click mechanics and button detection is available in [button-identification.md](button-identification.md).
