@@ -1,6 +1,7 @@
 const assert = require('assert');
 const path = require('path');
 const fs = require('fs');
+fs.watch = () => { throw new Error('Mock fs.watch error for fallback'); };
 
 // Mock VS Code
 let lastWarningMessage = null;
@@ -8,6 +9,21 @@ let warningCallback = null;
 let watcherCallback = null;
 
 const vscodeMock = {
+  EventEmitter: class {
+    constructor() {
+      this._listeners = [];
+      this.event = (listener) => {
+        this._listeners.push(listener);
+        return { dispose: () => {} };
+      };
+    }
+    fire(data) {
+      for (const listener of this._listeners) {
+        listener(data);
+      }
+    }
+    dispose() {}
+  },
   WebviewViewProvider: class {},
   window: {
     showInformationMessage: () => {},
@@ -97,12 +113,14 @@ async function testPhase3() {
       asWebviewUri: (uri) => uri
     },
     reveal: () => {},
+    show: () => {},
     onDidChangeViewState: () => ({ dispose: () => {} }),
     onDidDispose: () => ({ dispose: () => {} })
   };
 
   vscodeMock.window.createWebviewPanel = () => mockPanel;
 
+  provider.resolveWebviewView(mockPanel, {}, {});
   provider.show();
 
   // 1. Test TOGGLE_FEATURE (autoRetry.enabled)

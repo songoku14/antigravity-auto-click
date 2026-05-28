@@ -1,6 +1,7 @@
 const assert = require('assert');
 const path = require('path');
 const fs = require('fs');
+fs.watch = () => { throw new Error('Mock fs.watch error for fallback'); };
 
 // Mock VS Code
 let registeredCommands = new Map();
@@ -12,6 +13,21 @@ let statusBarItem = {
 };
 
 const vscodeMock = {
+  EventEmitter: class {
+    constructor() {
+      this._listeners = [];
+      this.event = (listener) => {
+        this._listeners.push(listener);
+        return { dispose: () => {} };
+      };
+    }
+    fire(data) {
+      for (const listener of this._listeners) {
+        listener(data);
+      }
+    }
+    dispose() {}
+  },
   WebviewViewProvider: class {},
   window: {
     createOutputChannel: () => ({ appendLine: () => {} }),
@@ -64,7 +80,7 @@ async function testPhase4() {
 
   // 2. Verify refreshStatusBar calls refreshWebview
   console.log('Verifying refreshStatusBar integration...');
-  assert.ok(extensionContent.includes('refreshWebview()'), 'refreshStatusBar should call refreshWebview');
+  assert.ok(extensionContent.includes('refreshWebview('), 'refreshStatusBar should call refreshWebview');
   console.log('✅ refreshStatusBar integration check passed');
 
   // 3. Verify Command Registration

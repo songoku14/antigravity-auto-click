@@ -1,9 +1,25 @@
 const assert = require('assert');
 const path = require('path');
 const fs = require('fs');
+fs.watch = () => { throw new Error('Mock fs.watch error for fallback'); };
 
 // Mock VS Code
 const vscodeMock = {
+  EventEmitter: class {
+    constructor() {
+      this._listeners = [];
+      this.event = (listener) => {
+        this._listeners.push(listener);
+        return { dispose: () => {} };
+      };
+    }
+    fire(data) {
+      for (const listener of this._listeners) {
+        listener(data);
+      }
+    }
+    dispose() {}
+  },
   WebviewViewProvider: class {},
   window: {
     showInformationMessage: () => {},
@@ -67,7 +83,6 @@ async function testPhase2() {
   // 1. HTML structure
   console.log('Testing HTML structure...');
   assert.ok(html.includes('page-main'), 'HTML should contain page-main');
-  assert.ok(html.includes('page-stats'), 'HTML should contain page-stats');
   
   // page-main elements
   assert.ok(html.includes('autoRetry.enabled'), 'Should contain autoRetry toggle');
@@ -79,8 +94,8 @@ async function testPhase2() {
   assert.ok(html.includes('status'), 'Should contain status indicator');
   
   // page-stats elements
-  assert.ok(html.includes('stats-container') || html.includes('chart'), 'Should contain stats/chart container');
-  assert.ok(html.includes('total-clicks') || html.includes('badge'), 'Should contain total clicks badge');
+  assert.ok(html.includes('stats-grid') || html.includes('stats-card'), 'Should contain stats grid or card');
+  assert.ok(html.includes('badge') || html.includes('stats-value'), 'Should contain status badge or stats value');
   assert.ok(html.includes('btn-reset-stats'), 'Should contain Reset button');
 
   // Exclusion

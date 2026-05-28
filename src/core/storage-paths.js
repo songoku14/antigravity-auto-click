@@ -1,5 +1,6 @@
 const os = require('os');
 const path = require('path');
+const fs = require('fs');
 
 const STORAGE_ENV_VAR = 'ANTIGRAVITY_AUTO_CLICK_HOME';
 const CONFIG_FILE = 'config.json';
@@ -18,12 +19,24 @@ function getDefaultStorageDir() {
   const homeDir = getHomeDir();
 
   if (process.platform === 'darwin') {
-    return path.join(homeDir, 'Library', 'Application Support', 'Antigravity', 'Auto Click');
+    const ideDir = path.join(homeDir, 'Library', 'Application Support', 'Antigravity IDE', 'Auto Click');
+    const legacyDir = path.join(homeDir, 'Library', 'Application Support', 'Antigravity', 'Auto Click');
+    
+    if (fs.existsSync(ideDir) || fs.existsSync('/Applications/Antigravity IDE.app')) {
+      return ideDir;
+    }
+    return legacyDir;
   }
 
   if (process.platform === 'win32') {
     const appData = process.env.APPDATA || path.join(homeDir, 'AppData', 'Roaming');
-    return path.join(appData, 'Antigravity', 'Auto Click');
+    const ideDir = path.join(appData, 'Antigravity IDE', 'Auto Click');
+    const legacyDir = path.join(appData, 'Antigravity', 'Auto Click');
+    
+    if (fs.existsSync(ideDir)) {
+      return ideDir;
+    }
+    return legacyDir;
   }
 
   const xdgConfigHome = process.env.XDG_CONFIG_HOME || path.join(homeDir, '.config');
@@ -55,6 +68,8 @@ function getLegacyStorageDirs(extraDirs = []) {
 
   if (process.platform === 'darwin') {
     candidates.push(
+      path.join(homeDir, 'Library', 'Application Support', 'Antigravity', 'Auto Click'),
+      path.join(homeDir, 'Library', 'Application Support', 'Antigravity IDE', 'Auto Click'),
       path.join(
         homeDir,
         'Library',
@@ -68,6 +83,8 @@ function getLegacyStorageDirs(extraDirs = []) {
   } else if (process.platform === 'win32') {
     const appData = process.env.APPDATA || path.join(homeDir, 'AppData', 'Roaming');
     candidates.push(
+      path.join(appData, 'Antigravity', 'Auto Click'),
+      path.join(appData, 'Antigravity IDE', 'Auto Click'),
       path.join(appData, 'Code', 'User', 'globalStorage', 'antigravity.antigravity-auto-click')
     );
   } else {

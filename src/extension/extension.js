@@ -132,7 +132,8 @@ async function syncDaemonWithConfig(options = {}) {
     outputChannel.appendLine('[Extension] Feature(s) enabled in config. Checking daemon...');
     
     if (daemonState.running) {
-      outputChannel.appendLine('[Extension] Daemon is already running (external or previous session).');
+      outputChannel.appendLine('[Extension] Daemon is already running (external or previous session). Start checking CDP...');
+      daemonService.start(getConfigPath(), path.dirname(getActivityLogPath()));
       refreshStatusBar();
       return;
     }

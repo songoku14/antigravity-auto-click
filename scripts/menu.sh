@@ -204,8 +204,8 @@ show_menu() {
     AUTO_RETRY=$(jq -r 'if (.autoRetry | type) == "object" then (if .autoRetry.enabled == null then true else .autoRetry.enabled end) else (if .autoRetry == null then true else .autoRetry end) end' "$CONFIG_FILE" 2>/dev/null || echo "true")
     AUTO_ACCEPT_ENABLED=$(jq -r 'if (.autoAccept | type) == "object" then (if .autoAccept.enabled == null then true else .autoAccept.enabled end) else (if .autoAccept == null then true else .autoAccept end) end' "$CONFIG_FILE" 2>/dev/null || echo "true")
     NODE_RUNNING=$(pgrep -f "node.*src/core/auto-retry.js" > /dev/null && echo "yes" || echo "no")
-    APP_RUNNING=$(ps aux | grep "Antigravity.app/Contents/MacOS/Electron" | grep -v grep > /dev/null && echo "yes" || echo "no")
-    CDP_ENABLED=$(ps aux | grep -i "Antigravity.app/Contents/MacOS/Electron" | grep -v grep | grep -q "\\-\\-remote-debugging-port=" && echo "yes" || echo "no")
+    APP_RUNNING=$(ps aux | grep -E "Antigravity( IDE)?.app/Contents/MacOS/Electron" | grep -v grep > /dev/null && echo "yes" || echo "no")
+    CDP_ENABLED=$(ps aux | grep -E -i "Antigravity( IDE)?.app/Contents/MacOS/Electron" | grep -v grep | grep -q "\\-\\-remote-debugging-port=" && echo "yes" || echo "no")
     PERFORM_CLICK=$(jq -r 'if (.autoAccept | type) == "object" then (if .autoAccept.performClick == null then false else .autoAccept.performClick end) else (if .performClickAutoAccept == null then false else .performClickAutoAccept end) end' "$CONFIG_FILE" 2>/dev/null || echo "false")
 
     if [ "$NODE_RUNNING" = "no" ]; then
@@ -695,7 +695,14 @@ while true; do
             read -p "-> Ấn Enter để xác nhận " confirm
             
             # 1. Prepare and copy launch command
-            LAUNCH_CMD='open -a "/Applications/Antigravity.app" --args --remote-debugging-port=31905'
+            if [ -d "/Applications/Antigravity IDE.app" ]; then
+                APP_NAME="Antigravity IDE"
+                APP_PATH="/Applications/Antigravity IDE.app"
+            else
+                APP_NAME="Antigravity"
+                APP_PATH="/Applications/Antigravity.app"
+            fi
+            LAUNCH_CMD="open -a \"$APP_PATH\" --args --remote-debugging-port=31905"
             printf "%s" "$LAUNCH_CMD" | pbcopy
             
             echo ""
@@ -703,16 +710,16 @@ while true; do
             echo ""
             
             # 2. Close Antigravity
-            echo "🔄 Đang yêu cầu Antigravity đóng..."
-            osascript -e 'quit app "Antigravity"' 2>/dev/null || true
+            echo "🔄 Đang yêu cầu $APP_NAME đóng..."
+            osascript -e "quit app \"$APP_NAME\"" 2>/dev/null || true
             
             echo "⏳ Đợi ứng dụng phản hồi (3s)..."
             sleep 3
             
             # Check if still running
-            if ps aux | grep -i "/Applications/Antigravity.app/Contents/MacOS/Electron" | grep -v grep > /dev/null; then
-                echo "⚠️ Antigravity vẫn chưa đóng, đang thực hiện đóng cưỡng bức..."
-                pkill -9 -f "Antigravity" 2>/dev/null || true
+            if ps aux | grep -E -i "$APP_PATH/Contents/MacOS/Electron" | grep -v grep > /dev/null; then
+                echo "⚠️ $APP_NAME vẫn chưa đóng, đang thực hiện đóng cưỡng bức..."
+                pkill -9 -f "$APP_NAME" 2>/dev/null || true
                 sleep 1
             fi
             

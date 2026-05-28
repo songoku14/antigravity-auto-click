@@ -1,9 +1,25 @@
 const assert = require('assert');
 const path = require('path');
 const fs = require('fs');
+fs.watch = () => { throw new Error('Mock fs.watch error for fallback'); };
 
 // Mock VS Code
 const vscodeMock = {
+  EventEmitter: class {
+    constructor() {
+      this._listeners = [];
+      this.event = (listener) => {
+        this._listeners.push(listener);
+        return { dispose: () => {} };
+      };
+    }
+    fire(data) {
+      for (const listener of this._listeners) {
+        listener(data);
+      }
+    }
+    dispose() {}
+  },
   WebviewViewProvider: class {},
   window: {
     showInformationMessage: () => {},

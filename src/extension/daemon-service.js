@@ -1,6 +1,11 @@
 const cp = require('child_process');
 const path = require('path');
+const fs = require('fs');
 const { findCDPPort } = require('../core/discovery');
+
+const hasIdeApp = fs.existsSync('/Applications/Antigravity IDE.app');
+const appPath = hasIdeApp ? '/Applications/Antigravity IDE.app' : '/Applications/Antigravity.app';
+const appName = hasIdeApp ? 'Antigravity IDE' : 'Antigravity';
 
 function createDaemonService(outputChannel) {
   let daemonProcess = null;
@@ -13,6 +18,9 @@ function createDaemonService(outputChannel) {
 
   function checkCdpStatus() {
     const port = findCDPPort();
+    if (process.env.DEBUG) {
+      outputChannel.appendLine(`[Extension] checkCdpStatus - findCDPPort returned: ${port}`);
+    }
     if (!port) {
       if (cachedCdpState.detected) {
         cachedCdpState = { detected: false, port: null };
@@ -24,11 +32,17 @@ function createDaemonService(outputChannel) {
     const http = require('http');
     const req = http.get(`http://127.0.0.1:${port}/json`, (res) => {
       const isOk = res.statusCode === 200;
+      if (process.env.DEBUG) {
+        outputChannel.appendLine(`[Extension] checkCdpStatus - http get status: ${res.statusCode}`);
+      }
       if (cachedCdpState.detected !== isOk || cachedCdpState.port !== port) {
         cachedCdpState = { detected: isOk, port: isOk ? port : null };
         stateChangeEmitter.emit('change');
       }
-    }).on('error', () => {
+    }).on('error', (err) => {
+      if (process.env.DEBUG) {
+        outputChannel.appendLine(`[Extension] checkCdpStatus - http get error: ${err.message}`);
+      }
       if (cachedCdpState.detected) {
         cachedCdpState = { detected: false, port: null };
         stateChangeEmitter.emit('change');
@@ -112,6 +126,7 @@ function createDaemonService(outputChannel) {
 
   function start(configPath, logsDir) {
     if (status === 'starting' || status === 'running' || status === 'reloading') {
+      startCdpChecker();
       return getState();
     }
     
@@ -121,6 +136,7 @@ function createDaemonService(outputChannel) {
     // Double check if already running externally
     if (isRunning()) {
       status = 'running';
+      startCdpChecker();
       return getState();
     }
 
@@ -220,7 +236,7 @@ function createDaemonService(outputChannel) {
     start,
     stop,
     copyCDPCommand: () => {
-      const launchCmd = 'open -a "/Applications/Antigravity.app" --args --remote-debugging-port=31905';
+      const launchCmd = `open -a "${appPath}" --args --remote-debugging-port=31905`;
       try {
         cp.execSync(`printf '${launchCmd}' | pbcopy`);
         outputChannel.appendLine('[Extension] Launch command copied to clipboard.');
@@ -233,10 +249,10 @@ function createDaemonService(outputChannel) {
     quitAntigravity: () => {
       outputChannel.appendLine('[Extension] Requesting Antigravity to quit...');
       return new Promise((resolve) => {
-        cp.exec('osascript -e \'quit app "Antigravity"\'', (error) => {
+        cp.exec(`osascript -e 'quit app "${appName}"'`, (error) => {
           if (error) {
             outputChannel.appendLine('[Extension] osascript quit failed, trying pkill...');
-            cp.exec('pkill -9 -f "Antigravity"', () => resolve(true));
+            cp.exec(`pkill -9 -f "${appName}"`, () => resolve(true));
           } else {
             resolve(true);
           }

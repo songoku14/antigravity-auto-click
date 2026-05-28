@@ -91,10 +91,10 @@ AUTO_ACCEPT_PERFORM_CLICK=$(jq -r '
 NODE_RUNNING=$(pgrep -f "node.*src/core/auto-retry.js" > /dev/null && echo "yes" || echo "no")
 
 # Check Antigravity App
-APP_RUNNING=$(ps aux | grep "Antigravity.app/Contents/MacOS/Electron" | grep -v grep > /dev/null && echo "yes" || echo "no")
+APP_RUNNING=$(ps aux | grep -E "Antigravity( IDE)?.app/Contents/MacOS/Electron" | grep -v grep > /dev/null && echo "yes" || echo "no")
 
 # Check CDP Port (remote debugging)
-CDP_ENABLED=$(ps aux | grep -i "Antigravity.app/Contents/MacOS/Electron" | grep -v grep | grep -q "\\-\\-remote-debugging-port=" && echo "yes" || echo "no")
+CDP_ENABLED=$(ps aux | grep -E -i "Antigravity( IDE)?.app/Contents/MacOS/Electron" | grep -v grep | grep -q "\\-\\-remote-debugging-port=" && echo "yes" || echo "no")
 
 # Function to format status
 pad_text() {

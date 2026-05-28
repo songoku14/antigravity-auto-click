@@ -33,9 +33,11 @@ The primary user interface is now a **Webview Control Center** integrated into t
   - `main.css`: Modern dark theme with CSS-only toggle switches and responsive layout.
 
 ## Storage Architecture
-- **Canonical Path**: `~/Library/Application\ Support/Antigravity/Auto\ Click/` (macOS).
-- **Logic**: Implemented in `src/core/storage-paths.js`. It uses the `ANTIGRAVITY_AUTO_CLICK_HOME` env var if present, otherwise falls back to platform-specific application data folders.
-- **Synchronization**: Both CLI and Extension use this shared logic to ensure they always point to the same `config.json` and `activity-log.json`, regardless of where they are executed from.
+- **Canonical Path**:
+  - macOS: `~/Library/Application Support/Antigravity IDE/Auto Click/` (hoặc fallback `~/Library/Application Support/Antigravity/Auto Click/`)
+  - Windows: `%APPDATA%\Antigravity IDE\Auto Click\` (hoặc fallback `%APPDATA%\Antigravity\Auto Click\`)
+- **Logic**: Được triển khai tại `src/core/storage-paths.js`. Hệ thống kiểm tra xem IDE mới (`Antigravity IDE`) hoặc thư mục cấu hình của nó có tồn tại hay không để chọn đường dẫn tương ứng làm thư mục lưu trữ canonical. Nếu có biến môi trường `ANTIGRAVITY_AUTO_CLICK_HOME`, biến này sẽ được ưu tiên hàng đầu.
+- **Synchronization**: Cả CLI và Extension đều dùng chung logic này để đảm bảo luôn trỏ về cùng một file `config.json` và `activity-log.json` dù chạy từ môi trường nào.
 
 ## Key Design Decisions
 - **Passive Polling**: The payload uses interval-based polling to detect dialogs, minimizing CPU overhead.

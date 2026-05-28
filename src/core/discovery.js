@@ -15,7 +15,7 @@ const http = require('http');
 function findCDPPort() {
   try {
     const output = execSync(
-      `ps aux | grep -i "/Applications/Antigravity.app/Contents/MacOS/Electron" | grep -v grep | grep -oE '\\-\\-remote-debugging-port=[0-9]+'`,
+      `ps aux | grep -E -i "Antigravity( IDE)?.app/Contents/MacOS/Electron" | grep -v grep`,
       { encoding: 'utf-8', timeout: 5000 }
     ).trim();
 
@@ -36,7 +36,7 @@ function findCDPPort() {
 function findAntigravityPID() {
   try {
     const output = execSync(
-      `ps aux | grep "/Applications/Antigravity.app/Contents/MacOS/Electron" | grep -v grep | awk '{print $2}'`,
+      `ps aux | grep -E "Antigravity( IDE)?.app/Contents/MacOS/Electron" | grep -v grep | awk '{print $2}'`,
       { encoding: 'utf-8', timeout: 5000 }
     ).trim();
     if (output) return parseInt(output, 10);
@@ -52,7 +52,7 @@ function isAntigravityRunning() {
   try {
     // pgrep doesn't work reliably for long macOS app paths, use ps aux instead
     const output = execSync(
-      `ps aux | grep "Antigravity.app/Contents/MacOS/Electron" | grep -v grep`,
+      `ps aux | grep -E "Antigravity( IDE)?.app/Contents/MacOS/Electron" | grep -v grep`,
       { encoding: 'utf-8', timeout: 5000, stdio: ['pipe', 'pipe', 'pipe'] }
     ).trim();
     return output.length > 0;
@@ -101,7 +101,7 @@ function filterPageTargets(targets) {
     t.type === 'page' &&
     t.webSocketDebuggerUrl &&
     // Chỉ lấy workbench pages, bỏ qua webview iframes
-    (t.url?.includes('workbench') || t.title === 'Launchpad' || t.title === 'Antigravity')
+    (t.url?.includes('workbench') || t.title === 'Launchpad' || t.title === 'Antigravity' || t.title === 'Antigravity IDE')
   );
 }
 

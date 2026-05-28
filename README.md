@@ -46,7 +46,7 @@ antigravity-auto-click/
 **Bước 1: Bật chế độ Debug cho IDE**
 Chạy lệnh sau để IDE luôn mở với port debug:
 ```bash
-echo 'alias antigravity="open -a Antigravity --args --remote-debugging-port=31905"' >> ~/.zshrc && source ~/.zshrc
+echo 'alias antigravity="open -a \"Antigravity IDE\" --args --remote-debugging-port=31905"' >> ~/.zshrc && source ~/.zshrc
 ```
 
 **Bước 2: Cài đặt Extension**
@@ -63,10 +63,12 @@ echo 'alias antigravity="open -a Antigravity --args --remote-debugging-port=3190
 ### Tách biệt Mã nguồn & Dữ liệu (Data Decoupling)
 Để đảm bảo extension chạy ổn định khi đóng gói dưới dạng VSIX (thư mục cài đặt thường là read-only), chúng tôi đã tách biệt hoàn toàn dữ liệu:
 - **Source Code**: Nằm trong thư mục cài đặt extension (không thể ghi).
-- **User Data (Config/Logs)**: Được lưu trữ tại một thư mục dùng chung ngoài project, không phụ thuộc workspace hay chế độ Release/Dev của extension.
-    - macOS: `~/Library/Application\ Support/Antigravity/Auto\ Click`
+- **User Data (Config/Logs)**: Được lưu trữ tại một thư mục dùng chung ngoài project, không phụ thuộc workspace hay chế độ Release/Dev của extension. Hệ thống sẽ tự động phát hiện phiên bản IDE để lựa chọn đường dẫn phù hợp (ưu tiên phiên bản IDE mới):
+    - macOS: `~/Library/Application Support/Antigravity IDE/Auto Click` (hoặc fallback `~/Library/Application Support/Antigravity/Auto Click` cho bản cũ).
+    - Windows: `%APPDATA%\Antigravity IDE\Auto Click` (hoặc fallback `%APPDATA%\Antigravity\Auto Click` cho bản cũ).
     - Cấu trúc: `config.json`, `logs/activity-log.json`, `logs/daemon.log`
 - **Migration**: Khi khởi chạy, hệ thống sẽ tự động lấy dữ liệu cũ từ project legacy hoặc VS Code `globalStorage` cũ sang thư mục canonical này.
+- **Tự động nhận diện IDE**: Hệ thống tự động kiểm tra xem ứng dụng đang chạy là `Antigravity IDE` hay `Antigravity` để thực hiện các thao tác đóng/mở và cấu hình cổng gỡ lỗi phù hợp.
 
 ### CLI Engine
 Daemon (`src/core/auto-retry.js`) hỗ trợ tham số `--config` và `--logs`. Nếu không truyền tham số, cả CLI và Extension đều tự resolve về cùng một storage canonical ở trên.
