@@ -1,7 +1,7 @@
 {
   "name": "antigravity-auto-click",
-  "version": "1.0.2",
-  "description": "Auto-click Retry and Accept buttons in Antigravity (Auto-Retry & Auto-Accept)",
+  "version": "1.0.3",
+  "description": "Antigravity IDE 2 Auto Retry and Accept buttons in Antigravity (Auto-Retry & Auto-Accept)",
   "main": "src/extension/extension.js",
   "publisher": "songoku14",
   "license": "MIT",

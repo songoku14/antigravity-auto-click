@@ -6,6 +6,10 @@ Automation tool suite for click actions in Antigravity IDE: Auto-Retry on errors
 
 Starting from the latest version, the system has migrated to an **Extension-First** model, allowing you to orchestrate all activities directly inside the IDE via an intuitive **Control Center**.
 
+<p align="center">
+  <img src="assets/control-center.png" alt="Control Center Dashboard" width="360" />
+</p>
+
 ---
 
 ## 🛠️ Quick Start & Installation
